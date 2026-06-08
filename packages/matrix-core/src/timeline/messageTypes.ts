@@ -9,6 +9,7 @@ export type MatrixMessage = {
   avatarUrl?: string;
   own: boolean;
   edited: boolean;
+  forwardedFrom?: string;
   replyTo?: MatrixMessageReference;
 };
 
@@ -17,4 +18,11 @@ export type MatrixMessageReference = {
   sender?: string;
   author?: string;
   text?: string;
+};
+
+export type MatrixForwardData = {
+  content: Record<string, unknown>;
+  author: string;
+  sender: string;
+  preview: string;
 };

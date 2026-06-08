@@ -1,15 +1,14 @@
 import { useEffect, useRef } from "react";
-import { Pencil, Reply } from "lucide-react";
+import { Forward, MoreHorizontal } from "lucide-react";
 import type { MatrixMessage } from "@matrix-platform/matrix-core";
 import "./timeline.css";
 
 type Props = {
   messages: MatrixMessage[];
-  onEditMessage: (message: MatrixMessage) => void;
-  onReplyMessage: (message: MatrixMessage) => void;
+  onOpenMessageMenu: (message: MatrixMessage, x: number, y: number) => void;
 };
 
-export function Timeline({ messages, onEditMessage, onReplyMessage }: Props) {
+export function Timeline({ messages, onOpenMessageMenu }: Props) {
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -39,6 +38,10 @@ export function Timeline({ messages, onEditMessage, onReplyMessage }: Props) {
             {startsNewDay && <DayDivider timestamp={message.timestamp} />}
             <article
               className={`message${message.own ? " message--own" : ""}${compact ? " message--compact" : ""}${groupEnd ? " message--group-end" : ""}`}
+              onContextMenu={(event) => {
+                event.preventDefault();
+                onOpenMessageMenu(message, event.clientX, event.clientY);
+              }}
             >
               <span
                 className="message__avatar"
@@ -56,6 +59,14 @@ export function Timeline({ messages, onEditMessage, onReplyMessage }: Props) {
                   </header>
                 )}
                 <div className="message__text">
+                  {message.forwardedFrom && (
+                    <div className="message__forwarded">
+                      <Forward size={13} />
+                      <span>
+                        Переслано от <strong>{message.forwardedFrom}</strong>
+                      </span>
+                    </div>
+                  )}
                   {message.replyTo && (
                     <button
                       type="button"
@@ -71,14 +82,16 @@ export function Timeline({ messages, onEditMessage, onReplyMessage }: Props) {
                   {compact && <time className="message__inline-time">{message.time}</time>}
                 </div>
                 <div className="message__actions" aria-label="Действия с сообщением">
-                  <button type="button" onClick={() => onReplyMessage(message)} title="Ответить">
-                    <Reply size={15} />
+                  <button
+                    type="button"
+                    onClick={(event) => {
+                      const rect = event.currentTarget.getBoundingClientRect();
+                      onOpenMessageMenu(message, rect.left, rect.bottom + 6);
+                    }}
+                    title="Действия"
+                  >
+                    <MoreHorizontal size={16} />
                   </button>
-                  {message.own && (
-                    <button type="button" onClick={() => onEditMessage(message)} title="Редактировать">
-                      <Pencil size={14} />
-                    </button>
-                  )}
                 </div>
               </div>
             </article>

@@ -1,0 +1,125 @@
+.forward-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 45;
+  display: grid;
+  place-items: center;
+  background: rgb(0 0 0 / 30%);
+  backdrop-filter: blur(3px);
+}
+
+.forward-modal {
+  width: 380px;
+  max-width: calc(100vw - 32px);
+  max-height: min(620px, calc(100vh - 64px));
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-bg);
+  box-shadow: var(--shadow-lg);
+  overflow: hidden;
+}
+
+.forward-modal__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-4) var(--space-3);
+}
+
+.forward-modal__head strong {
+  font-size: var(--text-base);
+}
+
+.forward-modal__head button {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: var(--radius-pill);
+  color: var(--color-text-muted);
+  background: transparent;
+  cursor: pointer;
+}
+
+.forward-modal__head button:hover {
+  background: var(--color-bg-subtle);
+}
+
+.forward-modal__search {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0 var(--space-4) var(--space-2);
+  border-radius: var(--radius-md);
+  padding: 8px var(--space-3);
+  color: var(--color-text-faint);
+  background: var(--color-bg-subtle);
+}
+
+.forward-modal__search input {
+  min-width: 0;
+  border: 0;
+  color: var(--color-text);
+  background: transparent;
+  font: inherit;
+  outline: none;
+}
+
+.forward-modal__list {
+  min-height: 0;
+  overflow: auto;
+  padding: 4px var(--space-2) var(--space-3);
+}
+
+.forward-room {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-3);
+  border: 0;
+  border-radius: var(--radius-md);
+  padding: 8px var(--space-2);
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.forward-room:hover {
+  background: var(--color-bg-subtle);
+}
+
+.forward-room__avatar {
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius-md);
+  color: var(--color-text-onAccent);
+  font-weight: 800;
+}
+
+.forward-room strong,
+.forward-room small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.forward-room small {
+  margin-top: 2px;
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+}
+
+.forward-modal__empty {
+  padding: var(--space-5);
+  color: var(--color-text-muted);
+  text-align: center;
+}

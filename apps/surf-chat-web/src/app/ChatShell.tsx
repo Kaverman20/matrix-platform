@@ -1,8 +1,18 @@
 import { LogOut } from "lucide-react";
 import { useMemo, useState } from "react";
-import type { MatrixMessage, MatrixMessageReference } from "@matrix-platform/matrix-core";
+import {
+  buildForwardData,
+  type MatrixForwardData,
+  type MatrixMessage,
+  type MatrixMessageReference,
+} from "@matrix-platform/matrix-core";
 import { useMatrix } from "./providers/MatrixContext";
 import { Composer } from "../features/composer/Composer";
+import { ForwardModal } from "../features/forward/ForwardModal";
+import {
+  MessageContextMenu,
+  type MessageAction,
+} from "../features/message-actions/MessageContextMenu";
 import { RoomList } from "../features/room-list/RoomList";
 import { useRoomGroups } from "../features/room-list/useRoomGroups";
 import { Timeline } from "../features/timeline/Timeline";
@@ -15,15 +25,26 @@ export function ChatShell() {
   const [activeRoomId, setActiveRoomId] = useState<string | null>(null);
   const [replyTo, setReplyTo] = useState<MatrixMessageReference | null>(null);
   const [editingMessage, setEditingMessage] = useState<MatrixMessageReference | null>(null);
+  const [pendingForward, setPendingForward] = useState<MatrixForwardData[] | null>(null);
+  const [forwarding, setForwarding] = useState<MatrixForwardData[] | null>(null);
+  const [messageMenu, setMessageMenu] = useState<{
+    message: MatrixMessage;
+    x: number;
+    y: number;
+  } | null>(null);
 
-  const activeRoom = useMemo(() => {
-    const allRooms = [
+  const allRooms = useMemo(
+    () => [
       ...roomGroups.favourites,
       ...roomGroups.channels,
       ...roomGroups.dms,
-    ];
+    ],
+    [roomGroups.channels, roomGroups.dms, roomGroups.favourites],
+  );
+
+  const activeRoom = useMemo(() => {
     return allRooms.find((room) => room.id === activeRoomId) ?? null;
-  }, [activeRoomId, roomGroups.channels, roomGroups.dms, roomGroups.favourites]);
+  }, [activeRoomId, allRooms]);
   const messages = useTimelineMessages(client, activeRoomId);
 
   const messageReference = (message: MatrixMessage): MatrixMessageReference => ({
@@ -35,17 +56,20 @@ export function ChatShell() {
 
   const startReply = (message: MatrixMessage) => {
     setEditingMessage(null);
+    setPendingForward(null);
     setReplyTo(messageReference(message));
   };
 
   const startEdit = (message: MatrixMessage) => {
     setReplyTo(null);
+    setPendingForward(null);
     setEditingMessage(messageReference(message));
   };
 
   const clearComposerMode = () => {
     setReplyTo(null);
     setEditingMessage(null);
+    setPendingForward(null);
   };
 
   const selectRoom = (roomId: string) => {
@@ -55,8 +79,41 @@ export function ChatShell() {
 
   const composerKey = [
     activeRoom?.id ?? "none",
-    editingMessage ? `edit:${editingMessage.id}` : replyTo ? `reply:${replyTo.id}` : "plain",
+    editingMessage
+      ? `edit:${editingMessage.id}`
+      : pendingForward
+        ? `forward:${pendingForward.map((item) => item.sender + item.preview).join("|")}`
+        : replyTo
+          ? `reply:${replyTo.id}`
+          : "plain",
   ].join(":");
+
+  const openMessageMenu = (message: MatrixMessage, x: number, y: number) => {
+    setMessageMenu({ message, x, y });
+  };
+
+  const handleMessageAction = (action: MessageAction, message: MatrixMessage) => {
+    if (!client || !activeRoomId) return;
+
+    if (action === "reply") startReply(message);
+    if (action === "edit") startEdit(message);
+    if (action === "copy" && message.text) void navigator.clipboard.writeText(message.text);
+    if (action === "forward") {
+      setForwarding([buildForwardData(client, activeRoomId, message)]);
+    }
+    if (action === "delete" && window.confirm("Удалить сообщение?")) {
+      void client.redactEvent(activeRoomId, message.id);
+    }
+  };
+
+  const selectForwardRoom = (roomId: string) => {
+    if (!forwarding?.length) return;
+    setActiveRoomId(roomId);
+    setPendingForward(forwarding);
+    setReplyTo(null);
+    setEditingMessage(null);
+    setForwarding(null);
+  };
 
   return (
     <div className="chat-shell">
@@ -106,15 +163,16 @@ export function ChatShell() {
             </header>
             <Timeline
               messages={messages}
-              onEditMessage={startEdit}
-              onReplyMessage={startReply}
+              onOpenMessageMenu={openMessageMenu}
             />
             <Composer
               key={composerKey}
               roomId={activeRoom.id}
               editingMessage={editingMessage}
+              pendingForward={pendingForward}
               replyTo={replyTo}
               onCancelEdit={() => setEditingMessage(null)}
+              onCancelForward={() => setPendingForward(null)}
               onCancelReply={() => setReplyTo(null)}
               onSent={clearComposerMode}
             />
@@ -126,6 +184,23 @@ export function ChatShell() {
           </section>
         )}
       </main>
+      {messageMenu && (
+        <MessageContextMenu
+          message={messageMenu.message}
+          x={messageMenu.x}
+          y={messageMenu.y}
+          onAction={handleMessageAction}
+          onClose={() => setMessageMenu(null)}
+        />
+      )}
+      {forwarding && (
+        <ForwardModal
+          rooms={allRooms}
+          title={forwarding.length > 1 ? `Переслать (${forwarding.length}) в...` : "Переслать в..."}
+          onClose={() => setForwarding(null)}
+          onSelectRoom={selectForwardRoom}
+        />
+      )}
     </div>
   );
 }

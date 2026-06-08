@@ -1,6 +1,7 @@
 import type { MatrixClient, MatrixEvent, Room } from "matrix-js-sdk";
 import { colorForId } from "../rooms/colors";
 import type { MatrixMessage, MatrixMessageReference } from "./messageTypes";
+import { FORWARD_KEY } from "./sendMessage";
 
 export function buildTimelineMessages(
   client: MatrixClient,
@@ -43,6 +44,7 @@ function buildMessagesFromEvents(
         avatarUrl: getMemberAvatarUrl(client, member),
         own: sender === me,
         edited: text.edited,
+        forwardedFrom: getForwardedFrom(event),
         replyTo: getReplyReference(room, event, eventById),
       };
     });
@@ -70,6 +72,13 @@ function getEffectiveText(event: MatrixEvent): { value: string; edited: boolean 
 
   const body = event.getContent().body;
   return { value: typeof body === "string" ? body : "", edited: false };
+}
+
+function getForwardedFrom(event: MatrixEvent): string | undefined {
+  const forward = event.getContent()[FORWARD_KEY] as
+    | { author?: unknown }
+    | undefined;
+  return typeof forward?.author === "string" ? forward.author : undefined;
 }
 
 function getReplyReference(

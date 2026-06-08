@@ -1,5 +1,11 @@
 import { EventType, MsgType, RelationType, type MatrixClient } from "matrix-js-sdk";
-import type { MatrixMessageReference } from "./messageTypes";
+import type {
+  MatrixForwardData,
+  MatrixMessage,
+  MatrixMessageReference,
+} from "./messageTypes";
+
+export const FORWARD_KEY = "ru.surfchat.forwarded";
 
 export async function sendTextMessage(
   client: MatrixClient,
@@ -52,4 +58,46 @@ export async function sendEditMessage(
       event_id: eventId,
     },
   });
+}
+
+export function buildForwardData(
+  client: MatrixClient,
+  roomId: string,
+  message: MatrixMessage,
+): MatrixForwardData {
+  const sourceEvent = client.getRoom(roomId)?.findEventById(message.id);
+  const sourceContent: unknown = sourceEvent?.getContent();
+  const content: Record<string, unknown> = isRecord(sourceContent)
+    ? { ...sourceContent }
+    : { msgtype: MsgType.Text, body: message.text };
+
+  delete content["m.relates_to"];
+  delete content["m.new_content"];
+
+  return {
+    content,
+    author: message.author,
+    sender: message.sender,
+    preview: message.text || "Сообщение",
+  };
+}
+
+export async function sendForwardedMessage(
+  client: MatrixClient,
+  roomId: string,
+  data: MatrixForwardData,
+): Promise<void> {
+  const content = {
+    ...data.content,
+    [FORWARD_KEY]: {
+      author: data.author,
+      sender: data.sender,
+    },
+  };
+
+  await client.sendEvent(roomId, EventType.RoomMessage, content as never);
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
