@@ -1,5 +1,6 @@
 import { LogOut } from "lucide-react";
 import { useMemo, useState } from "react";
+import type { MatrixMessage, MatrixMessageReference } from "@matrix-platform/matrix-core";
 import { useMatrix } from "./providers/MatrixContext";
 import { Composer } from "../features/composer/Composer";
 import { RoomList } from "../features/room-list/RoomList";
@@ -12,6 +13,8 @@ export function ChatShell() {
   const { client, logout, userId } = useMatrix();
   const roomGroups = useRoomGroups(client);
   const [activeRoomId, setActiveRoomId] = useState<string | null>(null);
+  const [replyTo, setReplyTo] = useState<MatrixMessageReference | null>(null);
+  const [editingMessage, setEditingMessage] = useState<MatrixMessageReference | null>(null);
 
   const activeRoom = useMemo(() => {
     const allRooms = [
@@ -22,6 +25,38 @@ export function ChatShell() {
     return allRooms.find((room) => room.id === activeRoomId) ?? null;
   }, [activeRoomId, roomGroups.channels, roomGroups.dms, roomGroups.favourites]);
   const messages = useTimelineMessages(client, activeRoomId);
+
+  const messageReference = (message: MatrixMessage): MatrixMessageReference => ({
+    id: message.id,
+    sender: message.sender,
+    author: message.own ? "Вы" : message.author,
+    text: message.text,
+  });
+
+  const startReply = (message: MatrixMessage) => {
+    setEditingMessage(null);
+    setReplyTo(messageReference(message));
+  };
+
+  const startEdit = (message: MatrixMessage) => {
+    setReplyTo(null);
+    setEditingMessage(messageReference(message));
+  };
+
+  const clearComposerMode = () => {
+    setReplyTo(null);
+    setEditingMessage(null);
+  };
+
+  const selectRoom = (roomId: string) => {
+    setActiveRoomId(roomId);
+    clearComposerMode();
+  };
+
+  const composerKey = [
+    activeRoom?.id ?? "none",
+    editingMessage ? `edit:${editingMessage.id}` : replyTo ? `reply:${replyTo.id}` : "plain",
+  ].join(":");
 
   return (
     <div className="chat-shell">
@@ -55,7 +90,7 @@ export function ChatShell() {
         channels={roomGroups.channels}
         dms={roomGroups.dms}
         activeRoomId={activeRoomId}
-        onSelectRoom={setActiveRoomId}
+        onSelectRoom={selectRoom}
       />
 
       <main className="chat-main">
@@ -69,8 +104,20 @@ export function ChatShell() {
                 </span>
               </div>
             </header>
-            <Timeline messages={messages} />
-            <Composer key={activeRoom.id} roomId={activeRoom.id} />
+            <Timeline
+              messages={messages}
+              onEditMessage={startEdit}
+              onReplyMessage={startReply}
+            />
+            <Composer
+              key={composerKey}
+              roomId={activeRoom.id}
+              editingMessage={editingMessage}
+              replyTo={replyTo}
+              onCancelEdit={() => setEditingMessage(null)}
+              onCancelReply={() => setReplyTo(null)}
+              onSent={clearComposerMode}
+            />
           </>
         ) : (
           <section className="chat-main__placeholder">

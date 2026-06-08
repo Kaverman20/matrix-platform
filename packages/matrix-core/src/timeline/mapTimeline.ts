@@ -1,6 +1,6 @@
 import type { MatrixClient, MatrixEvent, Room } from "matrix-js-sdk";
 import { colorForId } from "../rooms/colors";
-import type { MatrixMessage } from "./messageTypes";
+import type { MatrixMessage, MatrixMessageReference } from "./messageTypes";
 
 export function buildTimelineMessages(
   client: MatrixClient,
@@ -18,6 +18,11 @@ function buildMessagesFromEvents(
   events: MatrixEvent[],
 ): MatrixMessage[] {
   const me = client.getUserId();
+  const eventById = new Map(
+    events
+      .map((event) => [event.getId(), event] as const)
+      .filter((entry): entry is [string, MatrixEvent] => Boolean(entry[0])),
+  );
 
   return events
     .filter((event) => isRealMessageEvent(event))
@@ -38,6 +43,7 @@ function buildMessagesFromEvents(
         avatarUrl: getMemberAvatarUrl(client, member),
         own: sender === me,
         edited: text.edited,
+        replyTo: getReplyReference(room, event, eventById),
       };
     });
 }
@@ -66,6 +72,31 @@ function getEffectiveText(event: MatrixEvent): { value: string; edited: boolean 
   return { value: typeof body === "string" ? body : "", edited: false };
 }
 
+function getReplyReference(
+  room: Room,
+  event: MatrixEvent,
+  eventById: Map<string, MatrixEvent>,
+): MatrixMessageReference | undefined {
+  const relation = event.getContent()["m.relates_to"] as
+    | { "m.in_reply_to"?: { event_id?: unknown } }
+    | undefined;
+  const eventId = relation?.["m.in_reply_to"]?.event_id;
+  if (typeof eventId !== "string" || !eventId) return undefined;
+
+  const repliedEvent = eventById.get(eventId);
+  if (!repliedEvent) return { id: eventId };
+
+  const sender = repliedEvent.getSender() ?? undefined;
+  const member = sender ? room.getMember(sender) : undefined;
+
+  return {
+    id: eventId,
+    sender,
+    author: member?.name || sender,
+    text: getEffectiveText(repliedEvent).value,
+  };
+}
+
 function getMemberAvatarUrl(
   client: MatrixClient,
   member: ReturnType<Room["getMember"]>,
@@ -81,4 +112,3 @@ function formatTime(timestamp: number): string {
     minute: "2-digit",
   });
 }
-

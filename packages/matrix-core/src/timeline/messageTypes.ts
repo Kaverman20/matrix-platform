@@ -9,5 +9,12 @@ export type MatrixMessage = {
   avatarUrl?: string;
   own: boolean;
   edited: boolean;
+  replyTo?: MatrixMessageReference;
 };
 
+export type MatrixMessageReference = {
+  id: string;
+  sender?: string;
+  author?: string;
+  text?: string;
+};

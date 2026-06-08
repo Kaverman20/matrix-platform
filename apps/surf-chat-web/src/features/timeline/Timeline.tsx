@@ -1,12 +1,15 @@
 import { useEffect, useRef } from "react";
+import { Pencil, Reply } from "lucide-react";
 import type { MatrixMessage } from "@matrix-platform/matrix-core";
 import "./timeline.css";
 
 type Props = {
   messages: MatrixMessage[];
+  onEditMessage: (message: MatrixMessage) => void;
+  onReplyMessage: (message: MatrixMessage) => void;
 };
 
-export function Timeline({ messages }: Props) {
+export function Timeline({ messages, onEditMessage, onReplyMessage }: Props) {
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -53,9 +56,29 @@ export function Timeline({ messages }: Props) {
                   </header>
                 )}
                 <div className="message__text">
+                  {message.replyTo && (
+                    <button
+                      type="button"
+                      className="message__reply-preview"
+                      title="Сообщение, на которое отвечают"
+                    >
+                      <strong>{message.replyTo.author ?? "Сообщение"}</strong>
+                      <span>{message.replyTo.text ?? "Предыдущее сообщение"}</span>
+                    </button>
+                  )}
                   {message.text || <span className="message__empty">Пустое сообщение</span>}
                   {message.edited && <span className="message__edited">изменено</span>}
                   {compact && <time className="message__inline-time">{message.time}</time>}
+                </div>
+                <div className="message__actions" aria-label="Действия с сообщением">
+                  <button type="button" onClick={() => onReplyMessage(message)} title="Ответить">
+                    <Reply size={15} />
+                  </button>
+                  {message.own && (
+                    <button type="button" onClick={() => onEditMessage(message)} title="Редактировать">
+                      <Pencil size={14} />
+                    </button>
+                  )}
                 </div>
               </div>
             </article>

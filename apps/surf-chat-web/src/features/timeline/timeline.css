@@ -88,6 +88,7 @@
 .message__body {
   min-width: 0;
   max-width: 680px;
+  position: relative;
 }
 
 .message__head {
@@ -112,6 +113,77 @@
   line-height: 1.45;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+}
+
+.message__reply-preview {
+  width: 100%;
+  display: grid;
+  gap: 2px;
+  margin: 0 0 6px;
+  border: 0;
+  border-left: 3px solid var(--color-accent);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  padding: 5px var(--space-2);
+  color: var(--color-text-muted);
+  background: var(--color-bg-subtle);
+  text-align: left;
+  cursor: default;
+}
+
+.message__reply-preview strong {
+  color: var(--color-text);
+  font-size: var(--text-xs);
+}
+
+.message__reply-preview span {
+  overflow: hidden;
+  font-size: var(--text-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.message__actions {
+  position: absolute;
+  top: -13px;
+  right: 0;
+  display: flex;
+  gap: 2px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-pill);
+  padding: 2px;
+  background: var(--color-bg);
+  box-shadow: var(--shadow-sm);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms ease;
+}
+
+.message--own .message__actions {
+  right: auto;
+  left: 0;
+}
+
+.message:hover .message__actions,
+.message:focus-within .message__actions {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.message__actions button {
+  width: 26px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: var(--radius-pill);
+  color: var(--color-text-muted);
+  background: transparent;
+  cursor: pointer;
+}
+
+.message__actions button:hover {
+  color: var(--color-text);
+  background: var(--color-bg-subtle);
 }
 
 .message__empty {
