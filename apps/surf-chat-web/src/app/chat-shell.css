@@ -1,0 +1,110 @@
+.chat-shell {
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  overflow: hidden;
+  background: var(--color-bg);
+}
+
+.space-rail {
+  width: var(--rail-width);
+  min-width: var(--rail-width);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) 0;
+  background: var(--color-rail-bg);
+}
+
+.space-rail__home,
+.space-rail__item,
+.space-rail__logout {
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: var(--radius-md);
+  color: var(--color-text-onAccent);
+  cursor: pointer;
+}
+
+.space-rail__home {
+  background: var(--color-rail-item);
+  font-weight: 800;
+}
+
+.space-rail__home.is-active {
+  background: var(--color-bg-subtle);
+  color: var(--color-text-strong);
+}
+
+.space-rail__spaces {
+  min-height: 0;
+  display: grid;
+  gap: var(--space-2);
+  overflow: auto;
+}
+
+.space-rail__item {
+  font-size: var(--text-sm);
+  font-weight: 800;
+}
+
+.space-rail__logout {
+  margin-top: auto;
+  color: var(--color-rail-text);
+  background: transparent;
+}
+
+.space-rail__logout:hover {
+  background: var(--color-rail-item-hover);
+}
+
+.chat-main {
+  min-width: 0;
+  flex: 1;
+  display: grid;
+  grid-template-rows: var(--header-height) minmax(0, 1fr);
+  background: var(--color-bg);
+}
+
+.chat-main__header {
+  display: flex;
+  align-items: center;
+  padding: 0 var(--space-5);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.chat-main__header h1 {
+  margin: 0;
+  color: var(--color-text-strong);
+  font-size: var(--text-lg);
+}
+
+.chat-main__header span {
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.chat-main__placeholder {
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: var(--space-2);
+  padding: var(--space-8);
+  text-align: center;
+}
+
+.chat-main__placeholder h1,
+.chat-main__placeholder h2 {
+  margin: 0;
+  color: var(--color-text-strong);
+}
+
+.chat-main__placeholder p {
+  margin: 0;
+  color: var(--color-text-muted);
+}
+
