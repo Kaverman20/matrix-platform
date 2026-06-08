@@ -207,13 +207,16 @@ export function ChatShell() {
                 </button>
               </div>
             </header>
-            <Timeline
-              messages={messages}
-              onOpenImage={setLightbox}
-              onOpenMessageMenu={openMessageMenu}
-              onToggleReaction={toggleReaction}
-              room={activeRoom}
-            />
+            <AnimatePresence mode="wait">
+              <Timeline
+                key={activeRoom.id}
+                messages={messages}
+                onOpenImage={setLightbox}
+                onOpenMessageMenu={openMessageMenu}
+                onToggleReaction={toggleReaction}
+                room={activeRoom}
+              />
+            </AnimatePresence>
             <Composer
               key={composerKey}
               roomId={activeRoom.id}
@@ -273,32 +276,54 @@ export function ChatShell() {
           </motion.aside>
         )}
       </AnimatePresence>
-      {messageMenu && (
-        <MessageContextMenu
-          message={messageMenu.message}
-          x={messageMenu.x}
-          y={messageMenu.y}
-          onAction={handleMessageAction}
-          onReact={toggleReaction}
-          onClose={() => setMessageMenu(null)}
-        />
-      )}
-      {forwarding && (
-        <ForwardModal
-          rooms={allRooms}
-          title={forwarding.length > 1 ? `Переслать (${forwarding.length}) в...` : "Переслать в..."}
-          onClose={() => setForwarding(null)}
-          onSelectRoom={selectForwardRoom}
-        />
-      )}
-      {lightbox && (
-        <div className="lightbox" onMouseDown={() => setLightbox(null)}>
-          <img className="lightbox__image" src={lightbox} alt="" />
-          <button type="button" className="lightbox__close" title="Закрыть">
-            <X size={20} />
-          </button>
-        </div>
-      )}
+      <AnimatePresence>
+        {messageMenu && (
+          <MessageContextMenu
+            message={messageMenu.message}
+            x={messageMenu.x}
+            y={messageMenu.y}
+            onAction={handleMessageAction}
+            onReact={toggleReaction}
+            onClose={() => setMessageMenu(null)}
+          />
+        )}
+      </AnimatePresence>
+      <AnimatePresence>
+        {forwarding && (
+          <ForwardModal
+            rooms={allRooms}
+            title={forwarding.length > 1 ? `Переслать (${forwarding.length}) в...` : "Переслать в..."}
+            onClose={() => setForwarding(null)}
+            onSelectRoom={selectForwardRoom}
+          />
+        )}
+      </AnimatePresence>
+      <AnimatePresence>
+        {lightbox && (
+          <motion.div
+            className="lightbox"
+            onMouseDown={() => setLightbox(null)}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={transition.fast}
+          >
+            <motion.img
+              className="lightbox__image"
+              src={lightbox}
+              alt=""
+              initial={{ opacity: 0, scale: 0.96, y: 8 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.96, y: 8 }}
+              transition={transition.fast}
+              onMouseDown={(event) => event.stopPropagation()}
+            />
+            <button type="button" className="lightbox__close" title="Закрыть">
+              <X size={20} />
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

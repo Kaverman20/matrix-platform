@@ -127,31 +127,34 @@ export function Composer({
 
   return (
     <div className="composer-wrap">
-      {context && (
-        <motion.div
-          className="composer__context"
-          initial={{ height: 0, opacity: 0 }}
-          animate={{ height: "auto", opacity: 1 }}
-          exit={{ height: 0, opacity: 0 }}
-          transition={transition.fast}
-        >
-          <span className="composer__context-icon">
-            {mode === "edit" ? <Pencil size={15} /> : mode === "forward" ? <Forward size={16} /> : <Reply size={16} />}
-          </span>
-          <div>
-            <strong>{contextTitle(mode, pendingForward, contextAuthor)}</strong>
-            <p>{contextText(mode, pendingForward, contextTextValue)}</p>
-          </div>
-          <button
-            type="button"
-            className="composer__cancel"
-            title="Отменить"
-            onClick={mode === "edit" ? onCancelEdit : mode === "forward" ? onCancelForward : onCancelReply}
+      <AnimatePresence initial={false}>
+        {context && (
+          <motion.div
+            key={mode}
+            className="composer__context"
+            initial={{ height: 0, opacity: 0, y: 6 }}
+            animate={{ height: "auto", opacity: 1, y: 0 }}
+            exit={{ height: 0, opacity: 0, y: 6 }}
+            transition={transition.fast}
           >
-            <X size={16} />
-          </button>
-        </motion.div>
-      )}
+            <span className="composer__context-icon">
+              {mode === "edit" ? <Pencil size={15} /> : mode === "forward" ? <Forward size={16} /> : <Reply size={16} />}
+            </span>
+            <div>
+              <strong>{contextTitle(mode, pendingForward, contextAuthor)}</strong>
+              <p>{contextText(mode, pendingForward, contextTextValue)}</p>
+            </div>
+            <button
+              type="button"
+              className="composer__cancel"
+              title="Отменить"
+              onClick={mode === "edit" ? onCancelEdit : mode === "forward" ? onCancelForward : onCancelReply}
+            >
+              <X size={16} />
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
       <form
         className="composer"
         onSubmit={(e) => {

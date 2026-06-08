@@ -1,6 +1,8 @@
 import { useMemo, useState } from "react";
+import { motion } from "framer-motion";
 import { Hash, Search, X } from "lucide-react";
 import type { MatrixRoomSummary } from "@matrix-platform/matrix-core";
+import { transition } from "@matrix-platform/ui";
 import "./forward-modal.css";
 
 type Props = {
@@ -19,11 +21,22 @@ export function ForwardModal({ rooms, title, onClose, onSelectRoom }: Props) {
   }, [query, rooms]);
 
   return (
-    <div className="forward-overlay" onMouseDown={onClose}>
-      <section
+    <motion.div
+      className="forward-overlay"
+      onMouseDown={onClose}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={transition.fast}
+    >
+      <motion.section
         className="forward-modal"
         aria-label={title}
         onMouseDown={(event) => event.stopPropagation()}
+        initial={{ opacity: 0, scale: 0.96, y: 18 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.96, y: 18 }}
+        transition={transition.base}
       >
         <header className="forward-modal__head">
           <strong>{title}</strong>
@@ -61,7 +74,7 @@ export function ForwardModal({ rooms, title, onClose, onSelectRoom }: Props) {
             <div className="forward-modal__empty">Ничего не найдено</div>
           )}
         </div>
-      </section>
-    </div>
+      </motion.section>
+    </motion.div>
   );
 }

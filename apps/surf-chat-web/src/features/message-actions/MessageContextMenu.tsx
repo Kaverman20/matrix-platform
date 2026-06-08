@@ -1,6 +1,8 @@
 import { useEffect, useRef } from "react";
+import { motion } from "framer-motion";
 import { Copy, Forward, Pencil, Reply, Trash2 } from "lucide-react";
 import type { MatrixMessage } from "@matrix-platform/matrix-core";
+import { transition } from "@matrix-platform/ui";
 import "./message-context-menu.css";
 
 export type MessageAction = "reply" | "edit" | "copy" | "forward" | "delete";
@@ -46,16 +48,22 @@ export function MessageContextMenu({ message, x, y, onAction, onClose, onReact }
   };
 
   return (
-    <div
+    <motion.div
       ref={ref}
       className="message-menu"
       style={{ left, top }}
       role="menu"
       aria-label="Действия с сообщением"
+      initial={{ opacity: 0, scale: 0.96, y: -4 }}
+      animate={{ opacity: 1, scale: 1, y: 0 }}
+      exit={{ opacity: 0, scale: 0.96, y: -4 }}
+      transition={transition.fast}
+      layout
+      onContextMenu={(event) => event.preventDefault()}
     >
-      <div className="message-menu__quick" aria-label="Быстрые реакции">
+      <motion.div className="message-menu__quick" aria-label="Быстрые реакции" layout>
         {QUICK_REACTIONS.map((key) => (
-          <button
+          <motion.button
             key={key}
             type="button"
             className="message-menu__reaction"
@@ -64,41 +72,45 @@ export function MessageContextMenu({ message, x, y, onAction, onClose, onReact }
               onClose();
             }}
             title={key}
+            whileHover={{ scale: 1.14 }}
+            whileTap={{ scale: 0.9 }}
+            transition={transition.fast}
           >
             {key}
-          </button>
+          </motion.button>
         ))}
-      </div>
-      <button type="button" role="menuitem" onClick={() => runAction("reply")}>
+      </motion.div>
+      <motion.button type="button" role="menuitem" onClick={() => runAction("reply")} whileTap={{ scale: 0.98 }}>
         <Reply size={17} />
         <span>Ответить</span>
-      </button>
+      </motion.button>
       {message.own && (
-        <button type="button" role="menuitem" onClick={() => runAction("edit")}>
+        <motion.button type="button" role="menuitem" onClick={() => runAction("edit")} whileTap={{ scale: 0.98 }}>
           <Pencil size={16} />
           <span>Изменить</span>
-        </button>
+        </motion.button>
       )}
-      <button type="button" role="menuitem" onClick={() => runAction("copy")}>
+      <motion.button type="button" role="menuitem" onClick={() => runAction("copy")} whileTap={{ scale: 0.98 }}>
         <Copy size={16} />
         <span>Копировать текст</span>
-      </button>
-      <button type="button" role="menuitem" onClick={() => runAction("forward")}>
+      </motion.button>
+      <motion.button type="button" role="menuitem" onClick={() => runAction("forward")} whileTap={{ scale: 0.98 }}>
         <Forward size={17} />
         <span>Переслать</span>
-      </button>
+      </motion.button>
       {message.own && (
-        <button
+        <motion.button
           type="button"
           role="menuitem"
           className="message-menu__danger"
           onClick={() => runAction("delete")}
+          whileTap={{ scale: 0.98 }}
         >
           <Trash2 size={16} />
           <span>Удалить</span>
-        </button>
+        </motion.button>
       )}
-    </div>
+    </motion.div>
   );
 }
 
