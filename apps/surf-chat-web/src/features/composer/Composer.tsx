@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from "react";
-import { ArrowUp, Forward, Pencil, Reply, X } from "lucide-react";
+import { ArrowUp, Forward, Paperclip, Pencil, Reply, X } from "lucide-react";
 import {
   sendEditMessage,
   sendForwardedMessage,
+  sendMediaMessage,
   sendReplyMessage,
   sendTextMessage,
   type MatrixForwardData,
@@ -35,6 +36,8 @@ export function Composer({
   const { client } = useMatrix();
   const [draft, setDraft] = useState(editingMessage?.text ?? "");
   const [sending, setSending] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const mode = editingMessage ? "edit" : pendingForward ? "forward" : replyTo ? "reply" : "plain";
   const context = editingMessage ?? replyTo ?? pendingForward?.[0] ?? null;
@@ -89,6 +92,23 @@ export function Composer({
     }
   };
 
+  const sendFiles = async (files: FileList | null) => {
+    if (!client || !files?.length || sending || uploading) return;
+
+    setUploading(true);
+    try {
+      for (const file of Array.from(files)) {
+        await sendMediaMessage(client, roomId, file, await mediaUploadInfo(file));
+      }
+      onSent();
+    } catch (e) {
+      console.error("[send-media]", e);
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
   return (
     <form
       className={`composer${context ? " composer--with-context" : ""}`}
@@ -116,12 +136,28 @@ export function Composer({
           </button>
         </div>
       )}
+      <button
+        type="button"
+        className="composer__attach"
+        disabled={sending || uploading || mode === "edit"}
+        title="Прикрепить файл"
+        onClick={() => fileInputRef.current?.click()}
+      >
+        <Paperclip size={18} />
+      </button>
+      <input
+        ref={fileInputRef}
+        type="file"
+        multiple
+        hidden
+        onChange={(event) => void sendFiles(event.currentTarget.files)}
+      />
       <textarea
         ref={textareaRef}
         value={draft}
         rows={1}
         placeholder={mode === "edit" ? "Изменить сообщение" : "Сообщение"}
-        disabled={sending}
+        disabled={sending || uploading}
         onChange={(e) => setDraft(e.target.value)}
         onKeyDown={(e) => {
           if (e.key === "Enter" && !e.shiftKey) {
@@ -130,7 +166,7 @@ export function Composer({
           }
         }}
       />
-      <button type="submit" disabled={(!draft.trim() && !pendingForward) || sending} title="Отправить">
+      <button type="submit" disabled={(!draft.trim() && !pendingForward) || sending || uploading} title="Отправить">
         <ArrowUp size={18} />
       </button>
     </form>
@@ -163,4 +199,28 @@ function contextText(
 
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
+async function mediaUploadInfo(file: File): Promise<{
+  height?: number;
+  width?: number;
+}> {
+  if (!file.type.startsWith("image/")) return {};
+
+  const objectUrl = URL.createObjectURL(file);
+  try {
+    const image = await loadImage(objectUrl);
+    return { height: image.naturalHeight, width: image.naturalWidth };
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+  }
+}
+
+function loadImage(src: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = reject;
+    image.src = src;
+  });
 }

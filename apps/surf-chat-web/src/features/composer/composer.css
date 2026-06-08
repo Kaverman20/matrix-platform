@@ -1,7 +1,7 @@
 .composer {
   min-height: 68px;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 42px;
+  grid-template-columns: 42px minmax(0, 1fr) 42px;
   align-items: end;
   gap: var(--space-3);
   padding: 10px var(--space-5) 12px;
@@ -82,6 +82,15 @@
 .composer textarea:focus {
   border-color: var(--color-accent);
   box-shadow: 0 0 0 3px var(--color-accent-subtle);
+}
+
+.composer__attach {
+  color: var(--color-text-muted) !important;
+  background: var(--color-bg-subtle) !important;
+}
+
+.composer__attach:hover {
+  color: var(--color-text) !important;
 }
 
 .composer button {

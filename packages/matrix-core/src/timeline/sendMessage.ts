@@ -7,6 +7,11 @@ import type {
 
 export const FORWARD_KEY = "ru.surfchat.forwarded";
 
+export type MediaUploadInfo = {
+  height?: number;
+  width?: number;
+};
+
 export async function sendTextMessage(
   client: MatrixClient,
   roomId: string,
@@ -98,6 +103,32 @@ export async function sendForwardedMessage(
   await client.sendEvent(roomId, EventType.RoomMessage, content as never);
 }
 
+export async function sendMediaMessage(
+  client: MatrixClient,
+  roomId: string,
+  file: File,
+  uploadInfo: MediaUploadInfo = {},
+): Promise<void> {
+  const upload = await client.uploadContent(file, {
+    name: file.name,
+    type: file.type || "application/octet-stream",
+  });
+  const contentUri = upload.content_uri;
+  const msgtype = msgTypeForFile(file);
+
+  await client.sendEvent(roomId, EventType.RoomMessage, {
+    msgtype,
+    body: file.name || "Файл",
+    url: contentUri,
+    info: {
+      mimetype: file.type || "application/octet-stream",
+      size: file.size,
+      ...(uploadInfo.width ? { w: uploadInfo.width } : {}),
+      ...(uploadInfo.height ? { h: uploadInfo.height } : {}),
+    },
+  } as never);
+}
+
 export async function sendReaction(
   client: MatrixClient,
   roomId: string,
@@ -123,4 +154,13 @@ export async function removeReaction(
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function msgTypeForFile(
+  file: File,
+): MsgType.Image | MsgType.Video | MsgType.Audio | MsgType.File {
+  if (file.type.startsWith("image/")) return MsgType.Image;
+  if (file.type.startsWith("video/")) return MsgType.Video;
+  if (file.type.startsWith("audio/")) return MsgType.Audio;
+  return MsgType.File;
 }
