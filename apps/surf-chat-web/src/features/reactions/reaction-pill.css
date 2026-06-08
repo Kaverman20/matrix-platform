@@ -1,0 +1,31 @@
+.reaction-pill {
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-pill);
+  padding: 0 9px;
+  color: var(--color-text-muted);
+  background: var(--color-bg);
+  font: inherit;
+  font-size: var(--text-sm);
+  cursor: pointer;
+  box-shadow: var(--shadow-sm);
+}
+
+.reaction-pill:hover {
+  color: var(--color-text);
+  background: var(--color-bg-subtle);
+}
+
+.reaction-pill.is-mine {
+  border-color: color-mix(in srgb, var(--color-accent) 42%, var(--color-border));
+  color: var(--color-accent);
+  background: var(--color-accent-subtle);
+}
+
+.reaction-pill strong {
+  font-size: var(--text-xs);
+  font-weight: 800;
+}

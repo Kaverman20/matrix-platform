@@ -1,14 +1,16 @@
 import { useEffect, useRef } from "react";
 import { Forward } from "lucide-react";
 import type { MatrixMessage } from "@matrix-platform/matrix-core";
+import { ReactionPill } from "../reactions/ReactionPill";
 import "./timeline.css";
 
 type Props = {
   messages: MatrixMessage[];
   onOpenMessageMenu: (message: MatrixMessage, x: number, y: number) => void;
+  onToggleReaction: (message: MatrixMessage, key: string) => void;
 };
 
-export function Timeline({ messages, onOpenMessageMenu }: Props) {
+export function Timeline({ messages, onOpenMessageMenu, onToggleReaction }: Props) {
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -81,6 +83,17 @@ export function Timeline({ messages, onOpenMessageMenu }: Props) {
                   {message.edited && <span className="message__edited">изменено</span>}
                   {compact && <time className="message__inline-time">{message.time}</time>}
                 </div>
+                {message.reactions.length > 0 && (
+                  <div className="message__reactions">
+                    {message.reactions.map((reaction) => (
+                      <ReactionPill
+                        key={reaction.key}
+                        reaction={reaction}
+                        onToggle={() => onToggleReaction(message, reaction.key)}
+                      />
+                    ))}
+                  </div>
+                )}
               </div>
             </article>
           </div>

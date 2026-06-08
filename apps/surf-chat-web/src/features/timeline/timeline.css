@@ -159,6 +159,13 @@
   flex: 0 0 auto;
 }
 
+.message__reactions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 7px;
+}
+
 .message__empty {
   color: var(--color-text-faint);
   font-style: italic;

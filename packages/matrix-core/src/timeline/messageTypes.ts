@@ -10,7 +10,16 @@ export type MatrixMessage = {
   own: boolean;
   edited: boolean;
   forwardedFrom?: string;
+  reactions: MatrixReaction[];
   replyTo?: MatrixMessageReference;
+};
+
+export type MatrixReaction = {
+  key: string;
+  count: number;
+  mine: boolean;
+  myEventId?: string;
+  senders: string[];
 };
 
 export type MatrixMessageReference = {

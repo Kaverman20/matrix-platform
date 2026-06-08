@@ -4,6 +4,7 @@ import type { MatrixMessage } from "@matrix-platform/matrix-core";
 import "./message-context-menu.css";
 
 export type MessageAction = "reply" | "edit" | "copy" | "forward" | "delete";
+const QUICK_REACTIONS = ["👍", "❤️", "😂", "🔥", "👏", "🤔", "👎"];
 
 type Props = {
   message: MatrixMessage;
@@ -11,13 +12,14 @@ type Props = {
   y: number;
   onClose: () => void;
   onAction: (action: MessageAction, message: MatrixMessage) => void;
+  onReact: (message: MatrixMessage, key: string) => void;
 };
 
 const MENU_WIDTH = 236;
-const MENU_HEIGHT = 238;
+const MENU_HEIGHT = 288;
 const SAFE_OFFSET = 12;
 
-export function MessageContextMenu({ message, x, y, onAction, onClose }: Props) {
+export function MessageContextMenu({ message, x, y, onAction, onClose, onReact }: Props) {
   const ref = useRef<HTMLDivElement>(null);
   const left = clamp(x, SAFE_OFFSET, window.innerWidth - MENU_WIDTH - SAFE_OFFSET);
   const top = clamp(y, SAFE_OFFSET, window.innerHeight - MENU_HEIGHT - SAFE_OFFSET);
@@ -51,6 +53,22 @@ export function MessageContextMenu({ message, x, y, onAction, onClose }: Props) 
       role="menu"
       aria-label="Действия с сообщением"
     >
+      <div className="message-menu__quick" aria-label="Быстрые реакции">
+        {QUICK_REACTIONS.map((key) => (
+          <button
+            key={key}
+            type="button"
+            className="message-menu__reaction"
+            onClick={() => {
+              onReact(message, key);
+              onClose();
+            }}
+            title={key}
+          >
+            {key}
+          </button>
+        ))}
+      </div>
       <button type="button" role="menuitem" onClick={() => runAction("reply")}>
         <Reply size={17} />
         <span>Ответить</span>

@@ -1,6 +1,10 @@
 import type { MatrixClient, MatrixEvent, Room } from "matrix-js-sdk";
 import { colorForId } from "../rooms/colors";
-import type { MatrixMessage, MatrixMessageReference } from "./messageTypes";
+import type {
+  MatrixMessage,
+  MatrixMessageReference,
+  MatrixReaction,
+} from "./messageTypes";
 import { FORWARD_KEY } from "./sendMessage";
 
 export function buildTimelineMessages(
@@ -19,6 +23,7 @@ function buildMessagesFromEvents(
   events: MatrixEvent[],
 ): MatrixMessage[] {
   const me = client.getUserId();
+  const reactionsByTarget = buildReactionAggregates(room, events, me);
   const eventById = new Map(
     events
       .map((event) => [event.getId(), event] as const)
@@ -45,9 +50,63 @@ function buildMessagesFromEvents(
         own: sender === me,
         edited: text.edited,
         forwardedFrom: getForwardedFrom(event),
+        reactions: reactionsByTarget.get(eventId) ?? [],
         replyTo: getReplyReference(room, event, eventById),
       };
     });
+}
+
+function buildReactionAggregates(
+  room: Room,
+  events: MatrixEvent[],
+  me: string | null,
+): Map<string, MatrixReaction[]> {
+  type Aggregate = {
+    count: number;
+    mine: boolean;
+    myEventId?: string;
+    senders: string[];
+  };
+
+  const byTarget = new Map<string, Map<string, Aggregate>>();
+
+  for (const event of events) {
+    if (event.getType() !== "m.reaction" || event.isRedacted()) continue;
+
+    const relation = event.getContent()["m.relates_to"] as
+      | { rel_type?: unknown; event_id?: unknown; key?: unknown }
+      | undefined;
+    if (relation?.rel_type !== "m.annotation") continue;
+    if (typeof relation.event_id !== "string" || typeof relation.key !== "string") continue;
+
+    const sender = event.getSender() ?? "";
+    const senderName = room.getMember(sender)?.name || sender;
+    const byKey = byTarget.get(relation.event_id) ?? new Map<string, Aggregate>();
+    const aggregate = byKey.get(relation.key) ?? {
+      count: 0,
+      mine: false,
+      senders: [],
+    };
+
+    aggregate.count += 1;
+    aggregate.senders.push(senderName);
+    if (sender === me) {
+      aggregate.mine = true;
+      aggregate.myEventId = event.getId() ?? event.getTxnId();
+    }
+
+    byKey.set(relation.key, aggregate);
+    byTarget.set(relation.event_id, byKey);
+  }
+
+  return new Map(
+    Array.from(byTarget.entries()).map(([targetId, byKey]) => [
+      targetId,
+      Array.from(byKey.entries())
+        .map(([key, aggregate]) => ({ key, ...aggregate }))
+        .sort((a, b) => b.count - a.count || a.key.localeCompare(b.key)),
+    ]),
+  );
 }
 
 function isRealMessageEvent(event: MatrixEvent): boolean {

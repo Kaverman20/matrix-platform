@@ -98,6 +98,29 @@ export async function sendForwardedMessage(
   await client.sendEvent(roomId, EventType.RoomMessage, content as never);
 }
 
+export async function sendReaction(
+  client: MatrixClient,
+  roomId: string,
+  eventId: string,
+  key: string,
+): Promise<void> {
+  await client.sendEvent(roomId, EventType.Reaction, {
+    "m.relates_to": {
+      rel_type: RelationType.Annotation,
+      event_id: eventId,
+      key,
+    },
+  });
+}
+
+export async function removeReaction(
+  client: MatrixClient,
+  roomId: string,
+  reactionEventId: string,
+): Promise<void> {
+  await client.redactEvent(roomId, reactionEventId);
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }

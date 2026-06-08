@@ -2,6 +2,8 @@ import { LogOut } from "lucide-react";
 import { useMemo, useState } from "react";
 import {
   buildForwardData,
+  removeReaction,
+  sendReaction,
   type MatrixForwardData,
   type MatrixMessage,
   type MatrixMessageReference,
@@ -106,6 +108,17 @@ export function ChatShell() {
     }
   };
 
+  const toggleReaction = (message: MatrixMessage, key: string) => {
+    if (!client || !activeRoomId) return;
+    const existing = message.reactions.find((reaction) => reaction.key === key && reaction.mine);
+
+    if (existing?.myEventId) {
+      void removeReaction(client, activeRoomId, existing.myEventId);
+    } else {
+      void sendReaction(client, activeRoomId, message.id, key);
+    }
+  };
+
   const selectForwardRoom = (roomId: string) => {
     if (!forwarding?.length) return;
     setActiveRoomId(roomId);
@@ -164,6 +177,7 @@ export function ChatShell() {
             <Timeline
               messages={messages}
               onOpenMessageMenu={openMessageMenu}
+              onToggleReaction={toggleReaction}
             />
             <Composer
               key={composerKey}
@@ -190,6 +204,7 @@ export function ChatShell() {
           x={messageMenu.x}
           y={messageMenu.y}
           onAction={handleMessageAction}
+          onReact={toggleReaction}
           onClose={() => setMessageMenu(null)}
         />
       )}
