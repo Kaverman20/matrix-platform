@@ -1,5 +1,19 @@
-import { LogOut, X } from "lucide-react";
+import { AnimatePresence, motion } from "framer-motion";
+import {
+  Bell,
+  ChevronRight,
+  FileText,
+  Hash,
+  LogOut,
+  MessageSquare,
+  PanelRight,
+  Phone,
+  Users,
+  Video,
+  X,
+} from "lucide-react";
 import { useMemo, useState } from "react";
+import { transition } from "@matrix-platform/ui";
 import {
   buildForwardData,
   removeReaction,
@@ -30,6 +44,7 @@ export function ChatShell() {
   const [pendingForward, setPendingForward] = useState<MatrixForwardData[] | null>(null);
   const [forwarding, setForwarding] = useState<MatrixForwardData[] | null>(null);
   const [lightbox, setLightbox] = useState<string | null>(null);
+  const [showRightPanel, setShowRightPanel] = useState(true);
   const [messageMenu, setMessageMenu] = useState<{
     message: MatrixMessage;
     x: number;
@@ -168,11 +183,28 @@ export function ChatShell() {
         {activeRoom ? (
           <>
             <header className="chat-main__header">
-              <div>
+              <div className="chat-main__title">
+                {activeRoom.kind === "channel" && <Hash size={18} strokeWidth={2.5} />}
                 <h1>{activeRoom.name}</h1>
-                <span>
-                  {activeRoom.memberCount} участников · {activeRoom.kind === "dm" ? "личный чат" : "канал"}
-                </span>
+              </div>
+              <div className="chat-main__actions">
+                <button type="button" className="icon-button" title="Сообщения">
+                  <MessageSquare size={18} />
+                </button>
+                <button type="button" className="icon-button" title="Звонок">
+                  <Phone size={18} />
+                </button>
+                <button type="button" className="icon-button" title="Видео">
+                  <Video size={18} />
+                </button>
+                <button
+                  type="button"
+                  className={`icon-button${showRightPanel ? " is-active" : ""}`}
+                  title="Информация"
+                  onClick={() => setShowRightPanel((value) => !value)}
+                >
+                  <PanelRight size={18} />
+                </button>
               </div>
             </header>
             <Timeline
@@ -201,6 +233,46 @@ export function ChatShell() {
           </section>
         )}
       </main>
+      <AnimatePresence initial={false}>
+        {activeRoom && showRightPanel && (
+          <motion.aside
+            className="right-panel"
+            initial={{ width: 0 }}
+            animate={{ width: 320 }}
+            exit={{ width: 0 }}
+            transition={transition.slow}
+          >
+            <div className="right-panel__inner">
+              <div className="right-panel__avatar" style={{ background: activeRoom.color }}>
+                {activeRoom.kind === "channel" ? <Hash size={34} /> : activeRoom.name.slice(0, 1).toUpperCase()}
+              </div>
+              <strong className="right-panel__name">{activeRoom.name}</strong>
+              <span className="right-panel__sub">
+                {activeRoom.kind === "channel" ? "Канал" : "Личный чат"} · {membersLabel(activeRoom.memberCount)}
+              </span>
+              {activeRoom.topic && <div className="right-panel__topic">{activeRoom.topic}</div>}
+              <div className="right-panel__rows">
+                <button type="button" className="right-panel__row">
+                  <Users size={18} />
+                  <span>Участники</span>
+                  <em>{activeRoom.memberCount}</em>
+                  <ChevronRight size={16} />
+                </button>
+                <button type="button" className="right-panel__row">
+                  <FileText size={18} />
+                  <span>Файлы и медиа</span>
+                  <ChevronRight size={16} />
+                </button>
+                <button type="button" className="right-panel__row">
+                  <Bell size={18} />
+                  <span>Уведомления</span>
+                  <ChevronRight size={16} />
+                </button>
+              </div>
+            </div>
+          </motion.aside>
+        )}
+      </AnimatePresence>
       {messageMenu && (
         <MessageContextMenu
           message={messageMenu.message}
@@ -229,4 +301,12 @@ export function ChatShell() {
       )}
     </div>
   );
+}
+
+function membersLabel(count: number): string {
+  const mod10 = count % 10;
+  const mod100 = count % 100;
+  if (mod10 === 1 && mod100 !== 11) return `${count} участник`;
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return `${count} участника`;
+  return `${count} участников`;
 }
