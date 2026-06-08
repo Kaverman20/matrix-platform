@@ -12,12 +12,13 @@
     "test": "echo \"No tests yet\""
   },
   "peerDependencies": {
+    "framer-motion": "^12.0.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },
   "devDependencies": {
     "@types/react": "^19.2.14",
+    "framer-motion": "^12.40.0",
     "typescript": "~6.0.2"
   }
 }
-
