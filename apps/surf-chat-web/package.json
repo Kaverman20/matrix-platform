@@ -1,0 +1,31 @@
+{
+  "name": "@matrix-platform/surf-chat-web",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "lint": "eslint .",
+    "typecheck": "tsc -b --noEmit",
+    "test": "echo \"No tests yet\""
+  },
+  "dependencies": {
+    "@matrix-platform/matrix-core": "workspace:*",
+    "@matrix-platform/shared": "workspace:*",
+    "@matrix-platform/ui": "workspace:*",
+    "@vitejs/plugin-react": "^6.0.1",
+    "framer-motion": "^12.40.0",
+    "lucide-react": "^1.17.0",
+    "matrix-js-sdk": "41.7.0-rc.3",
+    "react": "^19.2.6",
+    "react-dom": "^19.2.6",
+    "vite": "^8.0.12"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "typescript": "~6.0.2"
+  }
+}
+
