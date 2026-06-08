@@ -10,3 +10,6 @@ export * from "./rooms/mapRooms";
 export * from "./rooms/roomTypes";
 export * from "./session/sessionStorage";
 export * from "./session/types";
+export * from "./timeline/mapTimeline";
+export * from "./timeline/messageTypes";
+export * from "./timeline/sendMessage";

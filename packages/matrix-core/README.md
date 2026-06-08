@@ -15,6 +15,7 @@ src/
   discovery/  Homeserver .well-known resolution
   rooms/      Room and Space summaries
   session/    Session type and storage helpers
+  timeline/   Message summaries and send operations
 ```
 
 `matrix-core` deliberately avoids React and Vite globals. Web-specific storage,

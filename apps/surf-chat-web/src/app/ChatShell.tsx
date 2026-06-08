@@ -1,8 +1,11 @@
 import { LogOut } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useMatrix } from "./providers/MatrixContext";
+import { Composer } from "../features/composer/Composer";
 import { RoomList } from "../features/room-list/RoomList";
 import { useRoomGroups } from "../features/room-list/useRoomGroups";
+import { Timeline } from "../features/timeline/Timeline";
+import { useTimelineMessages } from "../features/timeline/useTimelineMessages";
 import "./chat-shell.css";
 
 export function ChatShell() {
@@ -18,6 +21,7 @@ export function ChatShell() {
     ];
     return allRooms.find((room) => room.id === activeRoomId) ?? null;
   }, [activeRoomId, roomGroups.channels, roomGroups.dms, roomGroups.favourites]);
+  const messages = useTimelineMessages(client, activeRoomId);
 
   return (
     <div className="chat-shell">
@@ -65,10 +69,8 @@ export function ChatShell() {
                 </span>
               </div>
             </header>
-            <section className="chat-main__placeholder">
-              <h2>Комната подключена</h2>
-              <p>Следующий шаг - перенести timeline и composer.</p>
-            </section>
+            <Timeline messages={messages} />
+            <Composer roomId={activeRoom.id} />
           </>
         ) : (
           <section className="chat-main__placeholder">
@@ -80,4 +82,3 @@ export function ChatShell() {
     </div>
   );
 }
-
