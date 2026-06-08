@@ -180,6 +180,7 @@ export function ChatShell() {
               onOpenImage={setLightbox}
               onOpenMessageMenu={openMessageMenu}
               onToggleReaction={toggleReaction}
+              room={activeRoom}
             />
             <Composer
               key={composerKey}

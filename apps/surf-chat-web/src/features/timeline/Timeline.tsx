@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
-import { Forward } from "lucide-react";
-import type { MatrixMessage } from "@matrix-platform/matrix-core";
+import { CheckCheck, Forward, Hash } from "lucide-react";
+import type { MatrixMessage, MatrixRoomSummary } from "@matrix-platform/matrix-core";
 import { MessageMedia } from "../media/MessageMedia";
 import { ReactionPill } from "../reactions/ReactionPill";
 import "./timeline.css";
@@ -10,6 +10,7 @@ type Props = {
   onOpenImage: (src: string) => void;
   onOpenMessageMenu: (message: MatrixMessage, x: number, y: number) => void;
   onToggleReaction: (message: MatrixMessage, key: string) => void;
+  room: MatrixRoomSummary;
 };
 
 export function Timeline({
@@ -17,6 +18,7 @@ export function Timeline({
   onOpenImage,
   onOpenMessageMenu,
   onToggleReaction,
+  room,
 }: Props) {
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -27,6 +29,7 @@ export function Timeline({
   return (
     <section className="timeline">
       <div className="timeline__spacer" />
+      <RoomIntro room={room} />
       {messages.map((message, index) => {
         const previous = messages[index - 1];
         const next = messages[index + 1];
@@ -46,25 +49,23 @@ export function Timeline({
           <div key={message.id}>
             {startsNewDay && <DayDivider timestamp={message.timestamp} />}
             <article
-              className={`message${message.own ? " message--own" : ""}${compact ? " message--compact" : ""}${groupEnd ? " message--group-end" : ""}`}
+              className={`message${compact ? " message--compact" : ""}${groupEnd ? " message--group-end" : ""}`}
               onContextMenu={(event) => {
                 event.preventDefault();
                 onOpenMessageMenu(message, event.clientX, event.clientY);
               }}
             >
-              <span
-                className="message__avatar"
-                style={compact ? { visibility: "hidden" } : { background: message.color }}
-              >
-                {!compact && message.author.slice(0, 1).toUpperCase()}
-              </span>
+              {compact ? (
+                <span className="message__avatar message__avatar--spacer" />
+              ) : (
+                <span className="message__avatar" style={{ background: message.color }}>
+                  {message.author.slice(0, 1).toUpperCase()}
+                </span>
+              )}
               <div className="message__body">
                 {!compact && (
                   <header className="message__head">
-                    <strong style={{ color: message.own ? "var(--color-accent)" : message.color }}>
-                      {message.own ? "Вы" : message.author}
-                    </strong>
-                    <time>{message.time}</time>
+                    <strong style={{ color: message.color }}>{message.own ? "Вы" : message.author}</strong>
                   </header>
                 )}
                 <div className="message__text">
@@ -94,8 +95,7 @@ export function Timeline({
                   ) : !message.media ? (
                     <span className="message__empty">Пустое сообщение</span>
                   ) : null}
-                  {message.edited && <span className="message__edited">изменено</span>}
-                  {compact && <time className="message__inline-time">{message.time}</time>}
+                  {message.edited && <span className="message__edited">(изменено)</span>}
                 </div>
                 {message.reactions.length > 0 && (
                   <div className="message__reactions">
@@ -109,6 +109,10 @@ export function Timeline({
                   </div>
                 )}
               </div>
+              <div className="message__aside">
+                <time>{message.time}</time>
+                {message.own && <CheckCheck size={14} className="message__check" />}
+              </div>
             </article>
           </div>
         );
@@ -118,6 +122,18 @@ export function Timeline({
       )}
       <div ref={bottomRef} />
     </section>
+  );
+}
+
+function RoomIntro({ room }: { room: MatrixRoomSummary }) {
+  return (
+    <div className="timeline__intro">
+      <div className="timeline__intro-avatar" style={{ background: room.color }}>
+        {room.kind === "channel" ? <Hash size={34} /> : room.name.slice(0, 1).toUpperCase()}
+      </div>
+      <strong>{room.name}</strong>
+      <span>{room.kind === "dm" ? "Начало личного чата" : "Начало канала"}</span>
+    </div>
   );
 }
 
