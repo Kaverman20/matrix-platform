@@ -39,105 +39,102 @@ export function Timeline({
     >
       <div className="timeline__spacer" />
       <RoomIntro room={room} />
-      <AnimatePresence initial={false}>
-        {messages.map((message, index) => {
-          const previous = messages[index - 1];
-          const next = messages[index + 1];
-          const startsNewDay = !previous || !isSameDay(previous.timestamp, message.timestamp);
-          const compact =
-            Boolean(previous) &&
-            !startsNewDay &&
-            previous.sender === message.sender &&
-            message.timestamp - previous.timestamp < 5 * 60 * 1000;
-          const groupEnd =
-            !next ||
-            !isSameDay(next.timestamp, message.timestamp) ||
-            next.sender !== message.sender ||
-            next.timestamp - message.timestamp >= 5 * 60 * 1000;
+      {messages.map((message, index) => {
+        const previous = messages[index - 1];
+        const next = messages[index + 1];
+        const startsNewDay = !previous || !isSameDay(previous.timestamp, message.timestamp);
+        const compact =
+          Boolean(previous) &&
+          !startsNewDay &&
+          previous.sender === message.sender &&
+          message.timestamp - previous.timestamp < 5 * 60 * 1000;
+        const groupEnd =
+          !next ||
+          !isSameDay(next.timestamp, message.timestamp) ||
+          next.sender !== message.sender ||
+          next.timestamp - message.timestamp >= 5 * 60 * 1000;
 
-          return (
-            <motion.div
-              key={message.id}
-              layout
-              variants={fadeUp}
-              initial="hidden"
-              animate="visible"
-              exit="exit"
-              transition={transition.base}
+        return (
+          <motion.div
+            key={message.id}
+            layout
+            variants={fadeUp}
+            initial="hidden"
+            animate="visible"
+            transition={transition.base}
+          >
+            {startsNewDay && <DayDivider timestamp={message.timestamp} />}
+            <article
+              className={`message${compact ? " message--compact" : ""}${groupEnd ? " message--group-end" : ""}`}
+              onContextMenu={(event) => {
+                event.preventDefault();
+                onOpenMessageMenu(message, event.clientX, event.clientY);
+              }}
             >
-              {startsNewDay && <DayDivider timestamp={message.timestamp} />}
-              <article
-                className={`message${compact ? " message--compact" : ""}${groupEnd ? " message--group-end" : ""}`}
-                onContextMenu={(event) => {
-                  event.preventDefault();
-                  onOpenMessageMenu(message, event.clientX, event.clientY);
-                }}
-              >
-                {compact ? (
-                  <span className="message__avatar message__avatar--spacer" />
-                ) : (
-                  <span className="message__avatar" style={{ background: message.color }}>
-                    {message.author.slice(0, 1).toUpperCase()}
-                  </span>
+              {compact ? (
+                <span className="message__avatar message__avatar--spacer" />
+              ) : (
+                <span className="message__avatar" style={{ background: message.color }}>
+                  {message.author.slice(0, 1).toUpperCase()}
+                </span>
+              )}
+              <div className="message__body">
+                {!compact && (
+                  <header className="message__head">
+                    <strong style={{ color: message.color }}>{message.own ? "Вы" : message.author}</strong>
+                  </header>
                 )}
-                <div className="message__body">
-                  {!compact && (
-                    <header className="message__head">
-                      <strong style={{ color: message.color }}>{message.own ? "Вы" : message.author}</strong>
-                    </header>
+                <div className="message__text">
+                  {message.forwardedFrom && (
+                    <div className="message__forwarded">
+                      <Forward size={13} />
+                      <span>
+                        Переслано от <strong>{message.forwardedFrom}</strong>
+                      </span>
+                    </div>
                   )}
-                  <div className="message__text">
-                    {message.forwardedFrom && (
-                      <div className="message__forwarded">
-                        <Forward size={13} />
-                        <span>
-                          Переслано от <strong>{message.forwardedFrom}</strong>
-                        </span>
-                      </div>
-                    )}
-                    {message.replyTo && (
-                      <button
-                        type="button"
-                        className="message__reply-preview"
-                        title="Сообщение, на которое отвечают"
-                      >
-                        <strong>{message.replyTo.author ?? "Сообщение"}</strong>
-                        <span>{message.replyTo.text ?? "Предыдущее сообщение"}</span>
-                      </button>
-                    )}
-                    {message.media && (
-                      <MessageMedia media={message.media} onOpenImage={onOpenImage} />
-                    )}
-                    {shouldShowText(message) ? (
-                      message.text
-                    ) : !message.media ? (
-                      <span className="message__empty">Пустое сообщение</span>
-                    ) : null}
-                    {message.edited && <span className="message__edited">(изменено)</span>}
-                  </div>
-                  {message.reactions.length > 0 && (
-                    <motion.div className="message__reactions" layout>
-                      <AnimatePresence initial={false}>
-                        {message.reactions.map((reaction) => (
-                          <ReactionPill
-                            key={reaction.key}
-                            reaction={reaction}
-                            onToggle={() => onToggleReaction(message, reaction.key)}
-                          />
-                        ))}
-                      </AnimatePresence>
-                    </motion.div>
+                  {message.replyTo && (
+                    <button
+                      type="button"
+                      className="message__reply-preview"
+                      title="Сообщение, на которое отвечают"
+                    >
+                      <strong>{message.replyTo.author ?? "Сообщение"}</strong>
+                      <span>{message.replyTo.text ?? "Предыдущее сообщение"}</span>
+                    </button>
                   )}
+                  {message.media && (
+                    <MessageMedia media={message.media} onOpenImage={onOpenImage} />
+                  )}
+                  {shouldShowText(message) ? (
+                    message.text
+                  ) : !message.media ? (
+                    <span className="message__empty">Пустое сообщение</span>
+                  ) : null}
+                  {message.edited && <span className="message__edited">(изменено)</span>}
                 </div>
-                <div className="message__aside">
-                  <time>{message.time}</time>
-                  {message.own && <CheckCheck size={14} className="message__check" />}
-                </div>
-              </article>
-            </motion.div>
-          );
-        })}
-      </AnimatePresence>
+                {message.reactions.length > 0 && (
+                  <motion.div className="message__reactions" layout>
+                    <AnimatePresence initial={false}>
+                      {message.reactions.map((reaction) => (
+                        <ReactionPill
+                          key={reaction.key}
+                          reaction={reaction}
+                          onToggle={() => onToggleReaction(message, reaction.key)}
+                        />
+                      ))}
+                    </AnimatePresence>
+                  </motion.div>
+                )}
+              </div>
+              <div className="message__aside">
+                <time>{message.time}</time>
+                {message.own && <CheckCheck size={14} className="message__check" />}
+              </div>
+            </article>
+          </motion.div>
+        );
+      })}
       {messages.length === 0 && <div className="timeline__empty">Сообщений пока нет.</div>}
       <div ref={bottomRef} />
     </motion.section>
