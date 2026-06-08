@@ -1,4 +1,4 @@
-import { LogOut } from "lucide-react";
+import { LogOut, X } from "lucide-react";
 import { useMemo, useState } from "react";
 import {
   buildForwardData,
@@ -29,6 +29,7 @@ export function ChatShell() {
   const [editingMessage, setEditingMessage] = useState<MatrixMessageReference | null>(null);
   const [pendingForward, setPendingForward] = useState<MatrixForwardData[] | null>(null);
   const [forwarding, setForwarding] = useState<MatrixForwardData[] | null>(null);
+  const [lightbox, setLightbox] = useState<string | null>(null);
   const [messageMenu, setMessageMenu] = useState<{
     message: MatrixMessage;
     x: number;
@@ -176,6 +177,7 @@ export function ChatShell() {
             </header>
             <Timeline
               messages={messages}
+              onOpenImage={setLightbox}
               onOpenMessageMenu={openMessageMenu}
               onToggleReaction={toggleReaction}
             />
@@ -215,6 +217,14 @@ export function ChatShell() {
           onClose={() => setForwarding(null)}
           onSelectRoom={selectForwardRoom}
         />
+      )}
+      {lightbox && (
+        <div className="lightbox" onMouseDown={() => setLightbox(null)}>
+          <img className="lightbox__image" src={lightbox} alt="" />
+          <button type="button" className="lightbox__close" title="Закрыть">
+            <X size={20} />
+          </button>
+        </div>
       )}
     </div>
   );

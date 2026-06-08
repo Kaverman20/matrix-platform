@@ -1,0 +1,116 @@
+.message-media {
+  display: block;
+  margin: 5px 0 4px;
+}
+
+.message-media--image,
+.message-media--broken {
+  width: min(340px, 68vw);
+  min-height: 150px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: 0;
+  background: var(--color-bg-subtle);
+  overflow: hidden;
+}
+
+.message-media--image {
+  cursor: zoom-in;
+}
+
+.message-media--image img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+}
+
+.message-media__loader {
+  width: 28px;
+  height: 28px;
+  display: block;
+  margin: 62px auto;
+  border: 3px solid var(--color-border);
+  border-top-color: var(--color-accent);
+  border-radius: var(--radius-pill);
+  animation: media-spin 800ms linear infinite;
+}
+
+.message-media--broken {
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: var(--space-2);
+  color: var(--color-text-muted);
+}
+
+.message-media--video {
+  width: min(380px, 72vw);
+  max-height: 320px;
+  border-radius: var(--radius-lg);
+  background: black;
+}
+
+.message-media--audio {
+  width: min(360px, 70vw);
+}
+
+.message-media--file {
+  width: min(360px, 70vw);
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr) 32px;
+  align-items: center;
+  gap: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-3);
+  color: var(--color-text);
+  background: var(--color-bg);
+  text-align: left;
+  cursor: pointer;
+  box-shadow: var(--shadow-sm);
+}
+
+.message-media--file:hover {
+  background: var(--color-bg-subtle);
+}
+
+.message-media__file-icon,
+.message-media__download {
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius-md);
+  color: var(--color-accent);
+  background: var(--color-accent-subtle);
+}
+
+.message-media__download {
+  width: 32px;
+  height: 32px;
+}
+
+.message-media__file-body {
+  min-width: 0;
+}
+
+.message-media__file-body strong,
+.message-media__file-body small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.message-media__file-body small {
+  margin-top: 2px;
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+}
+
+@keyframes media-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

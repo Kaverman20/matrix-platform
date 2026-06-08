@@ -1,16 +1,23 @@
 import { useEffect, useRef } from "react";
 import { Forward } from "lucide-react";
 import type { MatrixMessage } from "@matrix-platform/matrix-core";
+import { MessageMedia } from "../media/MessageMedia";
 import { ReactionPill } from "../reactions/ReactionPill";
 import "./timeline.css";
 
 type Props = {
   messages: MatrixMessage[];
+  onOpenImage: (src: string) => void;
   onOpenMessageMenu: (message: MatrixMessage, x: number, y: number) => void;
   onToggleReaction: (message: MatrixMessage, key: string) => void;
 };
 
-export function Timeline({ messages, onOpenMessageMenu, onToggleReaction }: Props) {
+export function Timeline({
+  messages,
+  onOpenImage,
+  onOpenMessageMenu,
+  onToggleReaction,
+}: Props) {
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -79,7 +86,14 @@ export function Timeline({ messages, onOpenMessageMenu, onToggleReaction }: Prop
                       <span>{message.replyTo.text ?? "Предыдущее сообщение"}</span>
                     </button>
                   )}
-                  {message.text || <span className="message__empty">Пустое сообщение</span>}
+                  {message.media && (
+                    <MessageMedia media={message.media} onOpenImage={onOpenImage} />
+                  )}
+                  {shouldShowText(message) ? (
+                    message.text
+                  ) : !message.media ? (
+                    <span className="message__empty">Пустое сообщение</span>
+                  ) : null}
                   {message.edited && <span className="message__edited">изменено</span>}
                   {compact && <time className="message__inline-time">{message.time}</time>}
                 </div>
@@ -105,6 +119,12 @@ export function Timeline({ messages, onOpenMessageMenu, onToggleReaction }: Prop
       <div ref={bottomRef} />
     </section>
   );
+}
+
+function shouldShowText(message: MatrixMessage): boolean {
+  if (!message.text) return false;
+  if (!message.media) return true;
+  return message.text !== message.media.name;
 }
 
 function DayDivider({ timestamp }: { timestamp: number }) {

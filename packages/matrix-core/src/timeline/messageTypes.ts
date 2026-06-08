@@ -7,6 +7,7 @@ export type MatrixMessage = {
   text: string;
   color: string;
   avatarUrl?: string;
+  media?: MatrixMedia;
   own: boolean;
   edited: boolean;
   forwardedFrom?: string;
@@ -20,6 +21,19 @@ export type MatrixReaction = {
   mine: boolean;
   myEventId?: string;
   senders: string[];
+};
+
+export type MatrixMedia = {
+  kind: "image" | "video" | "audio" | "file";
+  url: string;
+  thumbUrl?: string;
+  name: string;
+  mimetype?: string;
+  size?: number;
+  width?: number;
+  height?: number;
+  durationMs?: number;
+  voice?: boolean;
 };
 
 export type MatrixMessageReference = {

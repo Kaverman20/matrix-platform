@@ -2,6 +2,7 @@ import type { MatrixClient, MatrixEvent, Room } from "matrix-js-sdk";
 import { colorForId } from "../rooms/colors";
 import type {
   MatrixMessage,
+  MatrixMedia,
   MatrixMessageReference,
   MatrixReaction,
 } from "./messageTypes";
@@ -37,6 +38,7 @@ function buildMessagesFromEvents(
       const member = room.getMember(sender);
       const eventId = event.getId() ?? event.getTxnId() ?? `${sender}:${event.getTs()}:${index}`;
       const text = getEffectiveText(event);
+      const content = event.getContent();
 
       return {
         id: eventId,
@@ -47,6 +49,7 @@ function buildMessagesFromEvents(
         text: text.value,
         color: colorForId(sender),
         avatarUrl: getMemberAvatarUrl(client, member),
+        media: resolveMedia(client, content),
         own: sender === me,
         edited: text.edited,
         forwardedFrom: getForwardedFrom(event),
@@ -131,6 +134,66 @@ function getEffectiveText(event: MatrixEvent): { value: string; edited: boolean 
 
   const body = event.getContent().body;
   return { value: typeof body === "string" ? body : "", edited: false };
+}
+
+function resolveMedia(
+  client: MatrixClient,
+  content: Record<string, unknown>,
+): MatrixMedia | undefined {
+  const kindByMsgType: Record<string, MatrixMedia["kind"]> = {
+    "m.image": "image",
+    "m.video": "video",
+    "m.file": "file",
+    "m.audio": "audio",
+  };
+  const msgtype = typeof content.msgtype === "string" ? content.msgtype : undefined;
+  const kind = msgtype ? kindByMsgType[msgtype] : undefined;
+  if (!kind) return undefined;
+
+  const file = content.file as { url?: unknown } | undefined;
+  const mxc = typeof content.url === "string"
+    ? content.url
+    : typeof file?.url === "string"
+      ? file.url
+      : undefined;
+  if (!mxc) return undefined;
+
+  const info = (content.info ?? {}) as {
+    mimetype?: unknown;
+    size?: unknown;
+    w?: unknown;
+    h?: unknown;
+    thumbnail_url?: unknown;
+    duration?: unknown;
+  };
+  const mscAudio = content["org.matrix.msc1767.audio"] as
+    | { duration?: unknown }
+    | undefined;
+  const thumbMxc = typeof info.thumbnail_url === "string" ? info.thumbnail_url : undefined;
+  const url = client.mxcUrlToHttp(mxc, undefined, undefined, undefined, false, true, true);
+  if (!url) return undefined;
+  const thumbUrl = thumbMxc
+    ? client.mxcUrlToHttp(thumbMxc, 600, 600, "scale", false, true, true) ?? undefined
+    : kind === "image" || kind === "video"
+      ? client.mxcUrlToHttp(mxc, 600, 600, "scale", false, true, true) ?? url
+      : undefined;
+
+  return {
+    kind,
+    url,
+    thumbUrl,
+    name: typeof content.body === "string" ? content.body : "Файл",
+    mimetype: typeof info.mimetype === "string" ? info.mimetype : undefined,
+    size: typeof info.size === "number" ? info.size : undefined,
+    width: typeof info.w === "number" ? info.w : undefined,
+    height: typeof info.h === "number" ? info.h : undefined,
+    durationMs: typeof info.duration === "number"
+      ? info.duration
+      : typeof mscAudio?.duration === "number"
+        ? mscAudio.duration
+        : undefined,
+    voice: Boolean(content["org.matrix.msc3245.voice"]),
+  };
 }
 
 function getForwardedFrom(event: MatrixEvent): string | undefined {
