@@ -23,8 +23,8 @@ export function Composer({ roomId }: Props) {
     if (!textarea) return;
 
     textarea.style.height = "0px";
-    textarea.style.height = `${Math.min(textarea.scrollHeight, 150)}px`;
-    textarea.style.overflowY = textarea.scrollHeight > 150 ? "auto" : "hidden";
+    textarea.style.height = `${Math.min(textarea.scrollHeight, 118)}px`;
+    textarea.style.overflowY = textarea.scrollHeight > 118 ? "auto" : "hidden";
   }, [draft]);
 
   const send = async () => {
