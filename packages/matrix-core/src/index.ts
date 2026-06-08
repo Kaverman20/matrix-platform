@@ -1,1 +1,9 @@
-export const MATRIX_ORG_HOMESERVER = "https://matrix.org";
+export * from "./auth/passwordLogin";
+export * from "./auth/sso";
+export * from "./auth/tokenLogin";
+export * from "./auth/types";
+export * from "./client/startClient";
+export * from "./constants";
+export * from "./discovery/resolveBaseUrl";
+export * from "./session/sessionStorage";
+export * from "./session/types";
