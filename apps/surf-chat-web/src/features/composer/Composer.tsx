@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ArrowUp } from "lucide-react";
 import { sendTextMessage } from "@matrix-platform/matrix-core";
 import { useMatrix } from "../../app/providers/MatrixContext";
@@ -12,6 +12,20 @@ export function Composer({ roomId }: Props) {
   const { client } = useMatrix();
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    requestAnimationFrame(() => textareaRef.current?.focus());
+  }, []);
+
+  useEffect(() => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+
+    textarea.style.height = "0px";
+    textarea.style.height = `${Math.min(textarea.scrollHeight, 150)}px`;
+    textarea.style.overflowY = textarea.scrollHeight > 150 ? "auto" : "hidden";
+  }, [draft]);
 
   const send = async () => {
     const text = draft.trim();
@@ -38,9 +52,11 @@ export function Composer({ roomId }: Props) {
       }}
     >
       <textarea
+        ref={textareaRef}
         value={draft}
         rows={1}
         placeholder="Сообщение"
+        disabled={sending}
         onChange={(e) => setDraft(e.target.value)}
         onKeyDown={(e) => {
           if (e.key === "Enter" && !e.shiftKey) {
@@ -55,4 +71,3 @@ export function Composer({ roomId }: Props) {
     </form>
   );
 }
-

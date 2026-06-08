@@ -70,7 +70,7 @@ export function ChatShell() {
               </div>
             </header>
             <Timeline messages={messages} />
-            <Composer roomId={activeRoom.id} />
+            <Composer key={activeRoom.id} roomId={activeRoom.id} />
           </>
         ) : (
           <section className="chat-main__placeholder">
