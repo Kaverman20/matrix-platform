@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import { ArrowUp, Forward, Paperclip, Pencil, Reply, X } from "lucide-react";
+import { AnimatePresence, motion } from "framer-motion";
+import { ArrowUp, FileText, Forward, Image as ImageIcon, Mic, Paperclip, Pencil, Reply, Smile, X } from "lucide-react";
+import { spring, transition } from "@matrix-platform/ui";
 import {
   sendEditMessage,
   sendForwardedMessage,
@@ -35,9 +37,12 @@ export function Composer({
 }: Props) {
   const { client } = useMatrix();
   const [draft, setDraft] = useState(editingMessage?.text ?? "");
+  const [attachOpen, setAttachOpen] = useState(false);
   const [sending, setSending] = useState(false);
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
+  const attachWrapRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const mode = editingMessage ? "edit" : pendingForward ? "forward" : replyTo ? "reply" : "plain";
   const context = editingMessage ?? replyTo ?? pendingForward?.[0] ?? null;
@@ -52,6 +57,17 @@ export function Composer({
     if (!context) return;
     requestAnimationFrame(() => textareaRef.current?.focus());
   }, [context]);
+
+  useEffect(() => {
+    if (!attachOpen) return;
+
+    const onPointerDown = (event: PointerEvent) => {
+      if (!attachWrapRef.current?.contains(event.target as Node)) setAttachOpen(false);
+    };
+
+    window.addEventListener("pointerdown", onPointerDown);
+    return () => window.removeEventListener("pointerdown", onPointerDown);
+  }, [attachOpen]);
 
   useEffect(() => {
     const textarea = textareaRef.current;
@@ -110,15 +126,15 @@ export function Composer({
   };
 
   return (
-    <form
-      className={`composer${context ? " composer--with-context" : ""}`}
-      onSubmit={(e) => {
-        e.preventDefault();
-        void send();
-      }}
-    >
+    <div className="composer-wrap">
       {context && (
-        <div className="composer__context">
+        <motion.div
+          className="composer__context"
+          initial={{ height: 0, opacity: 0 }}
+          animate={{ height: "auto", opacity: 1 }}
+          exit={{ height: 0, opacity: 0 }}
+          transition={transition.fast}
+        >
           <span className="composer__context-icon">
             {mode === "edit" ? <Pencil size={15} /> : mode === "forward" ? <Forward size={16} /> : <Reply size={16} />}
           </span>
@@ -134,42 +150,117 @@ export function Composer({
           >
             <X size={16} />
           </button>
-        </div>
+        </motion.div>
       )}
-      <button
-        type="button"
-        className="composer__attach"
-        disabled={sending || uploading || mode === "edit"}
-        title="Прикрепить файл"
-        onClick={() => fileInputRef.current?.click()}
-      >
-        <Paperclip size={18} />
-      </button>
-      <input
-        ref={fileInputRef}
-        type="file"
-        multiple
-        hidden
-        onChange={(event) => void sendFiles(event.currentTarget.files)}
-      />
-      <textarea
-        ref={textareaRef}
-        value={draft}
-        rows={1}
-        placeholder={mode === "edit" ? "Изменить сообщение" : "Сообщение"}
-        disabled={sending || uploading}
-        onChange={(e) => setDraft(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" && !e.shiftKey) {
-            e.preventDefault();
-            void send();
-          }
+      <form
+        className="composer"
+        onSubmit={(e) => {
+          e.preventDefault();
+          void send();
         }}
-      />
-      <button type="submit" disabled={(!draft.trim() && !pendingForward) || sending || uploading} title="Отправить">
-        <ArrowUp size={18} />
-      </button>
-    </form>
+      >
+        <div className="composer__attach" ref={attachWrapRef}>
+          <button
+            type="button"
+            className={`composer__tool${attachOpen ? " is-active" : ""}`}
+            disabled={sending || uploading || mode === "edit"}
+            title="Прикрепить"
+            onClick={() => setAttachOpen((value) => !value)}
+          >
+            <Paperclip size={20} />
+          </button>
+          <AnimatePresence>
+            {attachOpen && (
+              <motion.div
+                className="attach-menu"
+                initial={{ opacity: 0, scale: 0.94, y: 8 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.94, y: 8 }}
+                transition={transition.fast}
+              >
+                <button
+                  type="button"
+                  className="attach-menu__item"
+                  onClick={() => {
+                    imageInputRef.current?.click();
+                    setAttachOpen(false);
+                  }}
+                >
+                  <ImageIcon size={18} />
+                  <span>Фото или видео</span>
+                </button>
+                <button
+                  type="button"
+                  className="attach-menu__item"
+                  onClick={() => {
+                    fileInputRef.current?.click();
+                    setAttachOpen(false);
+                  }}
+                >
+                  <FileText size={18} />
+                  <span>Файл</span>
+                </button>
+              </motion.div>
+            )}
+          </AnimatePresence>
+          <input
+            ref={imageInputRef}
+            type="file"
+            accept="image/*,video/*"
+            multiple
+            hidden
+            onChange={(event) => void sendFiles(event.currentTarget.files)}
+          />
+          <input
+            ref={fileInputRef}
+            type="file"
+            multiple
+            hidden
+            onChange={(event) => void sendFiles(event.currentTarget.files)}
+          />
+        </div>
+        <textarea
+          ref={textareaRef}
+          className="composer__input"
+          value={draft}
+          rows={1}
+          placeholder={mode === "edit" ? "Изменить сообщение" : "Сообщение"}
+          disabled={sending || uploading}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              void send();
+            }
+          }}
+        />
+        <button type="button" className="composer__tool composer__emoji" title="Эмодзи">
+          <Smile size={20} />
+        </button>
+        {draft.trim() || pendingForward ? (
+          <motion.button
+            type="submit"
+            className="composer__send"
+            disabled={sending || uploading}
+            title="Отправить"
+            whileHover={{ scale: 1.06 }}
+            whileTap={{ scale: 0.94 }}
+            transition={spring.snappy}
+          >
+            <ArrowUp size={18} />
+          </motion.button>
+        ) : (
+          <button
+            type="button"
+            className="composer__tool composer__mic"
+            disabled={sending || uploading}
+            title="Голосовое сообщение"
+          >
+            <Mic size={20} />
+          </button>
+        )}
+      </form>
+    </div>
   );
 }
 
