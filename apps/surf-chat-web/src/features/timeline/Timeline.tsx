@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { Forward, MoreHorizontal } from "lucide-react";
+import { Forward } from "lucide-react";
 import type { MatrixMessage } from "@matrix-platform/matrix-core";
 import "./timeline.css";
 
@@ -80,18 +80,6 @@ export function Timeline({ messages, onOpenMessageMenu }: Props) {
                   {message.text || <span className="message__empty">Пустое сообщение</span>}
                   {message.edited && <span className="message__edited">изменено</span>}
                   {compact && <time className="message__inline-time">{message.time}</time>}
-                </div>
-                <div className="message__actions" aria-label="Действия с сообщением">
-                  <button
-                    type="button"
-                    onClick={(event) => {
-                      const rect = event.currentTarget.getBoundingClientRect();
-                      onOpenMessageMenu(message, rect.left, rect.bottom + 6);
-                    }}
-                    title="Действия"
-                  >
-                    <MoreHorizontal size={16} />
-                  </button>
                 </div>
               </div>
             </article>
