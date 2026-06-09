@@ -13,7 +13,7 @@ import {
   Video,
   X,
 } from "lucide-react";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { transition } from "@matrix-platform/ui";
 import {
   buildForwardData,
@@ -25,7 +25,7 @@ import {
   type MatrixMessageReference,
 } from "@matrix-platform/matrix-core";
 import { useMatrix } from "./providers/MatrixContext";
-import { Composer } from "../features/composer/Composer";
+import { Composer, type ComposerHandle } from "../features/composer/Composer";
 import { ForwardModal } from "../features/forward/ForwardModal";
 import {
   MessageContextMenu,
@@ -69,6 +69,7 @@ export function ChatShell() {
     y: number;
   } | null>(null);
   const favouritePersistTimer = useRef<number | null>(null);
+  const composerRef = useRef<ComposerHandle | null>(null);
 
   const allRooms = useMemo(
     () => [
@@ -289,6 +290,54 @@ export function ChatShell() {
     }, 180);
   };
 
+  const activeRoomRef = useRef(activeRoom);
+  const forwardingRef = useRef(forwarding);
+  const lightboxRef = useRef(lightbox);
+  const messageMenuRef = useRef(messageMenu);
+
+  useEffect(() => {
+    activeRoomRef.current = activeRoom;
+    forwardingRef.current = forwarding;
+    lightboxRef.current = lightbox;
+    messageMenuRef.current = messageMenu;
+  }, [activeRoom, forwarding, lightbox, messageMenu]);
+
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+
+      if (forwardingRef.current) {
+        event.preventDefault();
+        setForwarding(null);
+        return;
+      }
+      if (lightboxRef.current) {
+        event.preventDefault();
+        setLightbox(null);
+        return;
+      }
+      if (messageMenuRef.current) {
+        event.preventDefault();
+        setMessageMenu(null);
+        return;
+      }
+      if (composerRef.current?.escape()) {
+        event.preventDefault();
+        return;
+      }
+      if (activeRoomRef.current) {
+        event.preventDefault();
+        setActiveRoomId(null);
+        setRightPanelSection("overview");
+        setMessageMenu(null);
+        clearComposerMode();
+      }
+    };
+
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
   return (
     <div className="chat-shell">
       <nav className="space-rail">
@@ -389,6 +438,7 @@ export function ChatShell() {
               />
             </AnimatePresence>
             <Composer
+              ref={composerRef}
               key={composerKey}
               roomId={activeRoom.id}
               editingMessage={editingMessage}

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { ArrowUp, FileText, Forward, Image as ImageIcon, Mic, Paperclip, Pencil, Reply, Smile, X } from "lucide-react";
 import data from "@emoji-mart/data";
@@ -27,7 +27,11 @@ type Props = {
   onSent: () => void;
 };
 
-export function Composer({
+export type ComposerHandle = {
+  escape: () => boolean;
+};
+
+export const Composer = forwardRef<ComposerHandle, Props>(function Composer({
   roomId,
   editingMessage,
   pendingForward,
@@ -36,7 +40,7 @@ export function Composer({
   onCancelForward,
   onCancelReply,
   onSent,
-}: Props) {
+}: Props, ref) {
   const { client } = useMatrix();
   const [draft, setDraft] = useState(editingMessage?.text ?? "");
   const [attachOpen, setAttachOpen] = useState(false);
@@ -167,6 +171,37 @@ export function Composer({
       textarea.setSelectionRange(caret, caret);
     });
   };
+
+  useImperativeHandle(ref, () => ({
+    escape() {
+      if (attachOpen) {
+        setAttachOpen(false);
+        return true;
+      }
+      if (emojiOpen) {
+        setEmojiOpen(false);
+        return true;
+      }
+      if (pendingForward) {
+        onCancelForward();
+        return true;
+      }
+      if (editingMessage) {
+        onCancelEdit();
+        setDraft("");
+        return true;
+      }
+      if (replyTo) {
+        onCancelReply();
+        return true;
+      }
+      if (draft.trim()) {
+        setDraft("");
+        return true;
+      }
+      return false;
+    },
+  }), [attachOpen, draft, editingMessage, emojiOpen, onCancelEdit, onCancelForward, onCancelReply, pendingForward, replyTo]);
 
   return (
     <div className="composer-wrap">
@@ -363,7 +398,7 @@ export function Composer({
       </form>
     </div>
   );
-}
+});
 
 function contextTitle(
   mode: "edit" | "forward" | "reply" | "plain",
