@@ -29,6 +29,7 @@ export function RoomList({
   onReorderFavourites,
 }: Props) {
   const [query, setQuery] = useState("");
+  const [tip, setTip] = useState<{ left: number; text: string; top: number } | null>(null);
   const [favouriteOrderIds, setFavouriteOrderIds] = useState<string[]>([]);
   const [openSections, setOpenSections] = useState({
     favourites: true,
@@ -55,6 +56,15 @@ export function RoomList({
     [dms, searchValue],
   );
   const visibleTotal = visibleFavourites.length + visibleChannels.length + visibleDms.length;
+  const showRoomTip = (text: string, element: HTMLElement) => {
+    if (!collapsed) return;
+    const rect = element.getBoundingClientRect();
+    setTip({
+      text,
+      top: rect.top + rect.height / 2,
+      left: rect.right + 10,
+    });
+  };
 
   return (
     <aside className={`room-list${collapsed ? " is-collapsed" : ""}`}>
@@ -108,6 +118,8 @@ export function RoomList({
           collapsed={collapsed}
           onSelectRoom={onSelectRoom}
           onToggleFavourite={onToggleFavourite}
+          onShowTip={showRoomTip}
+          onHideTip={() => setTip(null)}
           reorderable={!searchValue}
           onReorder={(rooms) => {
             setFavouriteOrderIds(rooms.map((room) => room.id));
@@ -124,6 +136,8 @@ export function RoomList({
           collapsed={collapsed}
           onSelectRoom={onSelectRoom}
           onToggleFavourite={onToggleFavourite}
+          onShowTip={showRoomTip}
+          onHideTip={() => setTip(null)}
         />
         <RoomSection
           title="Личные"
@@ -135,6 +149,8 @@ export function RoomList({
           collapsed={collapsed}
           onSelectRoom={onSelectRoom}
           onToggleFavourite={onToggleFavourite}
+          onShowTip={showRoomTip}
+          onHideTip={() => setTip(null)}
         />
       </div>
 
@@ -146,6 +162,20 @@ export function RoomList({
       {total > 0 && visibleTotal === 0 && (
         <div className="room-list__empty">Ничего не найдено.</div>
       )}
+      <AnimatePresence>
+        {tip && (
+          <motion.div
+            className="room-list__tip"
+            style={{ left: tip.left, top: tip.top }}
+            initial={{ opacity: 0, x: -4, y: "-50%" }}
+            animate={{ opacity: 1, x: 0, y: "-50%" }}
+            exit={{ opacity: 0, x: -4, y: "-50%" }}
+            transition={transition.fast}
+          >
+            {tip.text}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </aside>
   );
 }
@@ -160,6 +190,8 @@ type SectionProps = {
   collapsed: boolean;
   onSelectRoom: (roomId: string) => void;
   onToggleFavourite: (roomId: string) => void;
+  onShowTip: (text: string, element: HTMLElement) => void;
+  onHideTip: () => void;
   reorderable?: boolean;
   onReorder?: (rooms: MatrixRoomSummary[]) => void;
 };
@@ -174,6 +206,8 @@ function RoomSection({
   collapsed,
   onSelectRoom,
   onToggleFavourite,
+  onShowTip,
+  onHideTip,
   reorderable = false,
   onReorder,
 }: SectionProps) {
@@ -187,8 +221,9 @@ function RoomSection({
         role="button"
         tabIndex={0}
         className={`room-row${isActive ? " is-active" : ""}${room.favourite ? " room-row--fav" : ""}`}
-        data-tooltip={collapsed ? room.name : undefined}
         onClick={() => onSelectRoom(room.id)}
+        onMouseEnter={(event) => onShowTip(room.name, event.currentTarget)}
+        onMouseLeave={onHideTip}
         onKeyDown={(event) => {
           if (event.key === "Enter" || event.key === " ") {
             event.preventDefault();
@@ -228,6 +263,7 @@ function RoomSection({
           <span className="room-row__preview">{room.preview || room.topic || "Нет сообщений"}</span>
         </span>
         <span className="room-row__meta">
+          {!collapsed && room.unread > 0 && <span className="room-row__badge">{room.unread}</span>}
           <button
             type="button"
             className={`room-row__pin${room.favourite ? " is-on" : ""}`}
@@ -240,7 +276,6 @@ function RoomSection({
           >
             <Star size={15} fill={room.favourite ? "currentColor" : "none"} />
           </button>
-          {!collapsed && room.unread > 0 && <span className="room-row__badge">{room.unread}</span>}
         </span>
       </motion.div>
     );
