@@ -43,6 +43,44 @@
   overflow: hidden;
 }
 
+.composer__upload {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-2);
+  margin: var(--space-3) 0 -2px;
+  border: 1px solid var(--color-border);
+  border-left: 3px solid var(--color-accent);
+  border-radius: var(--radius-md);
+  padding: 8px var(--space-2);
+  background: var(--color-bg-subtle);
+  overflow: hidden;
+}
+
+.composer__upload strong {
+  display: block;
+  color: var(--color-text);
+  font-size: var(--text-sm);
+}
+
+.composer__upload p {
+  overflow: hidden;
+  margin: 1px 0 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.composer__upload-spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid color-mix(in srgb, var(--color-accent) 24%, transparent);
+  border-top-color: var(--color-accent);
+  border-radius: 999px;
+  animation: composer-spin 0.9s linear infinite;
+}
+
 .composer__context-icon {
   width: 28px;
   height: 28px;
@@ -69,6 +107,11 @@
 }
 
 .composer__attach {
+  position: relative;
+  flex: 0 0 auto;
+}
+
+.composer__emoji-wrap {
   position: relative;
   flex: 0 0 auto;
 }
@@ -161,6 +204,27 @@
   transform-origin: bottom left;
 }
 
+.composer__picker {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 8px);
+  z-index: 50;
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+  box-shadow: var(--shadow-md);
+  transform-origin: bottom right;
+}
+
+.composer__picker em-emoji-picker {
+  --rgb-background: 255, 255, 255;
+  --rgb-color: 33, 33, 33;
+  --border-radius: var(--radius-md);
+  width: 352px;
+  height: 380px;
+}
+
 .attach-menu__item {
   width: 100%;
   display: flex;
@@ -190,4 +254,14 @@
 
 .attach-menu__item:hover svg {
   color: var(--color-text-strong);
+}
+
+@keyframes composer-spin {
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
 }

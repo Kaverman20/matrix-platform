@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { ArrowUp, FileText, Forward, Image as ImageIcon, Mic, Paperclip, Pencil, Reply, Smile, X } from "lucide-react";
+import data from "@emoji-mart/data";
+import Picker from "@emoji-mart/react";
 import { spring, transition } from "@matrix-platform/ui";
 import {
   sendEditMessage,
@@ -38,11 +40,14 @@ export function Composer({
   const { client } = useMatrix();
   const [draft, setDraft] = useState(editingMessage?.text ?? "");
   const [attachOpen, setAttachOpen] = useState(false);
+  const [emojiOpen, setEmojiOpen] = useState(false);
   const [sending, setSending] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [uploadState, setUploadState] = useState<{ current: number; total: number; name: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const attachWrapRef = useRef<HTMLDivElement>(null);
+  const emojiWrapRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const mode = editingMessage ? "edit" : pendingForward ? "forward" : replyTo ? "reply" : "plain";
   const context = editingMessage ?? replyTo ?? pendingForward?.[0] ?? null;
@@ -59,15 +64,26 @@ export function Composer({
   }, [context]);
 
   useEffect(() => {
-    if (!attachOpen) return;
+    if (!attachOpen && !emojiOpen) return;
 
     const onPointerDown = (event: PointerEvent) => {
       if (!attachWrapRef.current?.contains(event.target as Node)) setAttachOpen(false);
+      if (!emojiWrapRef.current?.contains(event.target as Node)) setEmojiOpen(false);
+    };
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      setAttachOpen(false);
+      setEmojiOpen(false);
     };
 
     window.addEventListener("pointerdown", onPointerDown);
-    return () => window.removeEventListener("pointerdown", onPointerDown);
-  }, [attachOpen]);
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("pointerdown", onPointerDown);
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [attachOpen, emojiOpen]);
 
   useEffect(() => {
     const textarea = textareaRef.current;
@@ -85,6 +101,8 @@ export function Composer({
 
     setDraft("");
     setSending(true);
+    setAttachOpen(false);
+    setEmojiOpen(false);
     try {
       if (pendingForward) {
         if (text) await sendTextMessage(client, roomId, text);
@@ -113,7 +131,9 @@ export function Composer({
 
     setUploading(true);
     try {
-      for (const file of Array.from(files)) {
+      const allFiles = Array.from(files);
+      for (const [index, file] of allFiles.entries()) {
+        setUploadState({ current: index + 1, total: allFiles.length, name: file.name });
         await sendMediaMessage(client, roomId, file, await mediaUploadInfo(file));
       }
       onSent();
@@ -121,8 +141,31 @@ export function Composer({
       console.error("[send-media]", e);
     } finally {
       setUploading(false);
+      setUploadState(null);
       if (fileInputRef.current) fileInputRef.current.value = "";
+      if (imageInputRef.current) imageInputRef.current.value = "";
     }
+  };
+
+  const insertEmoji = (emoji: string) => {
+    const textarea = textareaRef.current;
+    if (!textarea) {
+      setDraft((value) => value + emoji);
+      setEmojiOpen(false);
+      return;
+    }
+
+    const start = textarea.selectionStart ?? draft.length;
+    const end = textarea.selectionEnd ?? draft.length;
+    const nextDraft = `${draft.slice(0, start)}${emoji}${draft.slice(end)}`;
+    setDraft(nextDraft);
+    setEmojiOpen(false);
+
+    requestAnimationFrame(() => {
+      textarea.focus();
+      const caret = start + emoji.length;
+      textarea.setSelectionRange(caret, caret);
+    });
   };
 
   return (
@@ -155,6 +198,25 @@ export function Composer({
           </motion.div>
         )}
       </AnimatePresence>
+      <AnimatePresence initial={false}>
+        {uploadState && (
+          <motion.div
+            className="composer__upload"
+            initial={{ height: 0, opacity: 0, y: 6 }}
+            animate={{ height: "auto", opacity: 1, y: 0 }}
+            exit={{ height: 0, opacity: 0, y: 6 }}
+            transition={transition.fast}
+          >
+            <span className="composer__upload-spinner" />
+            <div>
+              <strong>
+                Загружается {uploadState.current} из {uploadState.total}
+              </strong>
+              <p>{uploadState.name}</p>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
       <form
         className="composer"
         onSubmit={(e) => {
@@ -168,7 +230,10 @@ export function Composer({
             className={`composer__tool${attachOpen ? " is-active" : ""}`}
             disabled={sending || uploading || mode === "edit"}
             title="Прикрепить"
-            onClick={() => setAttachOpen((value) => !value)}
+            onClick={() => {
+              setEmojiOpen(false);
+              setAttachOpen((value) => !value);
+            }}
           >
             <Paperclip size={20} />
           </button>
@@ -237,9 +302,42 @@ export function Composer({
             }
           }}
         />
-        <button type="button" className="composer__tool composer__emoji" title="Эмодзи">
-          <Smile size={20} />
-        </button>
+        <div className="composer__emoji-wrap" ref={emojiWrapRef}>
+          <button
+            type="button"
+            className={`composer__tool composer__emoji${emojiOpen ? " is-active" : ""}`}
+            title="Эмодзи"
+            disabled={sending || uploading}
+            onClick={() => {
+              setAttachOpen(false);
+              setEmojiOpen((value) => !value);
+            }}
+          >
+            <Smile size={20} />
+          </button>
+          <AnimatePresence>
+            {emojiOpen && (
+              <motion.div
+                className="composer__picker"
+                initial={{ opacity: 0, scale: 0.96, y: 8 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.96, y: 8 }}
+                transition={transition.fast}
+              >
+                <Picker
+                  data={data}
+                  onEmojiSelect={(event: { native: string }) => insertEmoji(event.native)}
+                  theme="light"
+                  locale="ru"
+                  navPosition="bottom"
+                  previewPosition="none"
+                  skinTonePosition="none"
+                  maxFrequentRows={2}
+                />
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
         {draft.trim() || pendingForward ? (
           <motion.button
             type="submit"
