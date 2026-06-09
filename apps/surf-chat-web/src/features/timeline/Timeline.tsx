@@ -265,6 +265,10 @@ function MessageContent({
 }
 
 function BubbleTail({ own }: { own: boolean }) {
+  const path = own
+    ? "M1 1C2.4 5.3 4.9 8.7 8.6 11.1C11.2 12.8 14.1 14.1 17 15C11.7 15.2 8.1 14.3 5.7 12.4C3 10.1 1.4 6.3 1 1Z"
+    : "M17 1C15.6 5.3 13.1 8.7 9.4 11.1C6.8 12.8 3.9 14.1 1 15C6.3 15.2 9.9 14.3 12.3 12.4C15 10.1 16.6 6.3 17 1Z";
+
   return (
     <svg
       className={`bubble__tail${own ? " bubble__tail--own" : " bubble__tail--in"}`}
@@ -273,10 +277,7 @@ function BubbleTail({ own }: { own: boolean }) {
       viewBox="0 0 18 16"
       aria-hidden
     >
-      <path
-        d="M2 1C5.6 2.1 8.3 4.7 9.5 8.2C10.1 9.9 11.8 11.7 15 13.8C10.7 13 7.6 11.8 5.8 10.2C3.8 8.4 2.5 5.2 2 1Z"
-        fill="currentColor"
-      />
+      <path d={path} fill="currentColor" />
     </svg>
   );
 }

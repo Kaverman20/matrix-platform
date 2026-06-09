@@ -276,29 +276,31 @@
 
 .mb--own.mb--tail .bubble {
   border-bottom-right-radius: 0;
+  border-bottom-left-radius: 16px;
 }
 
 .mb:not(.mb--own).mb--tail .bubble {
   border-bottom-left-radius: 0;
+  border-bottom-right-radius: 16px;
 }
 
 .bubble__tail {
   position: absolute;
-  bottom: -2px;
+  bottom: -1px;
   color: #f3f4f6;
-  filter: drop-shadow(0 1px 1px rgb(15 23 42 / 5%));
+  filter: drop-shadow(0 1px 1px rgb(15 23 42 / 4%));
   pointer-events: none;
 }
 
 .bubble__tail--own {
-  right: -8px;
-  bottom: -1px;
+  right: -10px;
+  bottom: 0;
   color: #efe9dd;
 }
 
 .bubble__tail--in {
-  left: -8px;
-  transform: scaleX(-1);
+  left: -10px;
+  bottom: 0;
 }
 
 .bubble__author {
