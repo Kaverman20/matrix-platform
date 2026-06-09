@@ -6,13 +6,13 @@ import {
   ChevronRight,
   FileText,
   GripVertical,
+  Hand,
   Hash,
   LogOut,
   MessageSquare,
   MousePointer2,
   PanelRight,
   Phone,
-  Search,
   Star,
   Users,
   Video,
@@ -684,6 +684,21 @@ function membersLabel(count: number): string {
 }
 
 const ESC_TIP_DURATION = 2;
+const VIEWS_TIMES = [0, 0.08, 0.2, 0.24, 0.26, 0.42, 0.5, 0.54, 0.56, 0.72, 0.88, 1];
+const VIEWS_TRANSITION = {
+  duration: 6,
+  repeat: Infinity,
+  times: VIEWS_TIMES,
+  ease: "easeInOut" as const,
+};
+const SECTION_STEP = 29;
+const SECTION_CYCLE_TIMES = [0, 0.08, 0.18, 0.24, 0.4, 0.46, 0.54, 0.6, 0.76, 0.82, 0.92, 1];
+const SECTION_CYCLE_TRANSITION = {
+  duration: 9,
+  repeat: Infinity,
+  times: SECTION_CYCLE_TIMES,
+  ease: "easeInOut" as const,
+};
 
 const EMPTY_TIPS = [
   {
@@ -725,26 +740,71 @@ const EMPTY_TIPS = [
     visual: (
       <div className="tipviz tipviz--views">
         <motion.div
-          className="tipviz__views-cursor"
-          animate={{ x: [10, 10, 118, 118, 10], y: [18, 18, 20, 20, 18], scale: [1, 1, 0.96, 0.96, 1] }}
-          transition={{ duration: 2.6, repeat: Infinity, ease: "easeInOut" }}
+          className="tipviz__view"
+          animate={{
+            scale: [1, 1, 1, 1.05, 1.05, 1.05, 1.05, 1, 1, 1, 1, 1],
+            boxShadow: [
+              "var(--shadow-sm)",
+              "var(--shadow-sm)",
+              "var(--shadow-sm)",
+              "var(--shadow-md)",
+              "var(--shadow-md)",
+              "var(--shadow-md)",
+              "var(--shadow-md)",
+              "var(--shadow-sm)",
+              "var(--shadow-sm)",
+              "var(--shadow-sm)",
+              "var(--shadow-sm)",
+              "var(--shadow-sm)",
+            ],
+          }}
+          transition={VIEWS_TRANSITION}
         >
-          <MousePointer2 size={14} />
-        </motion.div>
-        <div className="tipviz__view">
           <AlignLeft size={12} className="tipviz__view-icon" />
           <span className="tipviz__msg" />
           <span className="tipviz__msg short" />
           <span className="tipviz__msg" />
           <em>Строки</em>
-        </div>
-        <div className="tipviz__view">
+        </motion.div>
+        <motion.div
+          className="tipviz__view"
+          animate={{
+            scale: [1, 1, 1, 1, 1, 1, 1, 1.05, 1.05, 1.05, 1, 1],
+            boxShadow: [
+              "var(--shadow-sm)",
+              "var(--shadow-sm)",
+              "var(--shadow-sm)",
+              "var(--shadow-sm)",
+              "var(--shadow-sm)",
+              "var(--shadow-sm)",
+              "var(--shadow-sm)",
+              "var(--shadow-md)",
+              "var(--shadow-md)",
+              "var(--shadow-md)",
+              "var(--shadow-sm)",
+              "var(--shadow-sm)",
+            ],
+          }}
+          transition={VIEWS_TRANSITION}
+        >
           <MessageSquare size={12} className="tipviz__view-icon" />
-          <span className="tipviz__bub" />
-          <span className="tipviz__bub right short" />
-          <span className="tipviz__bub short" />
+          <span className="tipviz__bub left" />
+          <span className="tipviz__bub right" />
+          <span className="tipviz__bub left short" />
           <em>Пузыри</em>
-        </div>
+        </motion.div>
+        <motion.div
+          className="tipviz__views-cursor"
+          animate={{
+            x: [-30, -30, 126, 126, 126, 126, 264, 264, 264, 264, -30, -30],
+            y: [11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11],
+            opacity: [0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0],
+            scale: [1, 1, 1, 0.82, 0.82, 1, 1, 0.82, 0.82, 1, 1, 1],
+          }}
+          transition={VIEWS_TRANSITION}
+        >
+          <MousePointer2 size={14} fill="currentColor" />
+        </motion.div>
       </div>
     ),
   },
@@ -755,23 +815,69 @@ const EMPTY_TIPS = [
       <div className="tipviz tipviz--sections">
         <motion.div
           className="tipviz__cursor"
-          animate={{ x: [0, 0, 38, 38, 0], y: [0, 0, 8, 8, 0], scale: [1, 1, 0.96, 0.96, 1] }}
-          transition={{ duration: 2.4, repeat: Infinity, ease: "easeInOut" }}
+          animate={{
+            x: [-30, -30, 0, 0, 0, 0, 0, 0, 0, 0, -30, -30],
+            y: [12, 12, 12, 12, 41, 41, 70, 70, 12, 12, 12, 12],
+            opacity: [0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0],
+            scale: [1, 1, 1, 0.82, 0.82, 1, 1, 0.82, 0.82, 1, 1, 1],
+          }}
+          transition={SECTION_CYCLE_TRANSITION}
         >
-          <MousePointer2 size={14} />
+          <motion.span
+            className="tipviz__cursor-icon"
+            animate={{ opacity: [1, 1, 0, 0, 1, 1, 0, 0, 1, 1] }}
+            transition={{
+              duration: 9,
+              repeat: Infinity,
+              ease: "linear",
+              times: [0, 0.179, 0.181, 0.399, 0.401, 0.539, 0.541, 0.759, 0.761, 1],
+            }}
+          >
+            <MousePointer2 size={14} fill="currentColor" />
+          </motion.span>
+          <motion.span
+            className="tipviz__cursor-icon tipviz__cursor-icon--grab"
+            animate={{ opacity: [0, 0, 1, 1, 0, 0, 1, 1, 0, 0] }}
+            transition={{
+              duration: 9,
+              repeat: Infinity,
+              ease: "linear",
+              times: [0, 0.179, 0.181, 0.399, 0.401, 0.539, 0.541, 0.759, 0.761, 1],
+            }}
+          >
+            <Hand size={16} strokeWidth={2.25} />
+          </motion.span>
         </motion.div>
-        <div className="tipviz__sec">
-          <Search size={12} />
-          <span>Поиск</span>
-        </div>
-        <div className="tipviz__sec is-grab">
+        <motion.div
+          className="tipviz__sec"
+          animate={{
+            y: [0, 0, 0, 0, SECTION_STEP, SECTION_STEP, SECTION_STEP, SECTION_STEP, 2 * SECTION_STEP, 2 * SECTION_STEP, 0, 0],
+            scale: [1, 1, 1, 1.04, 1.04, 1, 1, 1, 1, 1, 1, 1],
+          }}
+          transition={SECTION_CYCLE_TRANSITION}
+        >
           <GripVertical size={12} />
-          <span>Список комнат</span>
-        </div>
-        <div className="tipviz__sec">
-          <AlignLeft size={12} />
-          <span>Лента чата</span>
-        </div>
+          <span>Избранное</span>
+        </motion.div>
+        <motion.div
+          className="tipviz__sec"
+          animate={{ y: [0, 0, 0, 0, -SECTION_STEP, -SECTION_STEP, -SECTION_STEP, -SECTION_STEP, 0, 0, 0, 0] }}
+          transition={SECTION_CYCLE_TRANSITION}
+        >
+          <GripVertical size={12} />
+          <span>Каналы</span>
+        </motion.div>
+        <motion.div
+          className="tipviz__sec"
+          animate={{
+            y: [0, 0, 0, 0, 0, 0, 0, 0, -2 * SECTION_STEP, -2 * SECTION_STEP, 0, 0],
+            scale: [1, 1, 1, 1, 1, 1, 1, 1.04, 1.04, 1, 1, 1],
+          }}
+          transition={SECTION_CYCLE_TRANSITION}
+        >
+          <GripVertical size={12} />
+          <span>Личные</span>
+        </motion.div>
       </div>
     ),
   },
