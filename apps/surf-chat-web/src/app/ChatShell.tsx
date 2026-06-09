@@ -720,6 +720,35 @@ const EMPTY_TIPS = [
     ),
   },
   {
+    title: "Лента — как удобнее",
+    text: "В шапке открытого чата справа можно переключать виды и держать ленту в том формате, который лучше читается именно вам.",
+    visual: (
+      <div className="tipviz tipviz--views">
+        <motion.div
+          className="tipviz__views-cursor"
+          animate={{ x: [10, 10, 118, 118, 10], y: [18, 18, 20, 20, 18], scale: [1, 1, 0.96, 0.96, 1] }}
+          transition={{ duration: 2.6, repeat: Infinity, ease: "easeInOut" }}
+        >
+          <MousePointer2 size={14} />
+        </motion.div>
+        <div className="tipviz__view">
+          <AlignLeft size={12} className="tipviz__view-icon" />
+          <span className="tipviz__msg" />
+          <span className="tipviz__msg short" />
+          <span className="tipviz__msg" />
+          <em>Строки</em>
+        </div>
+        <div className="tipviz__view">
+          <MessageSquare size={12} className="tipviz__view-icon" />
+          <span className="tipviz__bub" />
+          <span className="tipviz__bub right short" />
+          <span className="tipviz__bub short" />
+          <em>Пузыри</em>
+        </div>
+      </div>
+    ),
+  },
+  {
     title: "Панель под рукой",
     text: "Левую колонку можно сворачивать кнопкой или тянуть мышкой за правую границу, чтобы освободить больше места для ленты.",
     visual: (
@@ -805,57 +834,76 @@ function EmptyTips({ userId }: { userId: string | null }) {
 
   return (
     <div className="tips">
-      <div className="tips__intro">
-        <h1>Surf Chat</h1>
-        <p>{userId ? `Вы вошли как ${userId}` : "Готово к работе"}</p>
-      </div>
-      <div className="tips__card">
-        <div className="tips__viewport">
-          <AnimatePresence mode="wait" custom={direction} initial={false}>
-            <motion.div
-              key={index}
-              className="tips__slide"
-              custom={direction}
-              variants={{
-                enter: (dir: 1 | -1) => ({ x: dir * 48, opacity: 0 }),
-                center: { x: 0, opacity: 1 },
-                exit: (dir: 1 | -1) => ({ x: dir * -48, opacity: 0 }),
-              }}
-              initial="enter"
-              animate="center"
-              exit="exit"
-              transition={transition.base}
-            >
-              <div className="tips__visual">{tip.visual}</div>
-              <div className="tips__title">{tip.title}</div>
-              <div className="tips__text">{tip.text}</div>
-            </motion.div>
-          </AnimatePresence>
-        </div>
-        <div className="tips__dots">
-          {EMPTY_TIPS.map((_, tipIndex) => (
+      <div className="tips__layout">
+        <section className="tips__intro">
+          <span className="tips__eyebrow">Surf Chat</span>
+          <h1>Рабочее пространство готово</h1>
+          <p>{userId ? `Вы вошли как ${userId}` : "Откройте чат слева или пройдитесь по подсказкам, чтобы быстрее освоиться."}</p>
+          <div className="tips__facts">
+            <div className="tips__fact">
+              <strong>{EMPTY_TIPS.length}</strong>
+              <span>коротких подсказок</span>
+            </div>
+            <div className="tips__fact">
+              <strong>Esc</strong>
+              <span>быстрый выход из чата</span>
+            </div>
+            <div className="tips__fact">
+              <strong>Spaces</strong>
+              <span>фильтр по рабочим зонам</span>
+            </div>
+          </div>
+        </section>
+        <section className="tips__panel">
+          <div className="tips__card">
+            <div className="tips__viewport">
+              <AnimatePresence mode="wait" custom={direction} initial={false}>
+                <motion.div
+                  key={index}
+                  className="tips__slide"
+                  custom={direction}
+                  variants={{
+                    enter: (dir: 1 | -1) => ({ x: dir * 48, opacity: 0 }),
+                    center: { x: 0, opacity: 1 },
+                    exit: (dir: 1 | -1) => ({ x: dir * -48, opacity: 0 }),
+                  }}
+                  initial="enter"
+                  animate="center"
+                  exit="exit"
+                  transition={transition.base}
+                >
+                  <div className="tips__visual">{tip.visual}</div>
+                  <div className="tips__title">{tip.title}</div>
+                  <div className="tips__text">{tip.text}</div>
+                </motion.div>
+              </AnimatePresence>
+            </div>
+            <div className="tips__dots">
+              {EMPTY_TIPS.map((_, tipIndex) => (
+                <button
+                  key={tipIndex}
+                  type="button"
+                  className={`tips__dot${tipIndex === index ? " is-active" : ""}`}
+                  onClick={() => go(tipIndex)}
+                  aria-label={`Подсказка ${tipIndex + 1}`}
+                />
+              ))}
+            </div>
+          </div>
+          <div className="tips__nav">
+            <button type="button" className="tips__btn" onClick={() => go(index - 1)} disabled={index === 0}>
+              ‹ Назад
+            </button>
             <button
-              key={tipIndex}
               type="button"
-              className={`tips__dot${tipIndex === index ? " is-active" : ""}`}
-              onClick={() => go(tipIndex)}
-              aria-label={`Подсказка ${tipIndex + 1}`}
-            />
-          ))}
-        </div>
-      </div>
-      <div className="tips__nav">
-        <button type="button" className="tips__btn" onClick={() => go(index - 1)} disabled={index === 0}>
-          ‹ Назад
-        </button>
-        <button
-          type="button"
-          className="tips__btn"
-          onClick={() => go(index + 1)}
-          disabled={index === EMPTY_TIPS.length - 1}
-        >
-          Дальше ›
-        </button>
+              className="tips__btn"
+              onClick={() => go(index + 1)}
+              disabled={index === EMPTY_TIPS.length - 1}
+            >
+              Дальше ›
+            </button>
+          </div>
+        </section>
       </div>
     </div>
   );
