@@ -158,6 +158,27 @@ export function ChatShell() {
         })),
     [messages],
   );
+  const canPinMessages = useMemo(() => {
+    if (!client || !activeMatrixRoom) return false;
+
+    const powerLevels = activeMatrixRoom
+      .getLiveTimeline()
+      .getState(EventTimeline.FORWARDS)
+      ?.getStateEvents("m.room.power_levels", "")
+      ?.getContent() as
+        | {
+            users?: Record<string, number>;
+            users_default?: number;
+            events?: Record<string, number>;
+            state_default?: number;
+          }
+        | undefined;
+
+    const me = client.getUserId();
+    const myLevel = Number((me && powerLevels?.users?.[me]) ?? powerLevels?.users_default ?? 0);
+    const requiredLevel = Number(powerLevels?.events?.["m.room.pinned_events"] ?? powerLevels?.state_default ?? 50);
+    return myLevel >= requiredLevel;
+  }, [activeMatrixRoom, client]);
 
   const messageReference = (message: MatrixMessage): MatrixMessageReference => ({
     id: message.id,
@@ -757,10 +778,11 @@ export function ChatShell() {
       </AnimatePresence>
       <AnimatePresence>
         {messageMenu && (
-          <MessageContextMenu
-            message={messageMenu.message}
-            x={messageMenu.x}
-            y={messageMenu.y}
+        <MessageContextMenu
+          canPin={canPinMessages}
+          message={messageMenu.message}
+          x={messageMenu.x}
+          y={messageMenu.y}
             onAction={handleMessageAction}
             onReact={toggleReaction}
             onClose={() => setMessageMenu(null)}

@@ -11,6 +11,7 @@ export type MessageAction = "reply" | "edit" | "copy" | "forward" | "pin" | "del
 const QUICK_REACTIONS = ["👍", "❤️", "😂", "🔥", "👏", "🤔", "👎"];
 
 type Props = {
+  canPin: boolean;
   message: MatrixMessage;
   x: number;
   y: number;
@@ -24,7 +25,7 @@ const MENU_HEIGHT = 288;
 const MENU_PICKER_HEIGHT = 470;
 const SAFE_OFFSET = 12;
 
-export function MessageContextMenu({ message, x, y, onAction, onClose, onReact }: Props) {
+export function MessageContextMenu({ canPin, message, x, y, onAction, onClose, onReact }: Props) {
   const ref = useRef<HTMLDivElement>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const left = clamp(x, SAFE_OFFSET, window.innerWidth - MENU_PICKER_WIDTH - SAFE_OFFSET);
@@ -168,7 +169,14 @@ export function MessageContextMenu({ message, x, y, onAction, onClose, onReact }
                 </button>
               </li>
               <li>
-                <button type="button" role="menuitem" className="message-menu__action" onClick={() => runAction("pin")}>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="message-menu__action"
+                  onClick={() => canPin && runAction("pin")}
+                  disabled={!canPin}
+                  title={canPin ? undefined : "Недостаточно прав для закрепления в этой комнате"}
+                >
                   <Pin size={16} />
                   <span>{message.pinned ? "Открепить" : "Закрепить"}</span>
                 </button>
