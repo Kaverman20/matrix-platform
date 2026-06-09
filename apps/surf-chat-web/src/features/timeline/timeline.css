@@ -310,9 +310,21 @@
   justify-content: flex-end;
   gap: 3px;
   margin-top: 2px;
-  color: var(--color-text-faint);
   font-size: 11px;
-  font-variant-numeric: tabular-nums;
+  opacity: 0.5;
+}
+
+.mb--own .bubble__time {
+  color: var(--color-text-muted);
+  opacity: 0.8;
+}
+
+.bubble__time .message__edited {
+  margin-right: 2px;
+}
+
+.mb--own .bubble__time .message__edited {
+  color: var(--color-text-faint);
 }
 
 .bubble__reply-preview {
