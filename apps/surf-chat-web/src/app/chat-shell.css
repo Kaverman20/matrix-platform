@@ -68,6 +68,10 @@
   font-weight: 800;
 }
 
+.space-rail__item--add {
+  background: var(--color-rail-item-hover);
+}
+
 .space-rail__home:hover,
 .space-rail__item:hover {
   transform: translateY(-1px);
@@ -284,6 +288,202 @@
   justify-content: center;
   background: var(--color-bg);
   user-select: none;
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgb(15 23 42 / 28%);
+  backdrop-filter: blur(6px);
+}
+
+.spacemodal {
+  position: relative;
+  width: 500px;
+  max-width: calc(100vw - 32px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 48px 48px 40px;
+  border-radius: 22px;
+  background: var(--color-bg);
+  box-shadow: var(--shadow-lg, 0 24px 60px rgb(0 0 0 / 22%));
+  text-align: center;
+}
+
+.spacemodal__close {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: var(--radius-md);
+  color: var(--color-text-faint);
+  background: transparent;
+  cursor: pointer;
+}
+
+.spacemodal__close:hover {
+  color: var(--color-text-strong);
+  background: var(--color-bg-subtle);
+}
+
+.spacemodal__heading {
+  margin-bottom: 20px;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.spacemodal__avatar {
+  position: relative;
+  width: 84px;
+  height: 84px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: var(--radius-pill);
+  color: #fff;
+  background: var(--color-accent);
+  font-size: 34px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: filter 150ms ease;
+}
+
+.spacemodal__avatar:hover {
+  filter: brightness(0.92);
+}
+
+.spacemodal__avatarImg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border-radius: var(--radius-pill);
+  object-fit: cover;
+}
+
+.spacemodal__avatarCam {
+  position: absolute;
+  right: -2px;
+  bottom: -2px;
+  z-index: 2;
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius-pill);
+  color: var(--color-text-muted);
+  background: var(--color-bg);
+  box-shadow: var(--shadow-sm);
+}
+
+.spacemodal__name {
+  width: 100%;
+  margin-top: 24px;
+  padding: 10px 4px;
+  border: 0;
+  border-bottom: 1.5px solid var(--color-border);
+  border-radius: 0;
+  color: var(--color-text-strong);
+  background: transparent;
+  text-align: center;
+  font-size: var(--text-lg);
+  font-weight: 600;
+  outline: none;
+  appearance: none;
+  transition: border-color 150ms ease;
+}
+
+.spacemodal__name::placeholder {
+  color: var(--color-text-faint);
+  font-weight: 500;
+}
+
+.spacemodal__name:focus {
+  border-bottom-color: var(--color-accent);
+}
+
+.spacemodal__toggle {
+  display: inline-flex;
+  gap: 2px;
+  margin-top: 28px;
+  padding: 4px;
+  border-radius: var(--radius-pill);
+  background: var(--color-bg-sunken, var(--color-bg-subtle));
+}
+
+.spacemodal__toggle button {
+  position: relative;
+  border: 0;
+  border-radius: var(--radius-pill);
+  padding: 9px 24px;
+  color: var(--color-text-muted);
+  background: transparent;
+  font-size: var(--text-md);
+  font-weight: 600;
+  cursor: pointer;
+  transition: color 140ms ease;
+}
+
+.spacemodal__toggle button.is-active {
+  color: var(--color-text-strong);
+}
+
+.seg-pill {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  border-radius: var(--radius-pill);
+  background: var(--color-bg);
+  box-shadow: var(--shadow-sm);
+}
+
+.seg-label {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.spacemodal__hint {
+  max-width: 340px;
+  margin-top: 20px;
+  color: var(--color-text-faint);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+}
+
+.spacemodal__create {
+  width: 100%;
+  height: 52px;
+  margin-top: 30px;
+  border: 0;
+  border-radius: var(--radius-md);
+  color: #fff;
+  background: var(--color-accent);
+  font-size: var(--text-md);
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 140ms ease, transform 100ms ease;
+}
+
+.spacemodal__create:hover {
+  transform: translateY(-1px);
+}
+
+.spacemodal__create:disabled {
+  opacity: 0.4;
+  pointer-events: none;
 }
 
 .tips {

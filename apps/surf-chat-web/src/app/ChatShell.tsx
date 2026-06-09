@@ -4,26 +4,32 @@ import {
   AlignLeft,
   ArrowLeft,
   Bell,
+  Boxes,
+  Camera,
   ChevronRight,
   FileText,
+  Globe,
   GripVertical,
   Hand,
   Hash,
+  Lock,
   LogOut,
   MessageSquare,
   MousePointer2,
   PanelRight,
   Pin,
   Phone,
+  Plus,
   Star,
   Users,
   Video,
   X,
 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { transition } from "@matrix-platform/ui";
 import {
   buildForwardData,
+  colorForId,
   removeReaction,
   sendReaction,
   type MatrixForwardData,
@@ -83,13 +89,28 @@ export function ChatShell() {
   const [pinnedIndex, setPinnedIndex] = useState(0);
   const [highlightMessageId, setHighlightMessageId] = useState<string | null>(null);
   const [optimisticPinnedIds, setOptimisticPinnedIds] = useState<string[] | null>(null);
+  const [creatingSpace, setCreatingSpace] = useState(false);
+  const [newSpaceName, setNewSpaceName] = useState("");
+  const [newSpaceType, setNewSpaceType] = useState<"private" | "public">("private");
+  const [spaceAvatarFile, setSpaceAvatarFile] = useState<File | null>(null);
+  const [spaceAvatarPreview, setSpaceAvatarPreview] = useState<string | null>(null);
+  const [creatingSpacePending, setCreatingSpacePending] = useState(false);
   const favouritePersistTimer = useRef<number | null>(null);
   const composerRef = useRef<ComposerHandle | null>(null);
   const highlightTimer = useRef<number | null>(null);
+  const spaceAvatarInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     localStorage.setItem("surf-chat:view", chatView);
   }, [chatView]);
+
+  useEffect(() => {
+    return () => {
+      if (spaceAvatarPreview) {
+        URL.revokeObjectURL(spaceAvatarPreview);
+      }
+    };
+  }, [spaceAvatarPreview]);
 
   const allRooms = useMemo(
     () => [
@@ -380,6 +401,92 @@ export function ChatShell() {
     }
   };
 
+  const openCreateSpace = () => {
+    if (spaceAvatarPreview) {
+      URL.revokeObjectURL(spaceAvatarPreview);
+    }
+    setNewSpaceName("");
+    setNewSpaceType("private");
+    setSpaceAvatarFile(null);
+    setSpaceAvatarPreview(null);
+    setCreatingSpace(true);
+  };
+
+  const closeCreateSpace = () => {
+    setCreatingSpace(false);
+    setCreatingSpacePending(false);
+  };
+
+  const pickSpaceAvatar = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0] ?? null;
+    if (spaceAvatarPreview) {
+      URL.revokeObjectURL(spaceAvatarPreview);
+    }
+    setSpaceAvatarFile(file);
+    setSpaceAvatarPreview(file ? URL.createObjectURL(file) : null);
+    event.target.value = "";
+  };
+
+  const createSpace = async () => {
+    const name = newSpaceName.trim();
+    if (!client || !name || creatingSpacePending) return;
+
+    setCreatingSpacePending(true);
+    const server = client.getDomain() ?? "";
+    const isPublic = newSpaceType === "public";
+
+    try {
+      let avatarMxc: string | undefined;
+      if (spaceAvatarFile) {
+        try {
+          const upload = await client.uploadContent(spaceAvatarFile, { type: spaceAvatarFile.type });
+          avatarMxc = (upload as { content_uri?: string }).content_uri;
+        } catch (error) {
+          console.error("[space-avatar-upload]", error);
+        }
+      }
+
+      const spaceResult = await client.createRoom({
+        name,
+        creation_content: { type: "m.space" },
+        preset: (isPublic ? "public_chat" : "private_chat") as never,
+        ...(isPublic ? { visibility: "public" as never } : {}),
+        ...(avatarMxc
+          ? { initial_state: [{ type: "m.room.avatar", state_key: "", content: { url: avatarMxc } }] }
+          : {}),
+      } as never);
+
+      const spaceId = (spaceResult as { room_id: string }).room_id;
+      const generalResult = await client.createRoom({
+        name: "general",
+        room_version: "10",
+        initial_state: [
+          {
+            type: "m.room.join_rules",
+            state_key: "",
+            content: {
+              join_rule: "restricted",
+              allow: [{ type: "m.room_membership", room_id: spaceId }],
+            },
+          },
+          { type: "m.space.parent", state_key: spaceId, content: { canonical: true, via: [server] } },
+        ],
+      } as never);
+
+      const generalRoomId = (generalResult as { room_id: string }).room_id;
+      await client.sendStateEvent(spaceId, "m.space.child" as never, { via: [server] } as never, generalRoomId);
+
+      closeCreateSpace();
+      setActiveSpaceId(spaceId);
+      setActiveRoomId(generalRoomId);
+    } catch (error) {
+      console.error("[create-space]", error);
+      window.alert("Не удалось создать пространство.");
+    } finally {
+      setCreatingSpacePending(false);
+    }
+  };
+
   const reorderFavouriteRooms = (rooms: typeof roomGroups.favourites) => {
     if (!client) return;
     if (favouritePersistTimer.current) {
@@ -412,6 +519,20 @@ export function ChatShell() {
       }
     };
   }, []);
+
+  useEffect(() => {
+    if (!creatingSpace) return;
+
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        closeCreateSpace();
+      }
+    };
+
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [creatingSpace]);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -477,6 +598,13 @@ export function ChatShell() {
             </button>
           ))}
         </div>
+        <button
+          className="space-rail__item space-rail__item--add"
+          title="Создать пространство"
+          onClick={openCreateSpace}
+        >
+          <Plus size={20} />
+        </button>
         <button
           className="space-rail__logout"
           title="Выйти"
@@ -822,6 +950,113 @@ export function ChatShell() {
             <button type="button" className="lightbox__close" title="Закрыть">
               <X size={20} />
             </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+      <AnimatePresence>
+        {creatingSpace && (
+          <motion.div
+            className="modal-backdrop"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={closeCreateSpace}
+          >
+            <motion.div
+              className="spacemodal"
+              role="dialog"
+              aria-modal="true"
+              aria-label="Создать пространство"
+              onClick={(event) => event.stopPropagation()}
+              initial={{ scale: 0.94, opacity: 0, y: 8 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.94, opacity: 0, y: 8 }}
+              transition={transition.base}
+            >
+              <button className="spacemodal__close" onClick={closeCreateSpace} aria-label="Закрыть">
+                <X size={18} />
+              </button>
+
+              <div className="spacemodal__heading">Новое пространство</div>
+
+              <button
+                type="button"
+                className="spacemodal__avatar"
+                style={spaceAvatarPreview ? undefined : { background: colorForId(newSpaceName || "space") }}
+                onClick={() => spaceAvatarInputRef.current?.click()}
+                title="Загрузить картинку"
+              >
+                {spaceAvatarPreview ? (
+                  <img className="spacemodal__avatarImg" src={spaceAvatarPreview} alt="" />
+                ) : newSpaceName.trim() ? (
+                  newSpaceName.trim()[0].toUpperCase()
+                ) : (
+                  <Boxes size={34} />
+                )}
+                <span className="spacemodal__avatarCam">
+                  <Camera size={16} />
+                </span>
+              </button>
+
+              <input
+                ref={spaceAvatarInputRef}
+                type="file"
+                accept="image/*"
+                hidden
+                onChange={pickSpaceAvatar}
+              />
+
+              <input
+                autoFocus
+                className="spacemodal__name"
+                placeholder="Название пространства"
+                value={newSpaceName}
+                onChange={(event) => setNewSpaceName(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" && newSpaceName.trim()) {
+                    void createSpace();
+                  }
+                }}
+              />
+
+              <div className="spacemodal__toggle">
+                <button
+                  type="button"
+                  className={newSpaceType === "private" ? "is-active" : ""}
+                  onClick={() => setNewSpaceType("private")}
+                >
+                  {newSpaceType === "private" && (
+                    <motion.span className="seg-pill" layoutId="space-seg" transition={transition.base} />
+                  )}
+                  <span className="seg-label"><Lock size={15} /> Приватное</span>
+                </button>
+                <button
+                  type="button"
+                  className={newSpaceType === "public" ? "is-active" : ""}
+                  onClick={() => setNewSpaceType("public")}
+                >
+                  {newSpaceType === "public" && (
+                    <motion.span className="seg-pill" layoutId="space-seg" transition={transition.base} />
+                  )}
+                  <span className="seg-label"><Globe size={15} /> Публичное</span>
+                </button>
+              </div>
+
+              <p className="spacemodal__hint">
+                {newSpaceType === "private"
+                  ? "Доступ по группе или приглашению."
+                  : "Войти может любой сотрудник."}{" "}
+                Внутри создастся канал #general.
+              </p>
+
+              <button
+                className="spacemodal__create"
+                onClick={() => void createSpace()}
+                disabled={!newSpaceName.trim() || creatingSpacePending}
+              >
+                {creatingSpacePending ? "Создаём..." : "Создать пространство"}
+              </button>
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
