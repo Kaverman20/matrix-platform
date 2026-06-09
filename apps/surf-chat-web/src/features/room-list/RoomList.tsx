@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
-import { motion, Reorder } from "framer-motion";
-import { ChevronDown, Hash, MessageCircle, Search, Star } from "lucide-react";
+import { AnimatePresence, motion, Reorder } from "framer-motion";
+import { ChevronDown, Hash, MessageCircle, PanelLeftClose, PanelLeftOpen, Search, Star } from "lucide-react";
 import type { MatrixRoomSummary } from "@matrix-platform/matrix-core";
 import { fadeUp, transition } from "@matrix-platform/ui";
 import "./room-list.css";
@@ -25,6 +25,7 @@ export function RoomList({
   onReorderFavourites,
 }: Props) {
   const [query, setQuery] = useState("");
+  const [collapsed, setCollapsed] = useState(false);
   const [favouriteOrderIds, setFavouriteOrderIds] = useState<string[]>([]);
   const [openSections, setOpenSections] = useState({
     favourites: true,
@@ -53,21 +54,52 @@ export function RoomList({
   const visibleTotal = visibleFavourites.length + visibleChannels.length + visibleDms.length;
 
   return (
-    <aside className="room-list">
+    <motion.aside
+      className={`room-list${collapsed ? " is-collapsed" : ""}`}
+      animate={{
+        width: collapsed ? 72 : "var(--roomlist-width)",
+        minWidth: collapsed ? 72 : "var(--roomlist-width)",
+      }}
+      transition={transition.slow}
+    >
       <div className="room-list__head">
-        <div>
+        <motion.div
+          className="room-list__title"
+          animate={{ opacity: collapsed ? 0 : 1, width: collapsed ? 0 : "auto" }}
+          transition={transition.slow}
+        >
           <strong>Surf Chat</strong>
           <span>{total} чатов</span>
-        </div>
+        </motion.div>
+        <button
+          type="button"
+          className="room-list__collapse"
+          title={collapsed ? "Развернуть" : "Свернуть"}
+          onClick={() => setCollapsed((value) => !value)}
+        >
+          {collapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
+        </button>
       </div>
-      <label className="room-list__search">
-        <Search size={16} />
-        <input
-          value={query}
-          placeholder="Поиск"
-          onChange={(event) => setQuery(event.target.value)}
-        />
-      </label>
+      <AnimatePresence initial={false}>
+        {!collapsed && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={transition.slow}
+            style={{ overflow: "hidden" }}
+          >
+            <label className="room-list__search">
+              <Search size={16} />
+              <input
+                value={query}
+                placeholder="Поиск"
+                onChange={(event) => setQuery(event.target.value)}
+              />
+            </label>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <div className="room-list__sections">
         <RoomSection
@@ -77,6 +109,7 @@ export function RoomList({
           open={openSections.favourites}
           onToggleOpen={() => setOpenSections((state) => ({ ...state, favourites: !state.favourites }))}
           activeRoomId={activeRoomId}
+          collapsed={collapsed}
           onSelectRoom={onSelectRoom}
           onToggleFavourite={onToggleFavourite}
           reorderable={!searchValue}
@@ -92,6 +125,7 @@ export function RoomList({
           open={openSections.channels}
           onToggleOpen={() => setOpenSections((state) => ({ ...state, channels: !state.channels }))}
           activeRoomId={activeRoomId}
+          collapsed={collapsed}
           onSelectRoom={onSelectRoom}
           onToggleFavourite={onToggleFavourite}
         />
@@ -102,6 +136,7 @@ export function RoomList({
           open={openSections.dms}
           onToggleOpen={() => setOpenSections((state) => ({ ...state, dms: !state.dms }))}
           activeRoomId={activeRoomId}
+          collapsed={collapsed}
           onSelectRoom={onSelectRoom}
           onToggleFavourite={onToggleFavourite}
         />
@@ -115,7 +150,7 @@ export function RoomList({
       {total > 0 && visibleTotal === 0 && (
         <div className="room-list__empty">Ничего не найдено.</div>
       )}
-    </aside>
+    </motion.aside>
   );
 }
 
@@ -126,6 +161,7 @@ type SectionProps = {
   open: boolean;
   onToggleOpen: () => void;
   activeRoomId: string | null;
+  collapsed: boolean;
   onSelectRoom: (roomId: string) => void;
   onToggleFavourite: (roomId: string) => void;
   reorderable?: boolean;
@@ -139,6 +175,7 @@ function RoomSection({
   open,
   onToggleOpen,
   activeRoomId,
+  collapsed,
   onSelectRoom,
   onToggleFavourite,
   reorderable = false,
@@ -154,6 +191,7 @@ function RoomSection({
         role="button"
         tabIndex={0}
         className={`room-row${isActive ? " is-active" : ""}${room.favourite ? " room-row--fav" : ""}`}
+        data-tooltip={collapsed ? room.name : undefined}
         onClick={() => onSelectRoom(room.id)}
         onKeyDown={(event) => {
           if (event.key === "Enter" || event.key === " ") {
@@ -177,7 +215,14 @@ function RoomSection({
           />
         )}
         <span className="room-row__avatar" style={{ background: room.color }}>
-          {room.kind === "channel" ? <Hash size={17} /> : room.name.slice(0, 1).toUpperCase()}
+          {room.avatarUrl ? (
+            <img className="room-row__avatar-img" src={room.avatarUrl} alt="" />
+          ) : room.kind === "channel" ? (
+            <Hash size={17} />
+          ) : (
+            room.name.slice(0, 1).toUpperCase()
+          )}
+          {collapsed && room.unread > 0 && <span className="room-row__badge room-row__badge--corner">{room.unread}</span>}
         </span>
         <span className="room-row__main">
           <span className="room-row__top">
@@ -199,7 +244,7 @@ function RoomSection({
           >
             <Star size={15} fill={room.favourite ? "currentColor" : "none"} />
           </button>
-          {room.unread > 0 && <span className="room-row__badge">{room.unread}</span>}
+          {!collapsed && room.unread > 0 && <span className="room-row__badge">{room.unread}</span>}
         </span>
       </motion.div>
     );
@@ -207,18 +252,30 @@ function RoomSection({
 
   return (
     <section className="room-section">
-      <button type="button" className="room-section__title" onClick={onToggleOpen}>
-        <motion.span
-          className="room-section__chevron"
-          animate={{ rotate: open ? 0 : -90 }}
-          transition={transition.fast}
-        >
-          <ChevronDown size={14} />
-        </motion.span>
-        <span className="room-section__icon">{icon}</span>
-        <span>{title}</span>
-        <em>{rooms.length}</em>
-      </button>
+      <AnimatePresence initial={false}>
+        {!collapsed && (
+          <motion.button
+            type="button"
+            className="room-section__title"
+            onClick={onToggleOpen}
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 28 }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={transition.fast}
+          >
+            <motion.span
+              className="room-section__chevron"
+              animate={{ rotate: open ? 0 : -90 }}
+              transition={transition.fast}
+            >
+              <ChevronDown size={14} />
+            </motion.span>
+            <span className="room-section__icon">{icon}</span>
+            <span>{title}</span>
+            <em>{rooms.length}</em>
+          </motion.button>
+        )}
+      </AnimatePresence>
       <div className={`room-section__body${open ? " is-open" : ""}`}>
         <div className="room-section__body-inner">
           {reorderable && onReorder ? (
