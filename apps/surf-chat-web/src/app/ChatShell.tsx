@@ -703,7 +703,7 @@ const EMPTY_TIPS = [
   },
   {
     title: "Закрепляйте важное",
-    text: "Нажмите звёздочку у чата — он переедет в «Избранное» наверх. Непрочитанные при этом никуда не исчезают.",
+    text: "Нажмите звёздочку у чата — он переедет в «Избранное» наверх. Перетаскивайте, чтобы расставить по порядку.",
     visual: (
       <div className="tipviz">
         <div className="tipviz__row">
@@ -721,7 +721,7 @@ const EMPTY_TIPS = [
   },
   {
     title: "Лента — как удобнее",
-    text: "В шапке открытого чата справа можно переключать виды и держать ленту в том формате, который лучше читается именно вам.",
+    text: "В шапке открытого чата справа — иконка переключения вида. Жмёте и видите ленту строками или пузырями.",
     visual: (
       <div className="tipviz tipviz--views">
         <motion.div
@@ -749,8 +749,8 @@ const EMPTY_TIPS = [
     ),
   },
   {
-    title: "Панель под рукой",
-    text: "Левую колонку можно сворачивать кнопкой или тянуть мышкой за правую границу, чтобы освободить больше места для ленты.",
+    title: "Список под себя",
+    text: "Наведите на заголовок раздела и потяните за ручку слева — меняйте местами «Избранное», «Каналы» и «Личные».",
     visual: (
       <div className="tipviz tipviz--sections">
         <motion.div
@@ -777,7 +777,7 @@ const EMPTY_TIPS = [
   },
   {
     title: "Быстрый выход",
-    text: "Открыли не тот чат? Нажмите Esc: сначала закроются меню и черновик, а затем вы вернётесь на этот экран.",
+    text: "Открыли не тот чат? Нажмите Esc — и вернётесь на этот экран.",
     visual: (
       <div className="tipviz">
         <div className="tipviz__key-wrap">
@@ -823,6 +823,7 @@ const EMPTY_TIPS = [
 ] as const;
 
 function EmptyTips({ userId }: { userId: string | null }) {
+  void userId;
   const [[index, direction], setState] = useState<[number, 1 | -1]>([0, 1]);
   const tip = EMPTY_TIPS[index];
 
@@ -834,76 +835,53 @@ function EmptyTips({ userId }: { userId: string | null }) {
 
   return (
     <div className="tips">
-      <div className="tips__layout">
-        <section className="tips__intro">
-          <span className="tips__eyebrow">Surf Chat</span>
-          <h1>Рабочее пространство готово</h1>
-          <p>{userId ? `Вы вошли как ${userId}` : "Откройте чат слева или пройдитесь по подсказкам, чтобы быстрее освоиться."}</p>
-          <div className="tips__facts">
-            <div className="tips__fact">
-              <strong>{EMPTY_TIPS.length}</strong>
-              <span>коротких подсказок</span>
-            </div>
-            <div className="tips__fact">
-              <strong>Esc</strong>
-              <span>быстрый выход из чата</span>
-            </div>
-            <div className="tips__fact">
-              <strong>Spaces</strong>
-              <span>фильтр по рабочим зонам</span>
-            </div>
-          </div>
-        </section>
-        <section className="tips__panel">
-          <div className="tips__card">
-            <div className="tips__viewport">
-              <AnimatePresence mode="wait" custom={direction} initial={false}>
-                <motion.div
-                  key={index}
-                  className="tips__slide"
-                  custom={direction}
-                  variants={{
-                    enter: (dir: 1 | -1) => ({ x: dir * 48, opacity: 0 }),
-                    center: { x: 0, opacity: 1 },
-                    exit: (dir: 1 | -1) => ({ x: dir * -48, opacity: 0 }),
-                  }}
-                  initial="enter"
-                  animate="center"
-                  exit="exit"
-                  transition={transition.base}
-                >
-                  <div className="tips__visual">{tip.visual}</div>
-                  <div className="tips__title">{tip.title}</div>
-                  <div className="tips__text">{tip.text}</div>
-                </motion.div>
-              </AnimatePresence>
-            </div>
-            <div className="tips__dots">
-              {EMPTY_TIPS.map((_, tipIndex) => (
-                <button
-                  key={tipIndex}
-                  type="button"
-                  className={`tips__dot${tipIndex === index ? " is-active" : ""}`}
-                  onClick={() => go(tipIndex)}
-                  aria-label={`Подсказка ${tipIndex + 1}`}
-                />
-              ))}
-            </div>
-          </div>
-          <div className="tips__nav">
-            <button type="button" className="tips__btn" onClick={() => go(index - 1)} disabled={index === 0}>
-              ‹ Назад
-            </button>
-            <button
-              type="button"
-              className="tips__btn"
-              onClick={() => go(index + 1)}
-              disabled={index === EMPTY_TIPS.length - 1}
+      <div className="tips__card">
+        <div className="tips__viewport">
+          <AnimatePresence mode="wait" custom={direction} initial={false}>
+            <motion.div
+              key={index}
+              className="tips__slide"
+              custom={direction}
+              variants={{
+                enter: (dir: 1 | -1) => ({ x: dir * 48, opacity: 0 }),
+                center: { x: 0, opacity: 1 },
+                exit: (dir: 1 | -1) => ({ x: dir * -48, opacity: 0 }),
+              }}
+              initial="enter"
+              animate="center"
+              exit="exit"
+              transition={transition.base}
             >
-              Дальше ›
-            </button>
-          </div>
-        </section>
+              <div className="tips__visual">{tip.visual}</div>
+              <div className="tips__title">{tip.title}</div>
+              <div className="tips__text">{tip.text}</div>
+            </motion.div>
+          </AnimatePresence>
+        </div>
+        <div className="tips__dots">
+          {EMPTY_TIPS.map((_, tipIndex) => (
+            <button
+              key={tipIndex}
+              type="button"
+              className={`tips__dot${tipIndex === index ? " is-active" : ""}`}
+              onClick={() => go(tipIndex)}
+              aria-label={`Подсказка ${tipIndex + 1}`}
+            />
+          ))}
+        </div>
+      </div>
+      <div className="tips__nav">
+        <button type="button" className="tips__btn" onClick={() => go(index - 1)} disabled={index === 0}>
+          ‹ Назад
+        </button>
+        <button
+          type="button"
+          className="tips__btn"
+          onClick={() => go(index + 1)}
+          disabled={index === EMPTY_TIPS.length - 1}
+        >
+          Дальше ›
+        </button>
       </div>
     </div>
   );
