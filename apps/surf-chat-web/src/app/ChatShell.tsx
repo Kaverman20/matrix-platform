@@ -82,7 +82,7 @@ export function ChatShell() {
   } | null>(null);
   const [pinnedIndex, setPinnedIndex] = useState(0);
   const [highlightMessageId, setHighlightMessageId] = useState<string | null>(null);
-  const [pinRefreshKey, setPinRefreshKey] = useState(0);
+  const [optimisticPinnedIds, setOptimisticPinnedIds] = useState<string[] | null>(null);
   const favouritePersistTimer = useRef<number | null>(null);
   const composerRef = useRef<ComposerHandle | null>(null);
   const highlightTimer = useRef<number | null>(null);
@@ -123,8 +123,8 @@ export function ChatShell() {
   const activeRoom = useMemo(() => {
     return allRooms.find((room) => room.id === activeRoomId) ?? null;
   }, [activeRoomId, allRooms]);
-  const messages = useTimelineMessages(client, activeRoomId, pinRefreshKey);
-  const pinnedMessages = usePinnedMessages(client, activeRoomId, pinRefreshKey);
+  const messages = useTimelineMessages(client, activeRoomId);
+  const pinnedMessages = usePinnedMessages(client, activeRoomId, optimisticPinnedIds);
   const activeMatrixRoom = useMemo(
     () => (client && activeRoomId ? client.getRoom(activeRoomId) : null),
     [activeRoomId, client],
@@ -189,6 +189,7 @@ export function ChatShell() {
     setRightPanelSection("overview");
     setPinnedIndex(0);
     setHighlightMessageId(null);
+    setOptimisticPinnedIds(null);
     clearComposerMode();
   };
 
@@ -230,8 +231,8 @@ export function ChatShell() {
     const room = client.getRoom(activeRoomId);
     if (!room) return;
 
-    const currentPinned =
-      (room.currentState.getStateEvents("m.room.pinned_events", "")?.getContent().pinned as string[] | undefined)
+    const currentPinned = optimisticPinnedIds
+      ?? (room.currentState.getStateEvents("m.room.pinned_events", "")?.getContent().pinned as string[] | undefined)
       ?? (room
         .getLiveTimeline()
         .getState(EventTimeline.FORWARDS)
@@ -243,8 +244,15 @@ export function ChatShell() {
       ? currentPinned.filter((id) => id !== message.id)
       : [...currentPinned, message.id];
 
-    await client.sendStateEvent(activeRoomId, "m.room.pinned_events" as never, { pinned: nextPinned } as never, "");
-    setPinRefreshKey((value) => value + 1);
+    setOptimisticPinnedIds(nextPinned);
+
+    try {
+      await client.sendStateEvent(activeRoomId, "m.room.pinned_events" as never, { pinned: nextPinned } as never, "");
+    } catch (error) {
+      setOptimisticPinnedIds(currentPinned);
+      console.error("[pin-message]", error);
+      window.alert("Не удалось изменить закреплённые сообщения. Проверьте права в комнате.");
+    }
   };
 
   const focusPinnedMessage = (messageId: string) => {
@@ -285,6 +293,7 @@ export function ChatShell() {
     setActiveRoomId(roomId);
     setPinnedIndex(0);
     setHighlightMessageId(null);
+    setOptimisticPinnedIds(null);
     setPendingForward(forwarding);
     setReplyTo(null);
     setEditingMessage(null);
@@ -411,6 +420,7 @@ export function ChatShell() {
         setActiveRoomId(null);
         setPinnedIndex(0);
         setHighlightMessageId(null);
+        setOptimisticPinnedIds(null);
         setRightPanelSection("overview");
         setMessageMenu(null);
         clearComposerMode();
