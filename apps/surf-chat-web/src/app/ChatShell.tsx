@@ -35,6 +35,9 @@ import { Timeline } from "../features/timeline/Timeline";
 import { useTimelineMessages } from "../features/timeline/useTimelineMessages";
 import "./chat-shell.css";
 
+const ROOM_LIST_WIDTH = 304;
+const ROOM_LIST_COLLAPSED_WIDTH = 72;
+
 export function ChatShell() {
   const { client, logout, userId } = useMatrix();
   const roomGroups = useRoomGroups(client);
@@ -45,6 +48,7 @@ export function ChatShell() {
   const [forwarding, setForwarding] = useState<MatrixForwardData[] | null>(null);
   const [lightbox, setLightbox] = useState<string | null>(null);
   const [showRightPanel, setShowRightPanel] = useState(true);
+  const [roomListCollapsed, setRoomListCollapsed] = useState(false);
   const [messageMenu, setMessageMenu] = useState<{
     message: MatrixMessage;
     x: number;
@@ -197,15 +201,27 @@ export function ChatShell() {
         </button>
       </nav>
 
-      <RoomList
-        favourites={roomGroups.favourites}
-        channels={roomGroups.channels}
-        dms={roomGroups.dms}
-        activeRoomId={activeRoomId}
-        onSelectRoom={selectRoom}
-        onToggleFavourite={toggleFavouriteRoom}
-        onReorderFavourites={reorderFavouriteRooms}
-      />
+      <motion.div
+        className="chat-shell__room-list"
+        animate={{
+          width: roomListCollapsed ? ROOM_LIST_COLLAPSED_WIDTH : ROOM_LIST_WIDTH,
+          minWidth: roomListCollapsed ? ROOM_LIST_COLLAPSED_WIDTH : ROOM_LIST_WIDTH,
+          flexBasis: roomListCollapsed ? ROOM_LIST_COLLAPSED_WIDTH : ROOM_LIST_WIDTH,
+        }}
+        transition={transition.slow}
+      >
+        <RoomList
+          favourites={roomGroups.favourites}
+          channels={roomGroups.channels}
+          dms={roomGroups.dms}
+          activeRoomId={activeRoomId}
+          collapsed={roomListCollapsed}
+          onToggleCollapsed={() => setRoomListCollapsed((value) => !value)}
+          onSelectRoom={selectRoom}
+          onToggleFavourite={toggleFavouriteRoom}
+          onReorderFavourites={reorderFavouriteRooms}
+        />
+      </motion.div>
 
       <main className="chat-main">
         {activeRoom ? (

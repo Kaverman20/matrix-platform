@@ -5,14 +5,13 @@ import type { MatrixRoomSummary } from "@matrix-platform/matrix-core";
 import { fadeUp, transition } from "@matrix-platform/ui";
 import "./room-list.css";
 
-const ROOM_LIST_WIDTH = 304;
-const ROOM_LIST_COLLAPSED_WIDTH = 72;
-
 type Props = {
   favourites: MatrixRoomSummary[];
   channels: MatrixRoomSummary[];
   dms: MatrixRoomSummary[];
   activeRoomId: string | null;
+  collapsed: boolean;
+  onToggleCollapsed: () => void;
   onSelectRoom: (roomId: string) => void;
   onToggleFavourite: (roomId: string) => void;
   onReorderFavourites: (rooms: MatrixRoomSummary[]) => void;
@@ -23,12 +22,13 @@ export function RoomList({
   channels,
   dms,
   activeRoomId,
+  collapsed,
+  onToggleCollapsed,
   onSelectRoom,
   onToggleFavourite,
   onReorderFavourites,
 }: Props) {
   const [query, setQuery] = useState("");
-  const [collapsed, setCollapsed] = useState(false);
   const [favouriteOrderIds, setFavouriteOrderIds] = useState<string[]>([]);
   const [openSections, setOpenSections] = useState({
     favourites: true,
@@ -57,15 +57,7 @@ export function RoomList({
   const visibleTotal = visibleFavourites.length + visibleChannels.length + visibleDms.length;
 
   return (
-    <motion.aside
-      className={`room-list${collapsed ? " is-collapsed" : ""}`}
-      animate={{
-        flexBasis: collapsed ? ROOM_LIST_COLLAPSED_WIDTH : ROOM_LIST_WIDTH,
-        minWidth: collapsed ? ROOM_LIST_COLLAPSED_WIDTH : ROOM_LIST_WIDTH,
-        width: collapsed ? ROOM_LIST_COLLAPSED_WIDTH : ROOM_LIST_WIDTH,
-      }}
-      transition={transition.slow}
-    >
+    <aside className={`room-list${collapsed ? " is-collapsed" : ""}`}>
       <div className="room-list__head">
         <motion.div
           className="room-list__title"
@@ -79,7 +71,7 @@ export function RoomList({
           type="button"
           className="room-list__collapse"
           title={collapsed ? "Развернуть" : "Свернуть"}
-          onClick={() => setCollapsed((value) => !value)}
+          onClick={onToggleCollapsed}
         >
           {collapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
         </button>
@@ -154,7 +146,7 @@ export function RoomList({
       {total > 0 && visibleTotal === 0 && (
         <div className="room-list__empty">Ничего не найдено.</div>
       )}
-    </motion.aside>
+    </aside>
   );
 }
 

@@ -1,17 +1,12 @@
 .room-list {
-  width: var(--roomlist-width);
-  min-width: var(--roomlist-width);
-  flex: 0 0 var(--roomlist-width);
+  width: 100%;
+  min-width: 0;
   height: 100vh;
   display: flex;
   flex-direction: column;
   border-right: 1px solid var(--color-border);
   background: var(--color-bg-subtle);
   overflow: hidden;
-}
-
-.room-list.is-collapsed {
-  flex: 0 0 72px;
 }
 
 .room-list__head {
