@@ -1,14 +1,19 @@
 import { AnimatePresence, motion } from "framer-motion";
 import {
+  AlignLeft,
   ArrowLeft,
   Bell,
   ChevronRight,
   FileText,
+  GripVertical,
   Hash,
   LogOut,
   MessageSquare,
+  MousePointer2,
   PanelRight,
   Phone,
+  Search,
+  Star,
   Users,
   Video,
   X,
@@ -55,7 +60,7 @@ export function ChatShell() {
   const [pendingForward, setPendingForward] = useState<MatrixForwardData[] | null>(null);
   const [forwarding, setForwarding] = useState<MatrixForwardData[] | null>(null);
   const [lightbox, setLightbox] = useState<string | null>(null);
-  const [showRightPanel, setShowRightPanel] = useState(true);
+  const [showRightPanel, setShowRightPanel] = useState(false);
   const [rightPanelSection, setRightPanelSection] = useState<RightPanelSection>("overview");
   const [activeSpaceId, setActiveSpaceId] = useState<string | null>(null);
   const [roomListCollapsed, setRoomListCollapsed] = useState(false);
@@ -452,8 +457,7 @@ export function ChatShell() {
           </>
         ) : (
           <section className="chat-main__placeholder">
-            <h1>Surf Chat</h1>
-            <p>{userId ? `Вы вошли как ${userId}` : "Выберите чат слева"}</p>
+            <EmptyTips userId={userId} />
           </section>
         )}
       </main>
@@ -677,6 +681,181 @@ function membersLabel(count: number): string {
   if (mod10 === 1 && mod100 !== 11) return `${count} участник`;
   if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return `${count} участника`;
   return `${count} участников`;
+}
+
+const ESC_TIP_DURATION = 2;
+
+const EMPTY_TIPS = [
+  {
+    title: "Это Surf Chat",
+    text: "Выберите чат слева — и поехали. Пространства в rail помогают быстро переключаться между нужными разделами.",
+    visual: (
+      <div className="tipviz tipviz--welcome">
+        <div className="tipviz__brand">
+          <span className="tipviz__brand-mark">S</span>
+          <div className="tipviz__brand-body">
+            <strong>Surf Chat</strong>
+            <span>Matrix workspace</span>
+          </div>
+        </div>
+      </div>
+    ),
+  },
+  {
+    title: "Закрепляйте важное",
+    text: "Нажмите звёздочку у чата — он переедет в «Избранное» наверх. Непрочитанные при этом никуда не исчезают.",
+    visual: (
+      <div className="tipviz">
+        <div className="tipviz__row">
+          <span className="tipviz__ava" />
+          <span className="tipviz__lines">
+            <i />
+            <i className="short" />
+          </span>
+          <span className="tipviz__star">
+            <Star size={16} fill="currentColor" />
+          </span>
+        </div>
+      </div>
+    ),
+  },
+  {
+    title: "Панель под рукой",
+    text: "Левую колонку можно сворачивать кнопкой или тянуть мышкой за правую границу, чтобы освободить больше места для ленты.",
+    visual: (
+      <div className="tipviz tipviz--sections">
+        <motion.div
+          className="tipviz__cursor"
+          animate={{ x: [0, 0, 38, 38, 0], y: [0, 0, 8, 8, 0], scale: [1, 1, 0.96, 0.96, 1] }}
+          transition={{ duration: 2.4, repeat: Infinity, ease: "easeInOut" }}
+        >
+          <MousePointer2 size={14} />
+        </motion.div>
+        <div className="tipviz__sec">
+          <Search size={12} />
+          <span>Поиск</span>
+        </div>
+        <div className="tipviz__sec is-grab">
+          <GripVertical size={12} />
+          <span>Список комнат</span>
+        </div>
+        <div className="tipviz__sec">
+          <AlignLeft size={12} />
+          <span>Лента чата</span>
+        </div>
+      </div>
+    ),
+  },
+  {
+    title: "Быстрый выход",
+    text: "Открыли не тот чат? Нажмите Esc: сначала закроются меню и черновик, а затем вы вернётесь на этот экран.",
+    visual: (
+      <div className="tipviz">
+        <div className="tipviz__key-wrap">
+          <motion.span
+            className="tipviz__key-ripple"
+            animate={{ scale: [1, 1, 1, 2.1, 2.1], opacity: [0, 0, 0.7, 0, 0] }}
+            transition={{ duration: ESC_TIP_DURATION, repeat: Infinity, times: [0, 0.32, 0.36, 0.85, 1], ease: "easeOut" }}
+          />
+          <motion.span
+            className="tipviz__key-ripple"
+            animate={{ scale: [1, 1, 1, 2.4, 2.4], opacity: [0, 0, 0.5, 0, 0] }}
+            transition={{ duration: ESC_TIP_DURATION, repeat: Infinity, times: [0, 0.42, 0.46, 0.95, 1], ease: "easeOut" }}
+          />
+          <motion.span
+            className="tipviz__key"
+            animate={{
+              y: [0, 0, 2, 2, 0, 0],
+              boxShadow: [
+                "0 2px 0 var(--color-border)",
+                "0 2px 0 var(--color-border)",
+                "0 0 0 var(--color-border)",
+                "0 0 0 var(--color-border)",
+                "0 2px 0 var(--color-border)",
+                "0 2px 0 var(--color-border)",
+              ],
+              backgroundColor: [
+                "var(--color-bg)",
+                "var(--color-bg)",
+                "var(--color-bg-subtle)",
+                "var(--color-bg-subtle)",
+                "var(--color-bg)",
+                "var(--color-bg)",
+              ],
+            }}
+            transition={{ duration: ESC_TIP_DURATION, repeat: Infinity, times: [0, 0.3, 0.36, 0.52, 0.6, 1], ease: "easeInOut" }}
+          >
+            esc
+          </motion.span>
+        </div>
+      </div>
+    ),
+  },
+] as const;
+
+function EmptyTips({ userId }: { userId: string | null }) {
+  const [[index, direction], setState] = useState<[number, 1 | -1]>([0, 1]);
+  const tip = EMPTY_TIPS[index];
+
+  const go = (next: number) => {
+    const clamped = Math.max(0, Math.min(EMPTY_TIPS.length - 1, next));
+    if (clamped === index) return;
+    setState([clamped, clamped > index ? 1 : -1]);
+  };
+
+  return (
+    <div className="tips">
+      <div className="tips__eyebrow">{userId ? `Вы вошли как ${userId}` : "Готово к работе"}</div>
+      <div className="tips__card">
+        <div className="tips__viewport">
+          <AnimatePresence mode="wait" custom={direction} initial={false}>
+            <motion.div
+              key={index}
+              className="tips__slide"
+              custom={direction}
+              variants={{
+                enter: (dir: 1 | -1) => ({ x: dir * 48, opacity: 0 }),
+                center: { x: 0, opacity: 1 },
+                exit: (dir: 1 | -1) => ({ x: dir * -48, opacity: 0 }),
+              }}
+              initial="enter"
+              animate="center"
+              exit="exit"
+              transition={transition.base}
+            >
+              <div className="tips__visual">{tip.visual}</div>
+              <div className="tips__title">{tip.title}</div>
+              <div className="tips__text">{tip.text}</div>
+            </motion.div>
+          </AnimatePresence>
+        </div>
+        <div className="tips__dots">
+          {EMPTY_TIPS.map((_, tipIndex) => (
+            <button
+              key={tipIndex}
+              type="button"
+              className={`tips__dot${tipIndex === index ? " is-active" : ""}`}
+              onClick={() => go(tipIndex)}
+              aria-label={`Подсказка ${tipIndex + 1}`}
+            />
+          ))}
+        </div>
+      </div>
+      <div className="tips__nav">
+        <button type="button" className="tips__btn" onClick={() => go(index - 1)} disabled={index === 0}>
+          ‹ Назад
+        </button>
+        <button
+          type="button"
+          className="tips__btn"
+          onClick={() => go(index + 1)}
+          disabled={index === EMPTY_TIPS.length - 1}
+        >
+          Дальше ›
+        </button>
+      </div>
+    </div>
+  );
 }
 
 function mediaKindLabel(kind: MatrixMedia["kind"]): string {

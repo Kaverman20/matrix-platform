@@ -203,23 +203,326 @@
 }
 
 .chat-main__placeholder {
-  display: grid;
-  place-content: center;
-  justify-items: center;
-  gap: var(--space-2);
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   padding: var(--space-8);
+  background: var(--color-bg);
+  user-select: none;
+}
+
+.tips {
+  width: 320px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.tips__eyebrow {
+  color: var(--color-text-faint);
+  font-size: var(--text-sm);
   text-align: center;
 }
 
-.chat-main__placeholder h1,
-.chat-main__placeholder h2 {
-  margin: 0;
+.tips__card {
+  position: relative;
+  width: 100%;
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-bg-subtle);
+  box-shadow: var(--shadow-md);
+  padding: var(--space-5) var(--space-4);
+  text-align: center;
+}
+
+.tips__viewport {
+  position: relative;
+  min-height: 244px;
+}
+
+.tips__slide {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  will-change: transform, opacity;
+}
+
+.tips__visual {
+  width: 100%;
+  height: 116px;
+  margin-bottom: var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+}
+
+.tips__title {
+  font-size: var(--text-base);
+  font-weight: 700;
   color: var(--color-text-strong);
 }
 
-.chat-main__placeholder p {
-  margin: 0;
+.tips__text {
+  max-width: 260px;
   color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+}
+
+.tips__dots {
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+  margin-top: var(--space-4);
+}
+
+.tips__dot {
+  width: 7px;
+  height: 7px;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: var(--color-border-strong);
+  cursor: pointer;
+  transition:
+    background 150ms ease,
+    transform 150ms ease;
+}
+
+.tips__dot.is-active {
+  background: var(--color-accent);
+  transform: scale(1.15);
+}
+
+.tips__nav {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.tips__btn {
+  flex: 1;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-subtle);
+  color: var(--color-text-muted);
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background 120ms ease,
+    color 120ms ease,
+    opacity 120ms ease;
+}
+
+.tips__btn:hover:not(:disabled) {
+  background: var(--color-bg-hover);
+  color: var(--color-text-strong);
+}
+
+.tips__btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.tipviz {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  padding: 0 var(--space-3);
+}
+
+.tipviz--welcome {
+  height: 100%;
+}
+
+.tipviz__brand {
+  width: 100%;
+  max-width: 220px;
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-subtle);
+  box-shadow: var(--shadow-sm);
+}
+
+.tipviz__brand-mark {
+  width: 56px;
+  height: 56px;
+  display: grid;
+  place-items: center;
+  border-radius: 18px;
+  background: var(--color-rail-bg);
+  color: white;
+  font-weight: 800;
+  font-size: 22px;
+}
+
+.tipviz__brand-body {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.tipviz__brand-body strong {
+  color: var(--color-text-strong);
+  font-size: var(--text-base);
+}
+
+.tipviz__brand-body span {
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+}
+
+.tipviz__row {
+  width: 80%;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-subtle);
+  box-shadow: var(--shadow-sm);
+}
+
+.tipviz__ava {
+  width: 28px;
+  height: 28px;
+  flex: 0 0 auto;
+  border-radius: var(--radius-pill);
+  background: var(--color-border-strong);
+}
+
+.tipviz__lines {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.tipviz__lines i {
+  display: block;
+  height: 6px;
+  border-radius: var(--radius-pill);
+  background: var(--color-border-strong);
+}
+
+.tipviz__lines i.short {
+  width: 60%;
+  opacity: 0.6;
+}
+
+.tipviz__star {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  color: #e0a93b;
+  animation: tipPulse 1.4s ease-in-out infinite;
+}
+
+.tipviz--sections {
+  position: relative;
+  width: 72%;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 5px;
+}
+
+.tipviz__cursor {
+  position: absolute;
+  top: 0;
+  left: 16px;
+  width: 14px;
+  height: 14px;
+  color: var(--color-text-strong);
+  pointer-events: none;
+  z-index: 3;
+  transform-origin: top left;
+  filter: drop-shadow(0 1px 2px rgb(0 0 0 / 25%));
+}
+
+.tipviz__sec {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 24px;
+  padding: 0 8px;
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-subtle);
+  color: var(--color-text-muted);
+  font-size: 11px;
+  line-height: 1;
+  font-weight: 600;
+}
+
+.tipviz__sec svg {
+  color: var(--color-text-faint);
+}
+
+.tipviz__sec.is-grab {
+  background: var(--color-bg);
+  box-shadow: var(--shadow-md);
+  color: var(--color-text-strong);
+}
+
+.tipviz__sec.is-grab svg {
+  color: var(--color-text-strong);
+}
+
+.tipviz__key-wrap {
+  position: relative;
+  display: inline-flex;
+}
+
+.tipviz__key-ripple {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  opacity: 0;
+  pointer-events: none;
+  border: 2px solid var(--color-accent);
+  border-radius: var(--radius-md);
+  background: transparent;
+}
+
+.tipviz__key {
+  position: relative;
+  z-index: 1;
+  padding: 8px 16px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+  box-shadow: 0 2px 0 var(--color-border);
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+@keyframes tipPulse {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+
+  50% {
+    transform: scale(1.25);
+  }
 }
 
 .right-panel {
