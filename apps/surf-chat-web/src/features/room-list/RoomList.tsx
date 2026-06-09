@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { motion, Reorder } from "framer-motion";
-import { Hash, MessageCircle, Search, Star } from "lucide-react";
+import { ChevronDown, Hash, MessageCircle, Search, Star } from "lucide-react";
 import type { MatrixRoomSummary } from "@matrix-platform/matrix-core";
 import { fadeUp, transition } from "@matrix-platform/ui";
 import "./room-list.css";
@@ -26,6 +26,11 @@ export function RoomList({
 }: Props) {
   const [query, setQuery] = useState("");
   const [favouriteOrderIds, setFavouriteOrderIds] = useState<string[]>([]);
+  const [openSections, setOpenSections] = useState({
+    favourites: true,
+    channels: true,
+    dms: true,
+  });
   const total = favourites.length + channels.length + dms.length;
   const searchValue = query.trim().toLowerCase();
   const orderedFavourites = useMemo(
@@ -69,6 +74,8 @@ export function RoomList({
           title="Избранное"
           icon={<Star size={14} />}
           rooms={visibleFavourites}
+          open={openSections.favourites}
+          onToggleOpen={() => setOpenSections((state) => ({ ...state, favourites: !state.favourites }))}
           activeRoomId={activeRoomId}
           onSelectRoom={onSelectRoom}
           onToggleFavourite={onToggleFavourite}
@@ -82,6 +89,8 @@ export function RoomList({
           title="Каналы"
           icon={<Hash size={14} />}
           rooms={visibleChannels}
+          open={openSections.channels}
+          onToggleOpen={() => setOpenSections((state) => ({ ...state, channels: !state.channels }))}
           activeRoomId={activeRoomId}
           onSelectRoom={onSelectRoom}
           onToggleFavourite={onToggleFavourite}
@@ -90,6 +99,8 @@ export function RoomList({
           title="Личные"
           icon={<MessageCircle size={14} />}
           rooms={visibleDms}
+          open={openSections.dms}
+          onToggleOpen={() => setOpenSections((state) => ({ ...state, dms: !state.dms }))}
           activeRoomId={activeRoomId}
           onSelectRoom={onSelectRoom}
           onToggleFavourite={onToggleFavourite}
@@ -112,6 +123,8 @@ type SectionProps = {
   title: string;
   icon: React.ReactNode;
   rooms: MatrixRoomSummary[];
+  open: boolean;
+  onToggleOpen: () => void;
   activeRoomId: string | null;
   onSelectRoom: (roomId: string) => void;
   onToggleFavourite: (roomId: string) => void;
@@ -123,6 +136,8 @@ function RoomSection({
   title,
   icon,
   rooms,
+  open,
+  onToggleOpen,
   activeRoomId,
   onSelectRoom,
   onToggleFavourite,
@@ -155,6 +170,7 @@ function RoomSection({
         {isActive && (
           <motion.span
             className="room-row__bg"
+            layoutId="room-list-active-bg"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={transition.fast}
@@ -191,37 +207,48 @@ function RoomSection({
 
   return (
     <section className="room-section">
-      <div className="room-section__title">
-        {icon}
+      <button type="button" className="room-section__title" onClick={onToggleOpen}>
+        <motion.span
+          className="room-section__chevron"
+          animate={{ rotate: open ? 0 : -90 }}
+          transition={transition.fast}
+        >
+          <ChevronDown size={14} />
+        </motion.span>
+        <span className="room-section__icon">{icon}</span>
         <span>{title}</span>
         <em>{rooms.length}</em>
-      </div>
-      {reorderable && onReorder ? (
-        <Reorder.Group
-          as="div"
-          axis="y"
-          values={rooms}
-          onReorder={onReorder}
-          className="room-section__items"
-        >
-          {rooms.map((room, index) => (
-            <Reorder.Item
+      </button>
+      <div className={`room-section__body${open ? " is-open" : ""}`}>
+        <div className="room-section__body-inner">
+          {reorderable && onReorder ? (
+            <Reorder.Group
               as="div"
-              key={room.id}
-              value={room}
-              className="room-row__reorder-item"
-              whileDrag={{ scale: 1.02 }}
-              dragElastic={0.08}
+              axis="y"
+              values={rooms}
+              onReorder={onReorder}
+              className="room-section__items"
             >
-              {renderRoom(room, index)}
-            </Reorder.Item>
-          ))}
-        </Reorder.Group>
-      ) : (
-        <div className="room-section__items">
-          {rooms.map(renderRoom)}
+              {rooms.map((room, index) => (
+                <Reorder.Item
+                  as="div"
+                  key={room.id}
+                  value={room}
+                  className="room-row__reorder-item"
+                  whileDrag={{ scale: 1.02 }}
+                  dragElastic={0.08}
+                >
+                  {renderRoom(room, index)}
+                </Reorder.Item>
+              ))}
+            </Reorder.Group>
+          ) : (
+            <div className="room-section__items">
+              {rooms.map(renderRoom)}
+            </div>
+          )}
         </div>
-      )}
+      </div>
     </section>
   );
 }
