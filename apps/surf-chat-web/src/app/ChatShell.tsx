@@ -50,6 +50,7 @@ const RAIL_WIDTH = 72;
 const RIGHT_PANEL_WIDTH = 320;
 
 type RightPanelSection = "overview" | "members" | "media" | "notifications";
+type ChatView = "flat" | "bubbles";
 
 export function ChatShell() {
   const { client, logout } = useMatrix();
@@ -60,6 +61,9 @@ export function ChatShell() {
   const [pendingForward, setPendingForward] = useState<MatrixForwardData[] | null>(null);
   const [forwarding, setForwarding] = useState<MatrixForwardData[] | null>(null);
   const [lightbox, setLightbox] = useState<string | null>(null);
+  const [chatView, setChatView] = useState<ChatView>(
+    () => (localStorage.getItem("surf-chat:view") as ChatView) || "flat",
+  );
   const [showRightPanel, setShowRightPanel] = useState(false);
   const [rightPanelSection, setRightPanelSection] = useState<RightPanelSection>("overview");
   const [activeSpaceId, setActiveSpaceId] = useState<string | null>(null);
@@ -75,6 +79,10 @@ export function ChatShell() {
   } | null>(null);
   const favouritePersistTimer = useRef<number | null>(null);
   const composerRef = useRef<ComposerHandle | null>(null);
+
+  useEffect(() => {
+    localStorage.setItem("surf-chat:view", chatView);
+  }, [chatView]);
 
   const allRooms = useMemo(
     () => [
@@ -413,8 +421,13 @@ export function ChatShell() {
                 <h1>{activeRoom.name}</h1>
               </div>
               <div className="chat-main__actions">
-                <button type="button" className="icon-button" title="Сообщения">
-                  <MessageSquare size={18} />
+                <button
+                  type="button"
+                  className="icon-button"
+                  title={chatView === "bubbles" ? "Вид: пузыри -> плоский" : "Вид: плоский -> пузыри"}
+                  onClick={() => setChatView((value) => (value === "bubbles" ? "flat" : "bubbles"))}
+                >
+                  {chatView === "bubbles" ? <AlignLeft size={18} /> : <MessageSquare size={18} />}
                 </button>
                 <button type="button" className="icon-button" title="Звонок">
                   <Phone size={18} />
@@ -440,6 +453,7 @@ export function ChatShell() {
                 onOpenMessageMenu={openMessageMenu}
                 onToggleReaction={toggleReaction}
                 room={activeRoom}
+                view={chatView}
               />
             </AnimatePresence>
             <Composer
