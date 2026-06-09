@@ -5,6 +5,9 @@ import type { MatrixRoomSummary } from "@matrix-platform/matrix-core";
 import { fadeUp, transition } from "@matrix-platform/ui";
 import "./room-list.css";
 
+const ROOM_LIST_WIDTH = 304;
+const ROOM_LIST_COLLAPSED_WIDTH = 72;
+
 type Props = {
   favourites: MatrixRoomSummary[];
   channels: MatrixRoomSummary[];
@@ -57,8 +60,9 @@ export function RoomList({
     <motion.aside
       className={`room-list${collapsed ? " is-collapsed" : ""}`}
       animate={{
-        width: collapsed ? 72 : "var(--roomlist-width)",
-        minWidth: collapsed ? 72 : "var(--roomlist-width)",
+        flexBasis: collapsed ? ROOM_LIST_COLLAPSED_WIDTH : ROOM_LIST_WIDTH,
+        minWidth: collapsed ? ROOM_LIST_COLLAPSED_WIDTH : ROOM_LIST_WIDTH,
+        width: collapsed ? ROOM_LIST_COLLAPSED_WIDTH : ROOM_LIST_WIDTH,
       }}
       transition={transition.slow}
     >
