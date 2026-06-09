@@ -36,7 +36,10 @@ import { useTimelineMessages } from "../features/timeline/useTimelineMessages";
 import "./chat-shell.css";
 
 const ROOM_LIST_WIDTH = 304;
-const ROOM_LIST_COLLAPSED_WIDTH = 72;
+const ROOM_LIST_MAX = 440;
+const ROOM_LIST_COLLAPSED_WIDTH = 84;
+const ROOM_LIST_COLLAPSE_THRESHOLD = 200;
+const RAIL_WIDTH = 72;
 
 export function ChatShell() {
   const { client, logout, userId } = useMatrix();
@@ -49,6 +52,10 @@ export function ChatShell() {
   const [lightbox, setLightbox] = useState<string | null>(null);
   const [showRightPanel, setShowRightPanel] = useState(true);
   const [roomListCollapsed, setRoomListCollapsed] = useState(false);
+  const [roomListWidth, setRoomListWidth] = useState(ROOM_LIST_WIDTH);
+  const [roomListResizing, setRoomListResizing] = useState(false);
+  const roomListWidthRef = useRef(roomListWidth);
+  const roomListLastWidth = useRef(ROOM_LIST_WIDTH);
   const [messageMenu, setMessageMenu] = useState<{
     message: MatrixMessage;
     x: number;
@@ -149,6 +156,53 @@ export function ChatShell() {
     setForwarding(null);
   };
 
+  const toggleRoomListCollapse = () => {
+    if (roomListCollapsed) {
+      setRoomListCollapsed(false);
+      setRoomListWidth(roomListLastWidth.current);
+      roomListWidthRef.current = roomListLastWidth.current;
+    } else {
+      roomListLastWidth.current = roomListWidth;
+      setRoomListCollapsed(true);
+      setRoomListWidth(ROOM_LIST_COLLAPSED_WIDTH);
+      roomListWidthRef.current = ROOM_LIST_COLLAPSED_WIDTH;
+    }
+  };
+
+  const startRoomListResize = (event: React.PointerEvent) => {
+    event.preventDefault();
+    setRoomListResizing(true);
+
+    const onMove = (moveEvent: PointerEvent) => {
+      const nextWidth = Math.min(
+        ROOM_LIST_MAX,
+        Math.max(ROOM_LIST_COLLAPSED_WIDTH, moveEvent.clientX - RAIL_WIDTH),
+      );
+      roomListWidthRef.current = nextWidth;
+      setRoomListWidth(nextWidth);
+      setRoomListCollapsed(nextWidth < ROOM_LIST_COLLAPSE_THRESHOLD);
+    };
+
+    const onUp = () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      setRoomListResizing(false);
+
+      const nextWidth = roomListWidthRef.current;
+      if (nextWidth < ROOM_LIST_COLLAPSE_THRESHOLD) {
+        setRoomListWidth(ROOM_LIST_COLLAPSED_WIDTH);
+        roomListWidthRef.current = ROOM_LIST_COLLAPSED_WIDTH;
+        setRoomListCollapsed(true);
+      } else {
+        roomListLastWidth.current = nextWidth;
+        setRoomListCollapsed(false);
+      }
+    };
+
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+  };
+
   const toggleFavouriteRoom = (roomId: string) => {
     if (!client) return;
     const room = allRooms.find((item) => item.id === roomId);
@@ -204,11 +258,11 @@ export function ChatShell() {
       <motion.div
         className="chat-shell__room-list"
         animate={{
-          width: roomListCollapsed ? ROOM_LIST_COLLAPSED_WIDTH : ROOM_LIST_WIDTH,
-          minWidth: roomListCollapsed ? ROOM_LIST_COLLAPSED_WIDTH : ROOM_LIST_WIDTH,
-          flexBasis: roomListCollapsed ? ROOM_LIST_COLLAPSED_WIDTH : ROOM_LIST_WIDTH,
+          width: roomListWidth,
+          minWidth: roomListWidth,
+          flexBasis: roomListWidth,
         }}
-        transition={transition.slow}
+        transition={roomListResizing ? { duration: 0 } : transition.slow}
       >
         <RoomList
           favourites={roomGroups.favourites}
@@ -216,10 +270,14 @@ export function ChatShell() {
           dms={roomGroups.dms}
           activeRoomId={activeRoomId}
           collapsed={roomListCollapsed}
-          onToggleCollapsed={() => setRoomListCollapsed((value) => !value)}
+          onToggleCollapsed={toggleRoomListCollapse}
           onSelectRoom={selectRoom}
           onToggleFavourite={toggleFavouriteRoom}
           onReorderFavourites={reorderFavouriteRooms}
+        />
+        <div
+          className={`chat-shell__room-list-resizer${roomListResizing ? " is-active" : ""}`}
+          onPointerDown={startRoomListResize}
         />
       </motion.div>
 

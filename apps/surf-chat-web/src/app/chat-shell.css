@@ -70,6 +70,33 @@
   overflow: hidden;
 }
 
+.chat-shell__room-list-resizer {
+  position: absolute;
+  top: 0;
+  right: -3px;
+  z-index: 6;
+  width: 8px;
+  height: 100%;
+  cursor: col-resize;
+  touch-action: none;
+}
+
+.chat-shell__room-list-resizer::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 3px;
+  width: 2px;
+  height: 100%;
+  background: transparent;
+  transition: background 150ms ease;
+}
+
+.chat-shell__room-list-resizer:hover::after,
+.chat-shell__room-list-resizer.is-active::after {
+  background: var(--color-accent-ring);
+}
+
 .chat-main {
   min-width: 0;
   flex: 1;
