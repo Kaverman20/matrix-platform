@@ -424,6 +424,18 @@
   filter: drop-shadow(0 1px 2px rgb(0 0 0 / 25%));
 }
 
+.tipviz__cursor-icon {
+  position: absolute;
+  inset: 0;
+  display: block;
+  line-height: 0;
+}
+
+.tipviz__cursor-icon--grab {
+  inset: -1px 0 0 -1px;
+  z-index: 1;
+}
+
 .tipviz__sec {
   display: flex;
   align-items: center;
