@@ -686,7 +686,7 @@ function membersLabel(count: number): string {
 const ESC_TIP_DURATION = 2;
 const VIEWS_TIMES = [0, 0.08, 0.2, 0.24, 0.26, 0.42, 0.5, 0.54, 0.56, 0.72, 0.88, 1];
 const VIEWS_TRANSITION = {
-  duration: 7.2,
+  duration: 6,
   repeat: Infinity,
   times: VIEWS_TIMES,
   ease: "easeInOut" as const,
