@@ -82,6 +82,7 @@ export function ChatShell() {
   } | null>(null);
   const [pinnedIndex, setPinnedIndex] = useState(0);
   const [highlightMessageId, setHighlightMessageId] = useState<string | null>(null);
+  const [pinRefreshKey, setPinRefreshKey] = useState(0);
   const favouritePersistTimer = useRef<number | null>(null);
   const composerRef = useRef<ComposerHandle | null>(null);
   const highlightTimer = useRef<number | null>(null);
@@ -122,8 +123,8 @@ export function ChatShell() {
   const activeRoom = useMemo(() => {
     return allRooms.find((room) => room.id === activeRoomId) ?? null;
   }, [activeRoomId, allRooms]);
-  const messages = useTimelineMessages(client, activeRoomId);
-  const pinnedMessages = usePinnedMessages(client, activeRoomId);
+  const messages = useTimelineMessages(client, activeRoomId, pinRefreshKey);
+  const pinnedMessages = usePinnedMessages(client, activeRoomId, pinRefreshKey);
   const activeMatrixRoom = useMemo(
     () => (client && activeRoomId ? client.getRoom(activeRoomId) : null),
     [activeRoomId, client],
@@ -230,17 +231,20 @@ export function ChatShell() {
     if (!room) return;
 
     const currentPinned =
-      (room
+      (room.currentState.getStateEvents("m.room.pinned_events", "")?.getContent().pinned as string[] | undefined)
+      ?? (room
         .getLiveTimeline()
         .getState(EventTimeline.FORWARDS)
         ?.getStateEvents("m.room.pinned_events", "")
-        ?.getContent().pinned as string[] | undefined) ?? [];
+        ?.getContent().pinned as string[] | undefined)
+      ?? [];
 
     const nextPinned = currentPinned.includes(message.id)
       ? currentPinned.filter((id) => id !== message.id)
       : [...currentPinned, message.id];
 
     await client.sendStateEvent(activeRoomId, "m.room.pinned_events" as never, { pinned: nextPinned } as never, "");
+    setPinRefreshKey((value) => value + 1);
   };
 
   const focusPinnedMessage = (messageId: string) => {

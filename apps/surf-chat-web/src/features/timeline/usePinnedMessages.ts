@@ -9,6 +9,7 @@ type PinnedMessage = MatrixMessageReference & {
 export function usePinnedMessages(
   client: MatrixClient | null,
   roomId: string | null,
+  refreshKey = 0,
 ): PinnedMessage[] {
   const [version, setVersion] = useState(0);
 
@@ -24,18 +25,21 @@ export function usePinnedMessages(
   }, [client, roomId]);
 
   return useMemo(() => {
-    void version;
+    const syncVersion = version + refreshKey;
+    void syncVersion;
     if (!client || !roomId) return [];
 
     const room = client.getRoom(roomId);
     if (!room) return [];
 
     const pinnedIds =
-      (room
+      (room.currentState.getStateEvents("m.room.pinned_events", "")?.getContent().pinned as string[] | undefined)
+      ?? (room
         .getLiveTimeline()
         .getState(EventTimeline.FORWARDS)
         ?.getStateEvents("m.room.pinned_events", "")
-        ?.getContent().pinned as string[] | undefined) ?? [];
+        ?.getContent().pinned as string[] | undefined)
+      ?? [];
 
     return pinnedIds
       .map<PinnedMessage | null>((id) => {
@@ -65,5 +69,5 @@ export function usePinnedMessages(
         };
       })
       .filter((message): message is PinnedMessage => message !== null);
-  }, [client, roomId, version]);
+  }, [client, roomId, version, refreshKey]);
 }

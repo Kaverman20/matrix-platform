@@ -8,6 +8,7 @@ import {
 export function useTimelineMessages(
   client: MatrixClient | null,
   roomId: string | null,
+  refreshKey = 0,
 ): MatrixMessage[] {
   const [version, setVersion] = useState(0);
 
@@ -39,7 +40,8 @@ export function useTimelineMessages(
 
   return useMemo(() => {
     void version;
+    void refreshKey;
     if (!client || !roomId) return [];
     return buildTimelineMessages(client, roomId);
-  }, [client, roomId, version]);
+  }, [client, roomId, version, refreshKey]);
 }
