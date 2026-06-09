@@ -257,6 +257,7 @@ export function ChatShell() {
           title="Все чаты"
           onClick={() => setActiveSpaceId(null)}
         >
+          {effectiveActiveSpaceId === null && <span className="space-rail__indicator" />}
           S
         </button>
         <div className="space-rail__spaces">
@@ -268,6 +269,7 @@ export function ChatShell() {
               title={space.name}
               onClick={() => setActiveSpaceId(space.id)}
             >
+              {effectiveActiveSpaceId === space.id && <span className="space-rail__indicator" />}
               {space.label}
             </button>
           ))}

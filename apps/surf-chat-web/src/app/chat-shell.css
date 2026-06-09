@@ -20,6 +20,7 @@
 .space-rail__home,
 .space-rail__item,
 .space-rail__logout {
+  position: relative;
   width: 44px;
   height: 44px;
   display: grid;
@@ -40,6 +41,11 @@
   color: var(--color-text-strong);
 }
 
+.space-rail__home.is-active,
+.space-rail__item.is-active {
+  border-radius: 14px;
+}
+
 .space-rail__spaces {
   min-height: 0;
   display: grid;
@@ -50,6 +56,17 @@
 .space-rail__item {
   font-size: var(--text-sm);
   font-weight: 800;
+}
+
+.space-rail__indicator {
+  position: absolute;
+  left: -10px;
+  top: 50%;
+  width: 4px;
+  height: 30px;
+  border-radius: var(--radius-pill);
+  background: var(--color-rail-indicator);
+  transform: translateY(-50%);
 }
 
 .space-rail__logout {
