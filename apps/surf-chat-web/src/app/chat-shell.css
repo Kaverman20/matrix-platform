@@ -29,6 +29,13 @@
   border-radius: var(--radius-md);
   color: var(--color-text-onAccent);
   cursor: pointer;
+  outline: none;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    background 160ms ease,
+    border-radius 160ms ease,
+    transform 160ms ease,
+    box-shadow 160ms ease;
 }
 
 .space-rail__home {
@@ -50,12 +57,26 @@
   min-height: 0;
   display: grid;
   gap: var(--space-2);
-  overflow: auto;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-left: 10px;
+  margin-left: -10px;
 }
 
 .space-rail__item {
   font-size: var(--text-sm);
   font-weight: 800;
+}
+
+.space-rail__home:hover,
+.space-rail__item:hover {
+  transform: translateY(-1px);
+}
+
+.space-rail__home:focus-visible,
+.space-rail__item:focus-visible,
+.space-rail__logout:focus-visible {
+  box-shadow: 0 0 0 2px var(--color-bg), 0 0 0 4px var(--color-accent-ring);
 }
 
 .space-rail__indicator {
