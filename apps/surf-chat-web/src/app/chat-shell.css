@@ -503,6 +503,9 @@
 }
 
 .tips__dot {
+  appearance: none;
+  border: 0;
+  padding: 0;
   width: 7px;
   height: 7px;
   border-radius: var(--radius-pill);
