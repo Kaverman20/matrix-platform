@@ -404,7 +404,7 @@ export function ChatShell() {
         />
       </motion.div>
 
-      <main className="chat-main">
+      <main className={`chat-main${activeRoom ? "" : " is-empty"}`}>
         {activeRoom ? (
           <>
             <header className="chat-main__header">
@@ -805,7 +805,10 @@ function EmptyTips({ userId }: { userId: string | null }) {
 
   return (
     <div className="tips">
-      <div className="tips__eyebrow">{userId ? `Вы вошли как ${userId}` : "Готово к работе"}</div>
+      <div className="tips__intro">
+        <h1>Surf Chat</h1>
+        <p>{userId ? `Вы вошли как ${userId}` : "Готово к работе"}</p>
+      </div>
       <div className="tips__card">
         <div className="tips__viewport">
           <AnimatePresence mode="wait" custom={direction} initial={false}>
