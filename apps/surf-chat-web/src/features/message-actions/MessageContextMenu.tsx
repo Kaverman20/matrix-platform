@@ -1,6 +1,8 @@
-import { useEffect, useRef } from "react";
-import { motion } from "framer-motion";
-import { Copy, Forward, Pencil, Reply, Trash2 } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
+import { ArrowLeft, ChevronRight, Copy, Forward, Pencil, Reply, Trash2 } from "lucide-react";
+import data from "@emoji-mart/data";
+import Picker from "@emoji-mart/react";
 import type { MatrixMessage } from "@matrix-platform/matrix-core";
 import { transition } from "@matrix-platform/ui";
 import "./message-context-menu.css";
@@ -17,18 +19,25 @@ type Props = {
   onReact: (message: MatrixMessage, key: string) => void;
 };
 
-const MENU_WIDTH = 236;
+const MENU_PICKER_WIDTH = 352;
 const MENU_HEIGHT = 288;
+const MENU_PICKER_HEIGHT = 470;
 const SAFE_OFFSET = 12;
 
 export function MessageContextMenu({ message, x, y, onAction, onClose, onReact }: Props) {
   const ref = useRef<HTMLDivElement>(null);
-  const left = clamp(x, SAFE_OFFSET, window.innerWidth - MENU_WIDTH - SAFE_OFFSET);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const left = clamp(x, SAFE_OFFSET, window.innerWidth - MENU_PICKER_WIDTH - SAFE_OFFSET);
   const top = clamp(y, SAFE_OFFSET, window.innerHeight - MENU_HEIGHT - SAFE_OFFSET);
+  const pickerOverflow = pickerOpen
+    ? Math.max(0, top + MENU_PICKER_HEIGHT + SAFE_OFFSET - window.innerHeight)
+    : 0;
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
+      if (event.key !== "Escape") return;
+      if (pickerOpen) setPickerOpen(false);
+      else onClose();
     };
     const onPointerDown = (event: PointerEvent) => {
       if (!ref.current?.contains(event.target as Node)) onClose();
@@ -40,7 +49,7 @@ export function MessageContextMenu({ message, x, y, onAction, onClose, onReact }
       window.removeEventListener("keydown", onKey);
       window.removeEventListener("pointerdown", onPointerDown);
     };
-  }, [onClose]);
+  }, [onClose, pickerOpen]);
 
   const runAction = (action: MessageAction) => {
     onAction(action, message);
@@ -55,61 +64,126 @@ export function MessageContextMenu({ message, x, y, onAction, onClose, onReact }
       role="menu"
       aria-label="Действия с сообщением"
       initial={{ opacity: 0, scale: 0.96, y: -4 }}
-      animate={{ opacity: 1, scale: 1, y: 0 }}
-      exit={{ opacity: 0, scale: 0.96, y: -4 }}
+      animate={{ opacity: 1, scale: 1, y: -pickerOverflow }}
+      exit={{ opacity: 0, scale: 0.96, y: -pickerOverflow - 4 }}
       transition={transition.fast}
       layout
       onContextMenu={(event) => event.preventDefault()}
     >
       <motion.div className="message-menu__quick" aria-label="Быстрые реакции" layout>
-        {QUICK_REACTIONS.map((key) => (
-          <motion.button
-            key={key}
+        {pickerOpen ? (
+          <button
             type="button"
-            className="message-menu__reaction"
-            onClick={() => {
-              onReact(message, key);
-              onClose();
-            }}
-            title={key}
-            whileHover={{ scale: 1.14 }}
-            whileTap={{ scale: 0.9 }}
-            transition={transition.fast}
+            className="message-menu__quick-btn message-menu__quick-back"
+            onClick={() => setPickerOpen(false)}
+            aria-label="Назад к быстрым реакциям"
           >
-            {key}
-          </motion.button>
-        ))}
+            <ArrowLeft size={18} />
+          </button>
+        ) : (
+          <>
+            {QUICK_REACTIONS.map((key) => (
+              <button
+                key={key}
+                type="button"
+                className="message-menu__quick-btn"
+                onClick={() => {
+                  onReact(message, key);
+                  onClose();
+                }}
+                aria-label={`Реакция ${key}`}
+              >
+                <span className="message-menu__quick-emoji">{key}</span>
+              </button>
+            ))}
+            <button
+              type="button"
+              className="message-menu__quick-btn message-menu__quick-more"
+              onClick={() => setPickerOpen(true)}
+              aria-label="Больше реакций"
+            >
+              <ChevronRight size={18} />
+            </button>
+          </>
+        )}
       </motion.div>
-      <motion.button type="button" role="menuitem" onClick={() => runAction("reply")} whileTap={{ scale: 0.98 }}>
-        <Reply size={17} />
-        <span>Ответить</span>
-      </motion.button>
-      {message.own && (
-        <motion.button type="button" role="menuitem" onClick={() => runAction("edit")} whileTap={{ scale: 0.98 }}>
-          <Pencil size={16} />
-          <span>Изменить</span>
-        </motion.button>
-      )}
-      <motion.button type="button" role="menuitem" onClick={() => runAction("copy")} whileTap={{ scale: 0.98 }}>
-        <Copy size={16} />
-        <span>Копировать текст</span>
-      </motion.button>
-      <motion.button type="button" role="menuitem" onClick={() => runAction("forward")} whileTap={{ scale: 0.98 }}>
-        <Forward size={17} />
-        <span>Переслать</span>
-      </motion.button>
-      {message.own && (
-        <motion.button
-          type="button"
-          role="menuitem"
-          className="message-menu__danger"
-          onClick={() => runAction("delete")}
-          whileTap={{ scale: 0.98 }}
-        >
-          <Trash2 size={16} />
-          <span>Удалить</span>
-        </motion.button>
-      )}
+      <motion.div className="message-menu__body" layout transition={transition.base}>
+        <AnimatePresence mode="wait" initial={false}>
+          {pickerOpen ? (
+            <motion.div
+              key="picker"
+              className="message-menu__picker"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={transition.fast}
+            >
+              <Picker
+                data={data}
+                onEmojiSelect={(event: { native: string }) => {
+                  onReact(message, event.native);
+                  onClose();
+                }}
+                theme="light"
+                locale="ru"
+                navPosition="bottom"
+                previewPosition="none"
+                skinTonePosition="none"
+                maxFrequentRows={2}
+              />
+            </motion.div>
+          ) : (
+            <motion.ul
+              key="actions"
+              className="message-menu__list"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={transition.fast}
+            >
+              <li>
+                <button type="button" role="menuitem" className="message-menu__action" onClick={() => runAction("reply")}>
+                  <Reply size={17} />
+                  <span>Ответить</span>
+                </button>
+              </li>
+              {message.own && (
+                <li>
+                  <button type="button" role="menuitem" className="message-menu__action" onClick={() => runAction("edit")}>
+                    <Pencil size={16} />
+                    <span>Изменить</span>
+                  </button>
+                </li>
+              )}
+              <li>
+                <button type="button" role="menuitem" className="message-menu__action" onClick={() => runAction("copy")}>
+                  <Copy size={16} />
+                  <span>Копировать текст</span>
+                </button>
+              </li>
+              <li>
+                <button type="button" role="menuitem" className="message-menu__action" onClick={() => runAction("forward")}>
+                  <Forward size={17} />
+                  <span>Переслать</span>
+                </button>
+              </li>
+              {message.own && (
+                <li>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className="message-menu__action message-menu__action--danger"
+                    onClick={() => runAction("delete")}
+                  >
+                    <Trash2 size={16} />
+                    <span>Удалить</span>
+                  </button>
+                </li>
+              )}
+            </motion.ul>
+          )}
+        </AnimatePresence>
+      </motion.div>
     </motion.div>
   );
 }
