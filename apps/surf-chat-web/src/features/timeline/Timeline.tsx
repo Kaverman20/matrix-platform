@@ -67,14 +67,20 @@ export function Timeline({
           >
             {startsNewDay && <DayDivider timestamp={message.timestamp} />}
             {view === "bubbles" ? (
-              <BubbleMessage
-                compact={compact}
-                groupEnd={groupEnd}
-                message={message}
-                onOpenImage={onOpenImage}
-                onOpenMessageMenu={onOpenMessageMenu}
-                onToggleReaction={onToggleReaction}
-              />
+              <motion.div
+                initial={{ opacity: 0, y: 10, scale: 0.985 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                transition={{ ...transition.base, duration: 0.24 }}
+              >
+                <BubbleMessage
+                  compact={compact}
+                  groupEnd={groupEnd}
+                  message={message}
+                  onOpenImage={onOpenImage}
+                  onOpenMessageMenu={onOpenMessageMenu}
+                  onToggleReaction={onToggleReaction}
+                />
+              </motion.div>
             ) : (
               <FlatMessage
                 compact={compact}
@@ -262,12 +268,12 @@ function BubbleTail({ own }: { own: boolean }) {
   return (
     <svg
       className={`bubble__tail${own ? " bubble__tail--own" : " bubble__tail--in"}`}
-      width="14"
+      width="16"
       height="18"
-      viewBox="0 0 14 18"
+      viewBox="0 0 16 18"
       aria-hidden
     >
-      <path d="M5,6 C5,12 8,16 12,18 C8,16 6,15 5,14 Z" fill={own ? "#efe9dd" : "#ffffff"} />
+      <path d="M5,6 C5,11 7.5,15.3 12.8,18 C8.4,16.4 6.2,15.2 4.9,13.9 Z" fill={own ? "#efe9dd" : "#ffffff"} />
     </svg>
   );
 }
