@@ -51,6 +51,7 @@ export function ChatShell() {
   const [forwarding, setForwarding] = useState<MatrixForwardData[] | null>(null);
   const [lightbox, setLightbox] = useState<string | null>(null);
   const [showRightPanel, setShowRightPanel] = useState(true);
+  const [activeSpaceId, setActiveSpaceId] = useState<string | null>(null);
   const [roomListCollapsed, setRoomListCollapsed] = useState(false);
   const [roomListWidth, setRoomListWidth] = useState(ROOM_LIST_WIDTH);
   const [roomListResizing, setRoomListResizing] = useState(false);
@@ -70,6 +71,26 @@ export function ChatShell() {
       ...roomGroups.dms,
     ],
     [roomGroups.channels, roomGroups.dms, roomGroups.favourites],
+  );
+  const effectiveActiveSpaceId = useMemo(
+    () => (activeSpaceId && roomGroups.spaces.some((space) => space.id === activeSpaceId) ? activeSpaceId : null),
+    [activeSpaceId, roomGroups.spaces],
+  );
+  const activeSpace = useMemo(
+    () => roomGroups.spaces.find((space) => space.id === effectiveActiveSpaceId) ?? null,
+    [effectiveActiveSpaceId, roomGroups.spaces],
+  );
+  const activeSpaceChildSet = useMemo(
+    () => (activeSpace ? new Set(activeSpace.childIds) : null),
+    [activeSpace],
+  );
+  const visibleRoomGroups = useMemo(
+    () => ({
+      favourites: roomGroups.favourites.filter((room) => !activeSpaceChildSet || activeSpaceChildSet.has(room.id)),
+      channels: roomGroups.channels.filter((room) => !activeSpaceChildSet || activeSpaceChildSet.has(room.id)),
+      dms: roomGroups.dms.filter((room) => !activeSpaceChildSet || activeSpaceChildSet.has(room.id)),
+    }),
+    [roomGroups.channels, roomGroups.dms, roomGroups.favourites, activeSpaceChildSet],
   );
 
   const activeRoom = useMemo(() => {
@@ -231,16 +252,21 @@ export function ChatShell() {
   return (
     <div className="chat-shell">
       <nav className="space-rail">
-        <button className="space-rail__home is-active" title="Все чаты">
+        <button
+          className={`space-rail__home${effectiveActiveSpaceId === null ? " is-active" : ""}`}
+          title="Все чаты"
+          onClick={() => setActiveSpaceId(null)}
+        >
           S
         </button>
         <div className="space-rail__spaces">
           {roomGroups.spaces.map((space) => (
             <button
               key={space.id}
-              className="space-rail__item"
+              className={`space-rail__item${effectiveActiveSpaceId === space.id ? " is-active" : ""}`}
               style={{ background: space.color }}
               title={space.name}
+              onClick={() => setActiveSpaceId(space.id)}
             >
               {space.label}
             </button>
@@ -265,11 +291,12 @@ export function ChatShell() {
         transition={roomListResizing ? { duration: 0 } : transition.slow}
       >
         <RoomList
-          favourites={roomGroups.favourites}
-          channels={roomGroups.channels}
-          dms={roomGroups.dms}
+          favourites={visibleRoomGroups.favourites}
+          channels={visibleRoomGroups.channels}
+          dms={visibleRoomGroups.dms}
           activeRoomId={activeRoomId}
           collapsed={roomListCollapsed}
+          activeSpaceId={effectiveActiveSpaceId}
           onToggleCollapsed={toggleRoomListCollapse}
           onSelectRoom={selectRoom}
           onToggleFavourite={toggleFavouriteRoom}

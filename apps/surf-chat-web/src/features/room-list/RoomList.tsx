@@ -11,6 +11,7 @@ type Props = {
   dms: MatrixRoomSummary[];
   activeRoomId: string | null;
   collapsed: boolean;
+  activeSpaceId: string | null;
   onToggleCollapsed: () => void;
   onSelectRoom: (roomId: string) => void;
   onToggleFavourite: (roomId: string) => void;
@@ -23,6 +24,7 @@ export function RoomList({
   dms,
   activeRoomId,
   collapsed,
+  activeSpaceId,
   onToggleCollapsed,
   onSelectRoom,
   onToggleFavourite,
@@ -120,7 +122,7 @@ export function RoomList({
           onToggleFavourite={onToggleFavourite}
           onShowTip={showRoomTip}
           onHideTip={() => setTip(null)}
-          reorderable={!searchValue}
+          reorderable={!searchValue && activeSpaceId === null}
           onReorder={(rooms) => {
             setFavouriteOrderIds(rooms.map((room) => room.id));
             onReorderFavourites(rooms);
