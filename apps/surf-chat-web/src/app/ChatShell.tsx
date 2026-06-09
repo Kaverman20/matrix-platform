@@ -12,7 +12,7 @@ import {
   Video,
   X,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { transition } from "@matrix-platform/ui";
 import {
   buildForwardData,
@@ -50,6 +50,7 @@ export function ChatShell() {
     x: number;
     y: number;
   } | null>(null);
+  const favouritePersistTimer = useRef<number | null>(null);
 
   const allRooms = useMemo(
     () => [
@@ -144,6 +145,31 @@ export function ChatShell() {
     setForwarding(null);
   };
 
+  const toggleFavouriteRoom = (roomId: string) => {
+    if (!client) return;
+    const room = allRooms.find((item) => item.id === roomId);
+    if (!room) return;
+
+    if (room.favourite) {
+      void client.deleteRoomTag(roomId, "m.favourite");
+    } else {
+      void client.setRoomTag(roomId, "m.favourite", { order: 0.5 });
+    }
+  };
+
+  const reorderFavouriteRooms = (rooms: typeof roomGroups.favourites) => {
+    if (!client) return;
+    if (favouritePersistTimer.current) {
+      window.clearTimeout(favouritePersistTimer.current);
+    }
+    favouritePersistTimer.current = window.setTimeout(() => {
+      rooms.forEach((room, index) => {
+        const order = rooms.length > 1 ? index / (rooms.length - 1) : 0;
+        void client.setRoomTag(room.id, "m.favourite", { order });
+      });
+    }, 180);
+  };
+
   return (
     <div className="chat-shell">
       <nav className="space-rail">
@@ -177,6 +203,8 @@ export function ChatShell() {
         dms={roomGroups.dms}
         activeRoomId={activeRoomId}
         onSelectRoom={selectRoom}
+        onToggleFavourite={toggleFavouriteRoom}
+        onReorderFavourites={reorderFavouriteRooms}
       />
 
       <main className="chat-main">

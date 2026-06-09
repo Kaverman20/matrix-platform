@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { motion } from "framer-motion";
+import { motion, Reorder } from "framer-motion";
 import { Hash, MessageCircle, Search, Star } from "lucide-react";
 import type { MatrixRoomSummary } from "@matrix-platform/matrix-core";
 import { fadeUp, transition } from "@matrix-platform/ui";
@@ -11,6 +11,8 @@ type Props = {
   dms: MatrixRoomSummary[];
   activeRoomId: string | null;
   onSelectRoom: (roomId: string) => void;
+  onToggleFavourite: (roomId: string) => void;
+  onReorderFavourites: (rooms: MatrixRoomSummary[]) => void;
 };
 
 export function RoomList({
@@ -19,13 +21,21 @@ export function RoomList({
   dms,
   activeRoomId,
   onSelectRoom,
+  onToggleFavourite,
+  onReorderFavourites,
 }: Props) {
   const [query, setQuery] = useState("");
+  const [favouriteOrderIds, setFavouriteOrderIds] = useState<string[]>([]);
   const total = favourites.length + channels.length + dms.length;
   const searchValue = query.trim().toLowerCase();
+  const orderedFavourites = useMemo(
+    () => reconcileRoomsByIds(favourites, favouriteOrderIds),
+    [favourites, favouriteOrderIds],
+  );
+
   const visibleFavourites = useMemo(
-    () => filterRooms(favourites, searchValue),
-    [favourites, searchValue],
+    () => filterRooms(orderedFavourites, searchValue),
+    [orderedFavourites, searchValue],
   );
   const visibleChannels = useMemo(
     () => filterRooms(channels, searchValue),
@@ -61,6 +71,12 @@ export function RoomList({
           rooms={visibleFavourites}
           activeRoomId={activeRoomId}
           onSelectRoom={onSelectRoom}
+          onToggleFavourite={onToggleFavourite}
+          reorderable={!searchValue}
+          onReorder={(rooms) => {
+            setFavouriteOrderIds(rooms.map((room) => room.id));
+            onReorderFavourites(rooms);
+          }}
         />
         <RoomSection
           title="Каналы"
@@ -68,6 +84,7 @@ export function RoomList({
           rooms={visibleChannels}
           activeRoomId={activeRoomId}
           onSelectRoom={onSelectRoom}
+          onToggleFavourite={onToggleFavourite}
         />
         <RoomSection
           title="Личные"
@@ -75,6 +92,7 @@ export function RoomList({
           rooms={visibleDms}
           activeRoomId={activeRoomId}
           onSelectRoom={onSelectRoom}
+          onToggleFavourite={onToggleFavourite}
         />
       </div>
 
@@ -96,6 +114,9 @@ type SectionProps = {
   rooms: MatrixRoomSummary[];
   activeRoomId: string | null;
   onSelectRoom: (roomId: string) => void;
+  onToggleFavourite: (roomId: string) => void;
+  reorderable?: boolean;
+  onReorder?: (rooms: MatrixRoomSummary[]) => void;
 };
 
 function RoomSection({
@@ -104,8 +125,69 @@ function RoomSection({
   rooms,
   activeRoomId,
   onSelectRoom,
+  onToggleFavourite,
+  reorderable = false,
+  onReorder,
 }: SectionProps) {
   if (rooms.length === 0) return null;
+  const renderRoom = (room: MatrixRoomSummary, index: number) => {
+    const isActive = room.id === activeRoomId;
+
+    return (
+      <motion.div
+        key={room.id}
+        role="button"
+        tabIndex={0}
+        className={`room-row${isActive ? " is-active" : ""}${room.favourite ? " room-row--fav" : ""}`}
+        onClick={() => onSelectRoom(room.id)}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            onSelectRoom(room.id);
+          }
+        }}
+        initial="hidden"
+        animate="visible"
+        variants={fadeUp}
+        transition={{ ...transition.base, delay: Math.min(index * 0.02, 0.3) }}
+        whileTap={{ scale: 0.99 }}
+      >
+        {isActive && (
+          <motion.span
+            className="room-row__bg"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={transition.fast}
+          />
+        )}
+        <span className="room-row__avatar" style={{ background: room.color }}>
+          {room.kind === "channel" ? <Hash size={17} /> : room.name.slice(0, 1).toUpperCase()}
+        </span>
+        <span className="room-row__main">
+          <span className="room-row__top">
+            <strong>{room.name}</strong>
+            <time>{room.time}</time>
+          </span>
+          <span className="room-row__preview">{room.preview || room.topic || "Нет сообщений"}</span>
+        </span>
+        <span className="room-row__meta">
+          <button
+            type="button"
+            className={`room-row__pin${room.favourite ? " is-on" : ""}`}
+            title={room.favourite ? "Открепить" : "Закрепить"}
+            onClick={(event) => {
+              event.stopPropagation();
+              onToggleFavourite(room.id);
+            }}
+            onPointerDown={(event) => event.stopPropagation()}
+          >
+            <Star size={15} fill={room.favourite ? "currentColor" : "none"} />
+          </button>
+          {room.unread > 0 && <span className="room-row__badge">{room.unread}</span>}
+        </span>
+      </motion.div>
+    );
+  };
 
   return (
     <section className="room-section">
@@ -114,52 +196,32 @@ function RoomSection({
         <span>{title}</span>
         <em>{rooms.length}</em>
       </div>
-      <div className="room-section__items">
-        {rooms.map((room, index) => {
-          const isActive = room.id === activeRoomId;
-
-          return (
-          <motion.div
-            key={room.id}
-            role="button"
-            tabIndex={0}
-            className={`room-row${isActive ? " is-active" : ""}`}
-            onClick={() => onSelectRoom(room.id)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter" || event.key === " ") {
-                event.preventDefault();
-                onSelectRoom(room.id);
-              }
-            }}
-            initial="hidden"
-            animate="visible"
-            variants={fadeUp}
-            transition={{ ...transition.base, delay: Math.min(index * 0.02, 0.3) }}
-            whileTap={{ scale: 0.99 }}
-          >
-            {isActive && (
-              <motion.span
-                className="room-row__bg"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={transition.fast}
-              />
-            )}
-            <span className="room-row__avatar" style={{ background: room.color }}>
-              {room.kind === "channel" ? <Hash size={17} /> : room.name.slice(0, 1).toUpperCase()}
-            </span>
-            <span className="room-row__main">
-              <span className="room-row__top">
-                <strong>{room.name}</strong>
-                <time>{room.time}</time>
-              </span>
-              <span className="room-row__preview">{room.preview || room.topic || "Нет сообщений"}</span>
-            </span>
-            {room.unread > 0 && <span className="room-row__badge">{room.unread}</span>}
-          </motion.div>
-          );
-        })}
-      </div>
+      {reorderable && onReorder ? (
+        <Reorder.Group
+          as="div"
+          axis="y"
+          values={rooms}
+          onReorder={onReorder}
+          className="room-section__items"
+        >
+          {rooms.map((room, index) => (
+            <Reorder.Item
+              as="div"
+              key={room.id}
+              value={room}
+              className="room-row__reorder-item"
+              whileDrag={{ scale: 1.02 }}
+              dragElastic={0.08}
+            >
+              {renderRoom(room, index)}
+            </Reorder.Item>
+          ))}
+        </Reorder.Group>
+      ) : (
+        <div className="room-section__items">
+          {rooms.map(renderRoom)}
+        </div>
+      )}
     </section>
   );
 }
@@ -170,4 +232,17 @@ function filterRooms(rooms: MatrixRoomSummary[], query: string): MatrixRoomSumma
     const preview = room.preview || room.topic || "";
     return `${room.name} ${preview}`.toLowerCase().includes(query);
   });
+}
+
+function reconcileRoomsByIds(
+  next: MatrixRoomSummary[],
+  previousIds: string[],
+): MatrixRoomSummary[] {
+  const nextById = new Map(next.map((room) => [room.id, room]));
+  const kept = previousIds
+    .map((id) => nextById.get(id))
+    .filter((room): room is MatrixRoomSummary => Boolean(room));
+  const keptIds = new Set(kept.map((room) => room.id));
+  const added = next.filter((room) => !keptIds.has(room.id));
+  return [...kept, ...added];
 }
