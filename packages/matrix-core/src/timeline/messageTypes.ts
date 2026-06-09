@@ -13,6 +13,7 @@ export type MatrixMessage = {
   forwardedFrom?: string;
   reactions: MatrixReaction[];
   replyTo?: MatrixMessageReference;
+  pinned?: boolean;
 };
 
 export type MatrixReaction = {

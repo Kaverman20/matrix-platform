@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { RoomEvent, type MatrixClient } from "matrix-js-sdk";
+import { RoomEvent, RoomStateEvent, ThreadEvent, type MatrixClient } from "matrix-js-sdk";
 import {
   buildTimelineMessages,
   type MatrixMessage,
@@ -20,12 +20,20 @@ export function useTimelineMessages(
 
     room.on(RoomEvent.Timeline, bump);
     room.on(RoomEvent.Redaction, bump);
+    room.on(ThreadEvent.New, bump);
+    room.on(ThreadEvent.Update, bump);
+    room.on(ThreadEvent.NewReply, bump);
+    client.on(RoomStateEvent.Events, bump);
 
     bump();
 
     return () => {
       room.off(RoomEvent.Timeline, bump);
       room.off(RoomEvent.Redaction, bump);
+      room.off(ThreadEvent.New, bump);
+      room.off(ThreadEvent.Update, bump);
+      room.off(ThreadEvent.NewReply, bump);
+      client.off(RoomStateEvent.Events, bump);
     };
   }, [client, roomId]);
 

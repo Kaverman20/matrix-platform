@@ -1,13 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { ArrowLeft, ChevronRight, Copy, Forward, Pencil, Reply, Trash2 } from "lucide-react";
+import { ArrowLeft, ChevronRight, Copy, Forward, Pencil, Pin, Reply, Trash2 } from "lucide-react";
 import data from "@emoji-mart/data";
 import Picker from "@emoji-mart/react";
 import type { MatrixMessage } from "@matrix-platform/matrix-core";
 import { transition } from "@matrix-platform/ui";
 import "./message-context-menu.css";
 
-export type MessageAction = "reply" | "edit" | "copy" | "forward" | "delete";
+export type MessageAction = "reply" | "edit" | "copy" | "forward" | "pin" | "delete";
 const QUICK_REACTIONS = ["👍", "❤️", "😂", "🔥", "👏", "🤔", "👎"];
 
 type Props = {
@@ -165,6 +165,12 @@ export function MessageContextMenu({ message, x, y, onAction, onClose, onReact }
                 <button type="button" role="menuitem" className="message-menu__action" onClick={() => runAction("forward")}>
                   <Forward size={17} />
                   <span>Переслать</span>
+                </button>
+              </li>
+              <li>
+                <button type="button" role="menuitem" className="message-menu__action" onClick={() => runAction("pin")}>
+                  <Pin size={16} />
+                  <span>{message.pinned ? "Открепить" : "Закрепить"}</span>
                 </button>
               </li>
               {message.own && (

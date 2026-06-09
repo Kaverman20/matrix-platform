@@ -1,4 +1,4 @@
-import type { MatrixClient, MatrixEvent, Room } from "matrix-js-sdk";
+import { EventTimeline, type MatrixClient, type MatrixEvent, type Room } from "matrix-js-sdk";
 import { colorForId } from "../rooms/colors";
 import type {
   MatrixMessage,
@@ -25,6 +25,7 @@ function buildMessagesFromEvents(
 ): MatrixMessage[] {
   const me = client.getUserId();
   const reactionsByTarget = buildReactionAggregates(room, events, me);
+  const pinnedIds = getPinnedEventIds(room);
   const eventById = new Map(
     events
       .map((event) => [event.getId(), event] as const)
@@ -55,8 +56,20 @@ function buildMessagesFromEvents(
         forwardedFrom: getForwardedFrom(event),
         reactions: reactionsByTarget.get(eventId) ?? [],
         replyTo: getReplyReference(room, event, eventById),
+        pinned: pinnedIds.has(eventId),
       };
     });
+}
+
+function getPinnedEventIds(room: Room): Set<string> {
+  const pinned =
+    (room
+      .getLiveTimeline()
+      .getState(EventTimeline.FORWARDS)
+      ?.getStateEvents("m.room.pinned_events", "")
+      ?.getContent().pinned as string[] | undefined) ?? [];
+
+  return new Set(pinned);
 }
 
 function buildReactionAggregates(

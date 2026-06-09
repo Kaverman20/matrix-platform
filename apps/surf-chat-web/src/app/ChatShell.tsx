@@ -1,4 +1,5 @@
 import { AnimatePresence, motion } from "framer-motion";
+import { EventTimeline } from "matrix-js-sdk";
 import {
   AlignLeft,
   ArrowLeft,
@@ -12,6 +13,7 @@ import {
   MessageSquare,
   MousePointer2,
   PanelRight,
+  Pin,
   Phone,
   Star,
   Users,
@@ -39,6 +41,7 @@ import {
 import { RoomList } from "../features/room-list/RoomList";
 import { useRoomGroups } from "../features/room-list/useRoomGroups";
 import { Timeline } from "../features/timeline/Timeline";
+import { usePinnedMessages } from "../features/timeline/usePinnedMessages";
 import { useTimelineMessages } from "../features/timeline/useTimelineMessages";
 import "./chat-shell.css";
 
@@ -77,8 +80,11 @@ export function ChatShell() {
     x: number;
     y: number;
   } | null>(null);
+  const [pinnedIndex, setPinnedIndex] = useState(0);
+  const [highlightMessageId, setHighlightMessageId] = useState<string | null>(null);
   const favouritePersistTimer = useRef<number | null>(null);
   const composerRef = useRef<ComposerHandle | null>(null);
+  const highlightTimer = useRef<number | null>(null);
 
   useEffect(() => {
     localStorage.setItem("surf-chat:view", chatView);
@@ -117,6 +123,7 @@ export function ChatShell() {
     return allRooms.find((room) => room.id === activeRoomId) ?? null;
   }, [activeRoomId, allRooms]);
   const messages = useTimelineMessages(client, activeRoomId);
+  const pinnedMessages = usePinnedMessages(client, activeRoomId);
   const activeMatrixRoom = useMemo(
     () => (client && activeRoomId ? client.getRoom(activeRoomId) : null),
     [activeRoomId, client],
@@ -179,6 +186,8 @@ export function ChatShell() {
   const selectRoom = (roomId: string) => {
     setActiveRoomId(roomId);
     setRightPanelSection("overview");
+    setPinnedIndex(0);
+    setHighlightMessageId(null);
     clearComposerMode();
   };
 
@@ -206,9 +215,54 @@ export function ChatShell() {
     if (action === "forward") {
       setForwarding([buildForwardData(client, activeRoomId, message)]);
     }
+    if (action === "pin") {
+      void togglePinnedMessage(message);
+    }
     if (action === "delete" && window.confirm("Удалить сообщение?")) {
       void client.redactEvent(activeRoomId, message.id);
     }
+  };
+
+  const togglePinnedMessage = async (message: MatrixMessage) => {
+    if (!client || !activeRoomId) return;
+
+    const room = client.getRoom(activeRoomId);
+    if (!room) return;
+
+    const currentPinned =
+      (room
+        .getLiveTimeline()
+        .getState(EventTimeline.FORWARDS)
+        ?.getStateEvents("m.room.pinned_events", "")
+        ?.getContent().pinned as string[] | undefined) ?? [];
+
+    const nextPinned = currentPinned.includes(message.id)
+      ? currentPinned.filter((id) => id !== message.id)
+      : [...currentPinned, message.id];
+
+    await client.sendStateEvent(activeRoomId, "m.room.pinned_events" as never, { pinned: nextPinned } as never, "");
+  };
+
+  const focusPinnedMessage = (messageId: string) => {
+    const node = document.querySelector<HTMLElement>(`[data-mid="${CSS.escape(messageId)}"]`);
+    if (!node) return;
+
+    node.scrollIntoView({ block: "center", behavior: "smooth" });
+    setHighlightMessageId(messageId);
+    if (highlightTimer.current) {
+      window.clearTimeout(highlightTimer.current);
+    }
+    highlightTimer.current = window.setTimeout(() => setHighlightMessageId(null), 1700);
+  };
+
+  const cyclePinnedMessage = () => {
+    if (pinnedMessages.length === 0) return;
+    const index = pinnedIndex % pinnedMessages.length;
+    const current = pinnedMessages[index];
+    if (!current?.id) return;
+
+    focusPinnedMessage(current.id);
+    setPinnedIndex((index + 1) % pinnedMessages.length);
   };
 
   const toggleReaction = (message: MatrixMessage, key: string) => {
@@ -225,6 +279,8 @@ export function ChatShell() {
   const selectForwardRoom = (roomId: string) => {
     if (!forwarding?.length) return;
     setActiveRoomId(roomId);
+    setPinnedIndex(0);
+    setHighlightMessageId(null);
     setPendingForward(forwarding);
     setReplyTo(null);
     setEditingMessage(null);
@@ -316,6 +372,14 @@ export function ChatShell() {
   }, [activeRoom, forwarding, lightbox, messageMenu]);
 
   useEffect(() => {
+    return () => {
+      if (highlightTimer.current) {
+        window.clearTimeout(highlightTimer.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
 
@@ -341,6 +405,8 @@ export function ChatShell() {
       if (activeRoomRef.current) {
         event.preventDefault();
         setActiveRoomId(null);
+        setPinnedIndex(0);
+        setHighlightMessageId(null);
         setRightPanelSection("overview");
         setMessageMenu(null);
         clearComposerMode();
@@ -445,9 +511,47 @@ export function ChatShell() {
                 </button>
               </div>
             </header>
+            <AnimatePresence initial={false}>
+              {pinnedMessages.length > 0 && (() => {
+                const currentIndex = pinnedMessages.length > 0 ? pinnedIndex % pinnedMessages.length : 0;
+                const current = pinnedMessages[currentIndex];
+                if (!current) return null;
+
+                return (
+                  <motion.button
+                    type="button"
+                    className="pinned-bar"
+                    onClick={cyclePinnedMessage}
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: "auto", opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={transition.fast}
+                  >
+                    {pinnedMessages.length > 1 && (
+                      <div className="pinned-bar__segments">
+                        {pinnedMessages.map((message, index) => (
+                          <span
+                            key={message.id}
+                            className={`pinned-bar__segment${index === currentIndex ? " is-active" : ""}`}
+                          />
+                        ))}
+                      </div>
+                    )}
+                    <Pin size={15} className="pinned-bar__icon" />
+                    <div className="pinned-bar__body">
+                      <span className="pinned-bar__label">
+                        Закреплённое{pinnedMessages.length > 1 ? ` · ${currentIndex + 1}/${pinnedMessages.length}` : ""}
+                      </span>
+                      <span className="pinned-bar__text">{current.text ?? "Сообщение"}</span>
+                    </div>
+                  </motion.button>
+                );
+              })()}
+            </AnimatePresence>
             <AnimatePresence mode="wait">
               <Timeline
                 key={activeRoom.id}
+                highlightMessageId={highlightMessageId}
                 messages={messages}
                 onOpenImage={setLightbox}
                 onOpenMessageMenu={openMessageMenu}

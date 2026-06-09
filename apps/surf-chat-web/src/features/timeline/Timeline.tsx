@@ -9,6 +9,7 @@ import "./timeline.css";
 
 type Props = {
   messages: MatrixMessage[];
+  highlightMessageId?: string | null;
   onOpenImage: (src: string) => void;
   onOpenMessageMenu: (message: MatrixMessage, x: number, y: number) => void;
   onToggleReaction: (message: MatrixMessage, key: string) => void;
@@ -18,6 +19,7 @@ type Props = {
 
 export function Timeline({
   messages,
+  highlightMessageId,
   onOpenImage,
   onOpenMessageMenu,
   onToggleReaction,
@@ -75,6 +77,7 @@ export function Timeline({
                 <BubbleMessage
                   compact={compact}
                   groupEnd={groupEnd}
+                  highlighted={message.id === highlightMessageId}
                   message={message}
                   onOpenImage={onOpenImage}
                   onOpenMessageMenu={onOpenMessageMenu}
@@ -84,6 +87,7 @@ export function Timeline({
             ) : (
               <FlatMessage
                 compact={compact}
+                highlighted={message.id === highlightMessageId}
                 message={message}
                 onOpenImage={onOpenImage}
                 onOpenMessageMenu={onOpenMessageMenu}
@@ -101,12 +105,14 @@ export function Timeline({
 
 function FlatMessage({
   compact,
+  highlighted,
   message,
   onOpenImage,
   onOpenMessageMenu,
   onToggleReaction,
 }: {
   compact: boolean;
+  highlighted: boolean;
   message: MatrixMessage;
   onOpenImage: (src: string) => void;
   onOpenMessageMenu: (message: MatrixMessage, x: number, y: number) => void;
@@ -114,7 +120,8 @@ function FlatMessage({
 }) {
   return (
     <article
-      className={`message${compact ? " message--compact" : ""}`}
+      data-mid={message.id}
+      className={`message${compact ? " message--compact" : ""}${highlighted ? " message--highlight" : ""}`}
       onContextMenu={(event) => {
         event.preventDefault();
         onOpenMessageMenu(message, event.clientX, event.clientY);
@@ -160,6 +167,7 @@ function FlatMessage({
 function BubbleMessage({
   compact,
   groupEnd,
+  highlighted,
   message,
   onOpenImage,
   onOpenMessageMenu,
@@ -167,6 +175,7 @@ function BubbleMessage({
 }: {
   compact: boolean;
   groupEnd: boolean;
+  highlighted: boolean;
   message: MatrixMessage;
   onOpenImage: (src: string) => void;
   onOpenMessageMenu: (message: MatrixMessage, x: number, y: number) => void;
@@ -174,7 +183,8 @@ function BubbleMessage({
 }) {
   return (
     <article
-      className={`mb${message.own ? " mb--own" : ""}${compact ? " mb--cont" : ""}${groupEnd ? " mb--tail" : ""}`}
+      data-mid={message.id}
+      className={`mb${message.own ? " mb--own" : ""}${compact ? " mb--cont" : ""}${groupEnd ? " mb--tail" : ""}${highlighted ? " mb--highlight" : ""}`}
       onContextMenu={(event) => {
         event.preventDefault();
         onOpenMessageMenu(message, event.clientX, event.clientY);
