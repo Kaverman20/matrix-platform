@@ -13,7 +13,6 @@
   display: flex;
   align-items: center;
   padding: 0 var(--space-4);
-  border-bottom: 1px solid var(--color-border);
 }
 
 .room-list__head div {
@@ -31,10 +30,47 @@
   font-size: var(--text-sm);
 }
 
+.room-list__search {
+  height: 38px;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0 var(--space-3) var(--space-2);
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  padding: 0 var(--space-3);
+  color: var(--color-text-faint);
+  background: var(--color-bg-sunken);
+  transition:
+    background 150ms ease,
+    border-color 150ms ease,
+    color 150ms ease;
+}
+
+.room-list__search:focus-within {
+  border-color: var(--color-accent-ring);
+  color: var(--color-text-muted);
+  background: var(--color-bg);
+}
+
+.room-list__search input {
+  min-width: 0;
+  flex: 1;
+  border: 0;
+  outline: 0;
+  color: var(--color-text);
+  background: transparent;
+  font: inherit;
+}
+
+.room-list__search input::placeholder {
+  color: var(--color-text-faint);
+}
+
 .room-list__sections {
   min-height: 0;
   overflow: auto;
-  padding: var(--space-3);
+  padding: var(--space-2);
 }
 
 .room-list__empty {
@@ -66,11 +102,13 @@
 }
 
 .room-section__items {
-  display: grid;
-  gap: var(--space-1);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
 .room-row {
+  position: relative;
   width: 100%;
   min-height: 58px;
   display: grid;
@@ -84,6 +122,7 @@
   background: transparent;
   text-align: left;
   cursor: pointer;
+  user-select: none;
 }
 
 .room-row:hover {
@@ -91,7 +130,20 @@
 }
 
 .room-row.is-active {
+  background: transparent;
+}
+
+.room-row__bg {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  border-radius: var(--radius-md);
   background: var(--color-accent-subtle);
+}
+
+.room-row > *:not(.room-row__bg) {
+  position: relative;
+  z-index: 1;
 }
 
 .room-row__avatar {
@@ -154,4 +206,3 @@
   font-size: var(--text-xs);
   font-weight: 700;
 }
-
