@@ -268,12 +268,15 @@ function BubbleTail({ own }: { own: boolean }) {
   return (
     <svg
       className={`bubble__tail${own ? " bubble__tail--own" : " bubble__tail--in"}`}
-      width="16"
-      height="18"
-      viewBox="0 0 16 18"
+      width="18"
+      height="16"
+      viewBox="0 0 18 16"
       aria-hidden
     >
-      <path d="M5,6 C5,11 7.5,15.3 12.8,18 C8.4,16.4 6.2,15.2 4.9,13.9 Z" fill={own ? "#efe9dd" : "#ffffff"} />
+      <path
+        d="M2 1C5.6 2.1 8.3 4.7 9.5 8.2C10.1 9.9 11.8 11.7 15 13.8C10.7 13 7.6 11.8 5.8 10.2C3.8 8.4 2.5 5.2 2 1Z"
+        fill="currentColor"
+      />
     </svg>
   );
 }
