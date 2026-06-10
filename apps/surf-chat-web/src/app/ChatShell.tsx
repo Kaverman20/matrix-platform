@@ -7,12 +7,10 @@ import {
   ChevronRight,
   FileText,
   Hash,
-  LogOut,
   MessageSquare,
   PanelRight,
   Pin,
   Phone,
-  Plus,
   Users,
   Video,
   X,
@@ -38,6 +36,7 @@ import {
 import { RoomList } from "../features/room-list/RoomList";
 import { useRoomGroups } from "../features/room-list/useRoomGroups";
 import { CreateModals } from "../features/spaces/CreateModals";
+import { SpaceRail } from "../features/spaces/SpaceRail";
 import { useRoomCreation } from "../features/spaces/useRoomCreation";
 import { EmptyState } from "../features/timeline/EmptyState";
 import { Timeline } from "../features/timeline/Timeline";
@@ -460,44 +459,14 @@ export function ChatShell() {
 
   return (
     <div className="chat-shell">
-      <nav className="space-rail">
-        <button
-          className={`space-rail__home${effectiveActiveSpaceId === null ? " is-active" : ""}`}
-          title="Все чаты"
-          onClick={() => setActiveSpaceId(null)}
-        >
-          {effectiveActiveSpaceId === null && <span className="space-rail__indicator" />}
-          S
-        </button>
-        <div className="space-rail__spaces">
-          {roomGroups.spaces.map((space) => (
-            <button
-              key={space.id}
-              className={`space-rail__item${effectiveActiveSpaceId === space.id ? " is-active" : ""}`}
-              style={{ background: space.color }}
-              title={space.name}
-              onClick={() => setActiveSpaceId(space.id)}
-            >
-              {effectiveActiveSpaceId === space.id && <span className="space-rail__indicator" />}
-              {space.label}
-            </button>
-          ))}
-        </div>
-        <button
-          className="space-rail__item space-rail__item--add"
-          title="Создать пространство"
-          onClick={creation.openCreateSpace}
-        >
-          <Plus size={20} />
-        </button>
-        <button
-          className="space-rail__logout"
-          title="Выйти"
-          onClick={() => void logout()}
-        >
-          <LogOut size={18} />
-        </button>
-      </nav>
+      <SpaceRail
+        spaces={roomGroups.spaces}
+        activeSpaceId={effectiveActiveSpaceId}
+        onSelectHome={() => setActiveSpaceId(null)}
+        onSelectSpace={setActiveSpaceId}
+        onCreateSpace={creation.openCreateSpace}
+        onLogout={() => void logout()}
+      />
 
       <motion.div
         className="chat-shell__room-list"
