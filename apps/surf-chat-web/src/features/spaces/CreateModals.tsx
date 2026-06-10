@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from "framer-motion";
-import { Boxes, Camera, Globe, Hash, Lock, Search, UserPlus, X } from "lucide-react";
+import { Boxes, Camera, ChevronLeft, ChevronRight, Globe, Hash, Lock, Search, UserPlus, X } from "lucide-react";
 import { useRef } from "react";
 import { colorForId } from "@matrix-platform/matrix-core";
 import { transition } from "@matrix-platform/ui";
@@ -315,16 +315,22 @@ export function CreateModals({ creation, activeSpaceId, activeSpaceName }: Props
                 </>
               ) : (
                 <>
-                  <div className="spacemodal__heading">Наполните «{c.createdSpaceName}»</div>
+                  {c.wizardParentName && (
+                    <button type="button" className="spacemodal__back" onClick={c.wizardBack}>
+                      <ChevronLeft size={16} /> {c.wizardParentName}
+                    </button>
+                  )}
+
+                  <div className="spacemodal__heading">Наполните «{c.wizardCurrentName}»</div>
 
                   <p className="spacemodal__hint">
-                    Добавьте каналы и под-пространства. Можно несколько — или пропустить и добавить позже.
+                    Добавьте каналы и сабспейсы. Можно несколько — или пропустить и добавить позже.
                   </p>
 
                   <input
                     autoFocus
                     className="spacemodal__name"
-                    placeholder="Название канала или под-пространства"
+                    placeholder="Название канала или сабспейса"
                     value={c.wizardName}
                     onChange={(event) => c.setWizardName(event.target.value)}
                     onKeyDown={(event) => {
@@ -370,23 +376,37 @@ export function CreateModals({ creation, activeSpaceId, activeSpaceName }: Props
                       onClick={() => void c.addWizardSubspace()}
                       disabled={!c.wizardName.trim() || c.wizardPending}
                     >
-                      <Boxes size={15} /> Под-пространство
+                      <Boxes size={15} /> Сабспейс
                     </button>
                   </div>
 
-                  {c.wizardItems.length > 0 && (
+                  {c.wizardChildren.length > 0 && (
                     <div className="spacemodal__chips">
-                      {c.wizardItems.map((item) => (
-                        <span key={item.id} className="spacemodal__chip">
-                          {item.kind === "space" ? <Boxes size={13} /> : <Hash size={13} />}
-                          {item.name}
-                        </span>
-                      ))}
+                      {c.wizardChildren.map((item) =>
+                        item.kind === "space" ? (
+                          <button
+                            key={item.id}
+                            type="button"
+                            className="spacemodal__chip spacemodal__chip--btn"
+                            onClick={() => c.enterWizardItem(item)}
+                            title="Открыть и добавить каналы внутрь"
+                          >
+                            <Boxes size={13} />
+                            {item.name}
+                            <ChevronRight size={13} />
+                          </button>
+                        ) : (
+                          <span key={item.id} className="spacemodal__chip">
+                            <Hash size={13} />
+                            {item.name}
+                          </span>
+                        ),
+                      )}
                     </div>
                   )}
 
                   <button className="spacemodal__create" onClick={c.finishSpaceWizard}>
-                    {c.wizardItems.length > 0 ? "Готово" : "Пропустить"}
+                    {c.wizardItemCount > 0 ? "Готово" : "Пропустить"}
                   </button>
                 </>
               )}

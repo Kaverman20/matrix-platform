@@ -221,7 +221,7 @@ export function RoomList({
         )}
         {!collapsed && subspaces.length > 0 && (
           <div className="room-list__subspaces">
-            <div className="room-list__subspaces-title">Подпространства</div>
+            <div className="room-list__subspaces-title">Сабспейсы</div>
             {subspaces.map((space) => (
               <button
                 key={space.id}

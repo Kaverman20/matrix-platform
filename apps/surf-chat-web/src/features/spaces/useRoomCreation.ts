@@ -3,7 +3,7 @@ import type { MatrixClient } from "matrix-js-sdk";
 
 export type CreateRoomType = "private" | "public";
 
-export type WizardItem = { id: string; name: string; kind: "channel" | "space" };
+export type WizardItem = { id: string; name: string; kind: "channel" | "space"; parentId: string };
 
 export type UserDirectoryEntry = {
   user_id: string;
@@ -38,6 +38,8 @@ export function useRoomCreation({ client, activeSpaceId, onOpenRoom, onOpenSpace
   const [spaceStep, setSpaceStep] = useState<"form" | "channels">("form");
   const [createdSpaceId, setCreatedSpaceId] = useState<string | null>(null);
   const [createdSpaceName, setCreatedSpaceName] = useState("");
+  // Breadcrumb stack inside the wizard: [root space, ...drilled-in sub-spaces].
+  const [wizardPath, setWizardPath] = useState<Array<{ id: string; name: string }>>([]);
   const [wizardItems, setWizardItems] = useState<Array<WizardItem>>([]);
   const [wizardName, setWizardName] = useState("");
   const [wizardType, setWizardType] = useState<CreateRoomType>("private");
@@ -74,6 +76,7 @@ export function useRoomCreation({ client, activeSpaceId, onOpenRoom, onOpenSpace
     setSpaceStep("form");
     setCreatedSpaceId(null);
     setCreatedSpaceName("");
+    setWizardPath([]);
     setWizardItems([]);
     setWizardName("");
     setWizardType("private");
@@ -86,6 +89,7 @@ export function useRoomCreation({ client, activeSpaceId, onOpenRoom, onOpenSpace
     setSpaceStep("form");
     setCreatedSpaceId(null);
     setCreatedSpaceName("");
+    setWizardPath([]);
     setWizardItems([]);
     setWizardName("");
     setWizardPending(false);
@@ -157,6 +161,7 @@ export function useRoomCreation({ client, activeSpaceId, onOpenRoom, onOpenSpace
       // channels they actually want.
       setCreatedSpaceId(spaceId);
       setCreatedSpaceName(name);
+      setWizardPath([{ id: spaceId, name }]);
       setSpaceStep("channels");
     } catch (error) {
       console.error("[create-space]", error);
@@ -168,12 +173,13 @@ export function useRoomCreation({ client, activeSpaceId, onOpenRoom, onOpenSpace
 
   const addWizardChannel = async () => {
     const name = wizardName.trim();
-    if (!client || !createdSpaceId || !name || wizardPending) return;
+    const target = wizardPath[wizardPath.length - 1];
+    if (!client || !target || !name || wizardPending) return;
 
     setWizardPending(true);
     try {
-      const roomId = await createChannelRoom(client, createdSpaceId, name, wizardType === "public");
-      setWizardItems((list) => [...list, { id: roomId, name, kind: "channel" }]);
+      const roomId = await createChannelRoom(client, target.id, name, wizardType === "public");
+      setWizardItems((list) => [...list, { id: roomId, name, kind: "channel", parentId: target.id }]);
       setWizardName("");
     } catch (error) {
       console.error("[wizard-channel]", error);
@@ -185,28 +191,45 @@ export function useRoomCreation({ client, activeSpaceId, onOpenRoom, onOpenSpace
 
   const addWizardSubspace = async () => {
     const name = wizardName.trim();
-    if (!client || !createdSpaceId || !name || wizardPending) return;
+    const target = wizardPath[wizardPath.length - 1];
+    if (!client || !target || !name || wizardPending) return;
 
     setWizardPending(true);
     try {
-      const subspaceId = await createSubspaceRoom(client, createdSpaceId, name, wizardType === "public");
-      setWizardItems((list) => [...list, { id: subspaceId, name, kind: "space" }]);
+      const subspaceId = await createSubspaceRoom(client, target.id, name, wizardType === "public");
+      setWizardItems((list) => [...list, { id: subspaceId, name, kind: "space", parentId: target.id }]);
       setWizardName("");
     } catch (error) {
       console.error("[wizard-subspace]", error);
-      window.alert("Не удалось создать под-пространство.");
+      window.alert("Не удалось создать сабспейс.");
     } finally {
       setWizardPending(false);
     }
   };
 
+  const enterWizardItem = (item: WizardItem) => {
+    if (item.kind !== "space") return;
+    setWizardPath((path) => [...path, { id: item.id, name: item.name }]);
+    setWizardName("");
+  };
+
+  const wizardBack = () => {
+    setWizardPath((path) => (path.length > 1 ? path.slice(0, -1) : path));
+    setWizardName("");
+  };
+
   const finishSpaceWizard = () => {
     const spaceId = createdSpaceId;
-    const firstChannel = wizardItems.find((item) => item.kind === "channel");
+    const firstChannel = wizardItems.find((item) => item.kind === "channel" && item.parentId === spaceId);
     closeCreateSpace();
     if (spaceId) onOpenSpace(spaceId);
     if (firstChannel) onOpenRoom(firstChannel.id);
   };
+
+  const wizardCurrent = wizardPath[wizardPath.length - 1] ?? null;
+  const wizardCurrentName = wizardCurrent?.name ?? createdSpaceName;
+  const wizardChildren = wizardItems.filter((item) => item.parentId === wizardCurrent?.id);
+  const wizardParentName = wizardPath.length > 1 ? wizardPath[wizardPath.length - 2].name : null;
 
   const createChannel = async () => {
     const name = newChannelName.trim();
@@ -352,10 +375,12 @@ export function useRoomCreation({ client, activeSpaceId, onOpenRoom, onOpenSpace
     openCreateSpace,
     closeCreateSpace,
     createSpace,
-    // space wizard (step 2: add channels / sub-spaces to the just-created space)
+    // space wizard (step 2: add channels / sub-spaces, with drill-in navigation)
     spaceStep,
-    createdSpaceName,
-    wizardItems,
+    wizardCurrentName,
+    wizardParentName,
+    wizardChildren,
+    wizardItemCount: wizardItems.length,
     wizardName,
     setWizardName,
     wizardType,
@@ -363,6 +388,8 @@ export function useRoomCreation({ client, activeSpaceId, onOpenRoom, onOpenSpace
     wizardPending,
     addWizardChannel,
     addWizardSubspace,
+    enterWizardItem,
+    wizardBack,
     finishSpaceWizard,
     // channel
     creatingChannel,
