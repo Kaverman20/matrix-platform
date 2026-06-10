@@ -1,6 +1,6 @@
 import { LogOut, Plus } from "lucide-react";
-import type { SyntheticEvent } from "react";
 import type { MatrixSpaceSummary } from "@matrix-platform/matrix-core";
+import { useAuthedBlob } from "../media/useAuthedBlob";
 import "./space-rail.css";
 
 type Props = {
@@ -33,19 +33,12 @@ export function SpaceRail({
       </button>
       <div className="space-rail__spaces">
         {spaces.map((space) => (
-          <button
+          <SpaceRailItem
             key={space.id}
-            className={`space-rail__item${activeSpaceId === space.id ? " is-active" : ""}`}
-            style={{ background: space.color }}
-            title={space.name}
-            onClick={() => onSelectSpace(space.id)}
-          >
-            {activeSpaceId === space.id && <span className="space-rail__indicator" />}
-            {space.label}
-            {space.avatarUrl && (
-              <img className="space-rail__avatar" src={space.avatarUrl} alt="" onError={hideImage} />
-            )}
-          </button>
+            space={space}
+            active={activeSpaceId === space.id}
+            onSelect={() => onSelectSpace(space.id)}
+          />
         ))}
       </div>
       <button
@@ -62,6 +55,29 @@ export function SpaceRail({
   );
 }
 
-function hideImage(event: SyntheticEvent<HTMLImageElement>): void {
-  event.currentTarget.style.display = "none";
+function SpaceRailItem({
+  space,
+  active,
+  onSelect,
+}: {
+  space: MatrixSpaceSummary;
+  active: boolean;
+  onSelect: () => void;
+}) {
+  // Space avatars live behind Synapse authenticated media, so a plain <img>
+  // (no Authorization header) would 401. Fetch the blob with the access token.
+  const { src } = useAuthedBlob(space.avatarUrl);
+
+  return (
+    <button
+      className={`space-rail__item${active ? " is-active" : ""}`}
+      style={{ background: space.color }}
+      title={space.name}
+      onClick={onSelect}
+    >
+      {active && <span className="space-rail__indicator" />}
+      {space.label}
+      {src && <img className="space-rail__avatar" src={src} alt="" />}
+    </button>
+  );
 }
