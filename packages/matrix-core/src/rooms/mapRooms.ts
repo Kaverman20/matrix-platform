@@ -12,10 +12,20 @@ export function buildRoomGroups(client: MatrixClient): MatrixRoomGroups {
   const joined = client.getRooms().filter((room) => room.getMyMembership() === "join");
   const byActivity = (a: MatrixRoomSummary, b: MatrixRoomSummary) => b.timestamp - a.timestamp;
 
-  const spaces = joined
-    .filter((room) => room.isSpaceRoom())
-    .map((room) => mapSpace(room, client))
+  const spaceRooms = joined.filter((room) => room.isSpaceRoom());
+  const spaceIdSet = new Set(spaceRooms.map((room) => room.roomId));
+  const spaces = spaceRooms
+    .map((room) => mapSpace(room, client, spaceIdSet))
     .sort((a, b) => a.name.localeCompare(b.name));
+
+  // A space is "nested" when it appears as a sub-space child of another space.
+  const nestedSpaceIds = new Set<string>();
+  for (const space of spaces) {
+    for (const childSpaceId of space.childSpaceIds) nestedSpaceIds.add(childSpaceId);
+  }
+  for (const space of spaces) {
+    space.nested = nestedSpaceIds.has(space.id);
+  }
 
   const rooms = joined
     .filter((room) => !room.isSpaceRoom())
@@ -63,7 +73,7 @@ function mapRoom(
   };
 }
 
-function mapSpace(room: Room, client: MatrixClient): MatrixSpaceSummary {
+function mapSpace(room: Room, client: MatrixClient, spaceIdSet: Set<string>): MatrixSpaceSummary {
   const avatarMxc = room.currentState.getStateEvents("m.room.avatar", "")?.getContent()
     ?.url;
   const avatarUrl =
@@ -71,13 +81,17 @@ function mapSpace(room: Room, client: MatrixClient): MatrixSpaceSummary {
       ? client.mxcUrlToHttp(avatarMxc, 96, 96, "crop", false, true, true) ?? undefined
       : undefined;
 
+  const childIds = getSpaceChildIds(room);
+
   return {
     id: room.roomId,
     name: room.name || room.roomId,
     label: spaceLabel(room.name || "?"),
     color: colorForId(room.roomId),
     avatarUrl,
-    childIds: getSpaceChildIds(room),
+    childIds,
+    childSpaceIds: childIds.filter((id) => spaceIdSet.has(id)),
+    nested: false,
   };
 }
 

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion, Reorder } from "framer-motion";
-import { ChevronDown, Hash, MessageCircle, PanelLeftClose, PanelLeftOpen, Plus, Search, Star, UserPlus } from "lucide-react";
-import type { MatrixRoomSummary } from "@matrix-platform/matrix-core";
+import { ChevronDown, ChevronLeft, ChevronRight, Hash, MessageCircle, PanelLeftClose, PanelLeftOpen, Plus, Search, Star, UserPlus } from "lucide-react";
+import type { MatrixRoomSummary, MatrixSpaceSummary } from "@matrix-platform/matrix-core";
 import { fadeUp, transition } from "@matrix-platform/ui";
 import "./room-list.css";
 
@@ -12,6 +12,10 @@ type Props = {
   activeRoomId: string | null;
   collapsed: boolean;
   activeSpaceId: string | null;
+  subspaces: MatrixSpaceSummary[];
+  parentSpaceName: string | null;
+  onBack: () => void;
+  onSelectSpace: (spaceId: string) => void;
   onToggleCollapsed: () => void;
   onSelectRoom: (roomId: string) => void;
   onToggleFavourite: (roomId: string) => void;
@@ -27,6 +31,10 @@ export function RoomList({
   activeRoomId,
   collapsed,
   activeSpaceId,
+  subspaces,
+  parentSpaceName,
+  onBack,
+  onSelectSpace,
   onToggleCollapsed,
   onSelectRoom,
   onToggleFavourite,
@@ -205,6 +213,31 @@ export function RoomList({
       </AnimatePresence>
 
       <div className="room-list__sections">
+        {!collapsed && parentSpaceName && (
+          <button type="button" className="room-list__back" onClick={onBack}>
+            <ChevronLeft size={16} />
+            <span>{parentSpaceName}</span>
+          </button>
+        )}
+        {!collapsed && subspaces.length > 0 && (
+          <div className="room-list__subspaces">
+            <div className="room-list__subspaces-title">Подпространства</div>
+            {subspaces.map((space) => (
+              <button
+                key={space.id}
+                type="button"
+                className="room-subspace"
+                onClick={() => onSelectSpace(space.id)}
+              >
+                <span className="room-subspace__avatar" style={{ background: space.color }}>
+                  {space.label}
+                </span>
+                <strong>{space.name}</strong>
+                <ChevronRight size={15} />
+              </button>
+            ))}
+          </div>
+        )}
         <RoomSection
           title="Избранное"
           icon={<Star size={14} />}

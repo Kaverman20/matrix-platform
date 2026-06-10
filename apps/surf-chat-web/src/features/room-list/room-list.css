@@ -244,6 +244,89 @@
   padding: var(--space-2) 0;
 }
 
+.room-list__back {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: var(--space-2);
+  padding: 8px 10px;
+  border: 0;
+  border-radius: var(--radius-md);
+  color: var(--color-text-muted);
+  background: transparent;
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 140ms ease, color 140ms ease;
+}
+
+.room-list__back:hover {
+  color: var(--color-text-strong);
+  background: var(--color-bg-subtle);
+}
+
+.room-list__subspaces {
+  margin-bottom: var(--space-3);
+  display: grid;
+  gap: 2px;
+}
+
+.room-list__subspaces-title {
+  padding: 4px 10px;
+  color: var(--color-text-faint);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.room-subspace {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: var(--radius-md);
+  color: var(--color-text);
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  transition: background 140ms ease;
+}
+
+.room-subspace:hover {
+  background: var(--color-bg-subtle);
+}
+
+.room-subspace strong {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.room-subspace svg:last-child {
+  color: var(--color-text-faint);
+}
+
+.room-subspace__avatar {
+  width: 28px;
+  height: 28px;
+  flex: 0 0 28px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius-sm);
+  color: var(--color-text-onAccent);
+  font-size: var(--text-xs);
+  font-weight: 800;
+}
+
 .room-list__empty {
   margin: var(--space-4);
   color: var(--color-text-muted);

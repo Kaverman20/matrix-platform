@@ -22,7 +22,12 @@ export type MatrixSpaceSummary = {
   label: string;
   color: string;
   avatarUrl?: string;
+  /** All m.space.child targets (rooms and sub-spaces). */
   childIds: string[];
+  /** Subset of childIds that are themselves spaces. */
+  childSpaceIds: string[];
+  /** True when this space is a child of another joined space. */
+  nested: boolean;
 };
 
 export type MatrixRoomGroups = {

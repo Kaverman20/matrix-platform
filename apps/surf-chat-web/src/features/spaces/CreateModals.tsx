@@ -315,20 +315,20 @@ export function CreateModals({ creation, activeSpaceId, activeSpaceName }: Props
                 </>
               ) : (
                 <>
-                  <div className="spacemodal__heading">Каналы в «{c.createdSpaceName}»</div>
+                  <div className="spacemodal__heading">Наполните «{c.createdSpaceName}»</div>
 
                   <p className="spacemodal__hint">
-                    Добавьте каналы внутрь пространства. Можно несколько — или пропустить и добавить позже.
+                    Добавьте каналы и под-пространства. Можно несколько — или пропустить и добавить позже.
                   </p>
 
                   <input
                     autoFocus
                     className="spacemodal__name"
-                    placeholder="Название канала"
-                    value={c.wizardChannelName}
-                    onChange={(event) => c.setWizardChannelName(event.target.value)}
+                    placeholder="Название канала или под-пространства"
+                    value={c.wizardName}
+                    onChange={(event) => c.setWizardName(event.target.value)}
                     onKeyDown={(event) => {
-                      if (event.key === "Enter" && c.wizardChannelName.trim()) {
+                      if (event.key === "Enter" && c.wizardName.trim()) {
                         void c.addWizardChannel();
                       }
                     }}
@@ -337,47 +337,56 @@ export function CreateModals({ creation, activeSpaceId, activeSpaceName }: Props
                   <div className="spacemodal__toggle">
                     <button
                       type="button"
-                      className={c.wizardChannelType === "private" ? "is-active" : ""}
-                      onClick={() => c.setWizardChannelType("private")}
+                      className={c.wizardType === "private" ? "is-active" : ""}
+                      onClick={() => c.setWizardType("private")}
                     >
-                      {c.wizardChannelType === "private" && (
+                      {c.wizardType === "private" && (
                         <motion.span className="seg-pill" layoutId="wizard-seg" transition={transition.base} />
                       )}
-                      <span className="seg-label"><Lock size={15} /> Приватный</span>
+                      <span className="seg-label"><Lock size={15} /> Приватное</span>
                     </button>
                     <button
                       type="button"
-                      className={c.wizardChannelType === "public" ? "is-active" : ""}
-                      onClick={() => c.setWizardChannelType("public")}
+                      className={c.wizardType === "public" ? "is-active" : ""}
+                      onClick={() => c.setWizardType("public")}
                     >
-                      {c.wizardChannelType === "public" && (
+                      {c.wizardType === "public" && (
                         <motion.span className="seg-pill" layoutId="wizard-seg" transition={transition.base} />
                       )}
-                      <span className="seg-label"><Globe size={15} /> Публичный</span>
+                      <span className="seg-label"><Globe size={15} /> Публичное</span>
                     </button>
                   </div>
 
-                  <button
-                    className="spacemodal__add"
-                    onClick={() => void c.addWizardChannel()}
-                    disabled={!c.wizardChannelName.trim() || c.wizardChannelPending}
-                  >
-                    {c.wizardChannelPending ? "Создаём..." : "Добавить канал"}
-                  </button>
+                  <div className="spacemodal__addRow">
+                    <button
+                      className="spacemodal__add"
+                      onClick={() => void c.addWizardChannel()}
+                      disabled={!c.wizardName.trim() || c.wizardPending}
+                    >
+                      <Hash size={15} /> Канал
+                    </button>
+                    <button
+                      className="spacemodal__add"
+                      onClick={() => void c.addWizardSubspace()}
+                      disabled={!c.wizardName.trim() || c.wizardPending}
+                    >
+                      <Boxes size={15} /> Под-пространство
+                    </button>
+                  </div>
 
-                  {c.wizardChannels.length > 0 && (
+                  {c.wizardItems.length > 0 && (
                     <div className="spacemodal__chips">
-                      {c.wizardChannels.map((channel) => (
-                        <span key={channel.id} className="spacemodal__chip">
-                          <Hash size={13} />
-                          {channel.name}
+                      {c.wizardItems.map((item) => (
+                        <span key={item.id} className="spacemodal__chip">
+                          {item.kind === "space" ? <Boxes size={13} /> : <Hash size={13} />}
+                          {item.name}
                         </span>
                       ))}
                     </div>
                   )}
 
                   <button className="spacemodal__create" onClick={c.finishSpaceWizard}>
-                    {c.wizardChannels.length > 0 ? "Готово" : "Пропустить"}
+                    {c.wizardItems.length > 0 ? "Готово" : "Пропустить"}
                   </button>
                 </>
               )}
