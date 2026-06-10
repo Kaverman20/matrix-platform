@@ -32,6 +32,14 @@ export function useRoomCreation({ client, activeSpaceId, onOpenRoom, onOpenSpace
   const [spaceAvatarFile, setSpaceAvatarFile] = useState<File | null>(null);
   const [spaceAvatarPreview, setSpaceAvatarPreview] = useState<string | null>(null);
   const [creatingSpacePending, setCreatingSpacePending] = useState(false);
+  // Two-step space wizard: "form" creates the space, "channels" adds rooms to it.
+  const [spaceStep, setSpaceStep] = useState<"form" | "channels">("form");
+  const [createdSpaceId, setCreatedSpaceId] = useState<string | null>(null);
+  const [createdSpaceName, setCreatedSpaceName] = useState("");
+  const [wizardChannels, setWizardChannels] = useState<Array<{ id: string; name: string }>>([]);
+  const [wizardChannelName, setWizardChannelName] = useState("");
+  const [wizardChannelType, setWizardChannelType] = useState<CreateRoomType>("private");
+  const [wizardChannelPending, setWizardChannelPending] = useState(false);
 
   const [creatingChannel, setCreatingChannel] = useState(false);
   const [newChannelName, setNewChannelName] = useState("");
@@ -61,12 +69,24 @@ export function useRoomCreation({ client, activeSpaceId, onOpenRoom, onOpenSpace
     setNewSpaceType("private");
     setSpaceAvatarFile(null);
     setSpaceAvatarPreview(null);
+    setSpaceStep("form");
+    setCreatedSpaceId(null);
+    setCreatedSpaceName("");
+    setWizardChannels([]);
+    setWizardChannelName("");
+    setWizardChannelType("private");
     setCreatingSpace(true);
   };
 
   const closeCreateSpace = () => {
     setCreatingSpace(false);
     setCreatingSpacePending(false);
+    setSpaceStep("form");
+    setCreatedSpaceId(null);
+    setCreatedSpaceName("");
+    setWizardChannels([]);
+    setWizardChannelName("");
+    setWizardChannelPending(false);
   };
 
   const openCreateChannel = () => {
@@ -106,7 +126,6 @@ export function useRoomCreation({ client, activeSpaceId, onOpenRoom, onOpenSpace
     if (!client || !name || creatingSpacePending) return;
 
     setCreatingSpacePending(true);
-    const server = client.getDomain() ?? "";
     const isPublic = newSpaceType === "public";
 
     try {
@@ -131,28 +150,12 @@ export function useRoomCreation({ client, activeSpaceId, onOpenRoom, onOpenSpace
       } as never);
 
       const spaceId = (spaceResult as { room_id: string }).room_id;
-      const generalResult = await client.createRoom({
-        name: "general",
-        room_version: "10",
-        initial_state: [
-          {
-            type: "m.room.join_rules",
-            state_key: "",
-            content: {
-              join_rule: "restricted",
-              allow: [{ type: "m.room_membership", room_id: spaceId }],
-            },
-          },
-          { type: "m.space.parent", state_key: spaceId, content: { canonical: true, via: [server] } },
-        ],
-      } as never);
 
-      const generalRoomId = (generalResult as { room_id: string }).room_id;
-      await client.sendStateEvent(spaceId, "m.space.child" as never, { via: [server] } as never, generalRoomId);
-
-      closeCreateSpace();
-      onOpenSpace(spaceId);
-      onOpenRoom(generalRoomId);
+      // No default #general — advance to the wizard so the user adds the
+      // channels they actually want.
+      setCreatedSpaceId(spaceId);
+      setCreatedSpaceName(name);
+      setSpaceStep("channels");
     } catch (error) {
       console.error("[create-space]", error);
       window.alert("Не удалось создать пространство.");
@@ -161,61 +164,38 @@ export function useRoomCreation({ client, activeSpaceId, onOpenRoom, onOpenSpace
     }
   };
 
+  const addWizardChannel = async () => {
+    const name = wizardChannelName.trim();
+    if (!client || !createdSpaceId || !name || wizardChannelPending) return;
+
+    setWizardChannelPending(true);
+    try {
+      const roomId = await createChannelRoom(client, createdSpaceId, name, wizardChannelType === "public");
+      setWizardChannels((list) => [...list, { id: roomId, name }]);
+      setWizardChannelName("");
+    } catch (error) {
+      console.error("[wizard-channel]", error);
+      window.alert("Не удалось создать канал.");
+    } finally {
+      setWizardChannelPending(false);
+    }
+  };
+
+  const finishSpaceWizard = () => {
+    const spaceId = createdSpaceId;
+    const firstChannel = wizardChannels[0];
+    closeCreateSpace();
+    if (spaceId) onOpenSpace(spaceId);
+    if (firstChannel) onOpenRoom(firstChannel.id);
+  };
+
   const createChannel = async () => {
     const name = newChannelName.trim();
     if (!client || !name || creatingChannelPending) return;
 
     setCreatingChannelPending(true);
-    const server = client.getDomain() ?? "";
-    const isPublic = newChannelType === "public";
-
     try {
-      const initialState: Array<{ type: string; state_key: string; content: Record<string, unknown> }> = [];
-
-      if (activeSpaceId) {
-        if (isPublic) {
-          initialState.push({
-            type: "m.space.parent",
-            state_key: activeSpaceId,
-            content: { canonical: true, via: [server] },
-          });
-        } else {
-          initialState.push(
-            {
-              type: "m.room.join_rules",
-              state_key: "",
-              content: {
-                join_rule: "restricted",
-                allow: [{ type: "m.room_membership", room_id: activeSpaceId }],
-              },
-            },
-            {
-              type: "m.space.parent",
-              state_key: activeSpaceId,
-              content: { canonical: true, via: [server] },
-            },
-          );
-        }
-      }
-
-      const result = await client.createRoom({
-        name,
-        preset: (isPublic ? "public_chat" : "private_chat") as never,
-        ...(isPublic ? { visibility: "public" as never } : {}),
-        ...(initialState.length > 0 ? { initial_state: initialState as never } : {}),
-      } as never);
-
-      const roomId = (result as { room_id: string }).room_id;
-
-      if (activeSpaceId) {
-        await client.sendStateEvent(
-          activeSpaceId,
-          "m.space.child" as never,
-          { via: [server] } as never,
-          roomId,
-        );
-      }
-
+      const roomId = await createChannelRoom(client, activeSpaceId, name, newChannelType === "public");
       closeCreateChannel();
       onOpenRoom(roomId);
     } catch (error) {
@@ -353,6 +333,17 @@ export function useRoomCreation({ client, activeSpaceId, onOpenRoom, onOpenSpace
     openCreateSpace,
     closeCreateSpace,
     createSpace,
+    // space wizard (step 2: add channels to the just-created space)
+    spaceStep,
+    createdSpaceName,
+    wizardChannels,
+    wizardChannelName,
+    setWizardChannelName,
+    wizardChannelType,
+    setWizardChannelType,
+    wizardChannelPending,
+    addWizardChannel,
+    finishSpaceWizard,
     // channel
     creatingChannel,
     newChannelName,
@@ -379,6 +370,61 @@ export function useRoomCreation({ client, activeSpaceId, onOpenRoom, onOpenSpace
 }
 
 export type RoomCreation = ReturnType<typeof useRoomCreation>;
+
+/**
+ * Creates a channel room, optionally parenting it to a space via
+ * m.space.parent / m.space.child. Returns the new room id.
+ */
+async function createChannelRoom(
+  client: MatrixClient,
+  spaceId: string | null,
+  name: string,
+  isPublic: boolean,
+): Promise<string> {
+  const server = client.getDomain() ?? "";
+  const initialState: Array<{ type: string; state_key: string; content: Record<string, unknown> }> = [];
+
+  if (spaceId) {
+    if (isPublic) {
+      initialState.push({
+        type: "m.space.parent",
+        state_key: spaceId,
+        content: { canonical: true, via: [server] },
+      });
+    } else {
+      initialState.push(
+        {
+          type: "m.room.join_rules",
+          state_key: "",
+          content: {
+            join_rule: "restricted",
+            allow: [{ type: "m.room_membership", room_id: spaceId }],
+          },
+        },
+        {
+          type: "m.space.parent",
+          state_key: spaceId,
+          content: { canonical: true, via: [server] },
+        },
+      );
+    }
+  }
+
+  const result = await client.createRoom({
+    name,
+    preset: (isPublic ? "public_chat" : "private_chat") as never,
+    ...(isPublic ? { visibility: "public" as never } : {}),
+    ...(initialState.length > 0 ? { initial_state: initialState as never } : {}),
+  } as never);
+
+  const roomId = (result as { room_id: string }).room_id;
+
+  if (spaceId) {
+    await client.sendStateEvent(spaceId, "m.space.child" as never, { via: [server] } as never, roomId);
+  }
+
+  return roomId;
+}
 
 function findDirectRoomId(client: MatrixClient, targetUserId: string): string | null {
   const direct = (client.getAccountData("m.direct" as never)?.getContent() ?? {}) as Record<string, string[]>;

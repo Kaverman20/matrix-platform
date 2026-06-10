@@ -228,88 +228,159 @@ export function CreateModals({ creation, activeSpaceId, activeSpaceName }: Props
                 <X size={18} />
               </button>
 
-              <div className="spacemodal__heading">Новое пространство</div>
+              {c.spaceStep === "form" ? (
+                <>
+                  <div className="spacemodal__heading">Новое пространство</div>
 
-              <button
-                type="button"
-                className="spacemodal__avatar"
-                style={c.spaceAvatarPreview ? undefined : { background: colorForId(c.newSpaceName || "space") }}
-                onClick={() => avatarInputRef.current?.click()}
-                title="Загрузить картинку"
-              >
-                {c.spaceAvatarPreview ? (
-                  <img className="spacemodal__avatarImg" src={c.spaceAvatarPreview} alt="" />
-                ) : c.newSpaceName.trim() ? (
-                  c.newSpaceName.trim()[0].toUpperCase()
-                ) : (
-                  <Boxes size={34} />
-                )}
-                <span className="spacemodal__avatarCam">
-                  <Camera size={16} />
-                </span>
-              </button>
+                  <button
+                    type="button"
+                    className="spacemodal__avatar"
+                    style={c.spaceAvatarPreview ? undefined : { background: colorForId(c.newSpaceName || "space") }}
+                    onClick={() => avatarInputRef.current?.click()}
+                    title="Загрузить картинку"
+                  >
+                    {c.spaceAvatarPreview ? (
+                      <img className="spacemodal__avatarImg" src={c.spaceAvatarPreview} alt="" />
+                    ) : c.newSpaceName.trim() ? (
+                      c.newSpaceName.trim()[0].toUpperCase()
+                    ) : (
+                      <Boxes size={34} />
+                    )}
+                    <span className="spacemodal__avatarCam">
+                      <Camera size={16} />
+                    </span>
+                  </button>
 
-              <input
-                ref={avatarInputRef}
-                type="file"
-                accept="image/*"
-                hidden
-                onChange={(event) => {
-                  c.setSpaceAvatar(event.target.files?.[0] ?? null);
-                  event.target.value = "";
-                }}
-              />
+                  <input
+                    ref={avatarInputRef}
+                    type="file"
+                    accept="image/*"
+                    hidden
+                    onChange={(event) => {
+                      c.setSpaceAvatar(event.target.files?.[0] ?? null);
+                      event.target.value = "";
+                    }}
+                  />
 
-              <input
-                autoFocus
-                className="spacemodal__name"
-                placeholder="Название пространства"
-                value={c.newSpaceName}
-                onChange={(event) => c.setNewSpaceName(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter" && c.newSpaceName.trim()) {
-                    void c.createSpace();
-                  }
-                }}
-              />
+                  <input
+                    autoFocus
+                    className="spacemodal__name"
+                    placeholder="Название пространства"
+                    value={c.newSpaceName}
+                    onChange={(event) => c.setNewSpaceName(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" && c.newSpaceName.trim()) {
+                        void c.createSpace();
+                      }
+                    }}
+                  />
 
-              <div className="spacemodal__toggle">
-                <button
-                  type="button"
-                  className={c.newSpaceType === "private" ? "is-active" : ""}
-                  onClick={() => c.setNewSpaceType("private")}
-                >
-                  {c.newSpaceType === "private" && (
-                    <motion.span className="seg-pill" layoutId="space-seg" transition={transition.base} />
+                  <div className="spacemodal__toggle">
+                    <button
+                      type="button"
+                      className={c.newSpaceType === "private" ? "is-active" : ""}
+                      onClick={() => c.setNewSpaceType("private")}
+                    >
+                      {c.newSpaceType === "private" && (
+                        <motion.span className="seg-pill" layoutId="space-seg" transition={transition.base} />
+                      )}
+                      <span className="seg-label"><Lock size={15} /> Приватное</span>
+                    </button>
+                    <button
+                      type="button"
+                      className={c.newSpaceType === "public" ? "is-active" : ""}
+                      onClick={() => c.setNewSpaceType("public")}
+                    >
+                      {c.newSpaceType === "public" && (
+                        <motion.span className="seg-pill" layoutId="space-seg" transition={transition.base} />
+                      )}
+                      <span className="seg-label"><Globe size={15} /> Публичное</span>
+                    </button>
+                  </div>
+
+                  <p className="spacemodal__hint">
+                    {c.newSpaceType === "private"
+                      ? "Доступ по группе или приглашению."
+                      : "Войти может любой сотрудник."}{" "}
+                    Дальше добавите каналы.
+                  </p>
+
+                  <button
+                    className="spacemodal__create"
+                    onClick={() => void c.createSpace()}
+                    disabled={!c.newSpaceName.trim() || c.creatingSpacePending}
+                  >
+                    {c.creatingSpacePending ? "Создаём..." : "Создать пространство"}
+                  </button>
+                </>
+              ) : (
+                <>
+                  <div className="spacemodal__heading">Каналы в «{c.createdSpaceName}»</div>
+
+                  <p className="spacemodal__hint">
+                    Добавьте каналы внутрь пространства. Можно несколько — или пропустить и добавить позже.
+                  </p>
+
+                  <input
+                    autoFocus
+                    className="spacemodal__name"
+                    placeholder="Название канала"
+                    value={c.wizardChannelName}
+                    onChange={(event) => c.setWizardChannelName(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" && c.wizardChannelName.trim()) {
+                        void c.addWizardChannel();
+                      }
+                    }}
+                  />
+
+                  <div className="spacemodal__toggle">
+                    <button
+                      type="button"
+                      className={c.wizardChannelType === "private" ? "is-active" : ""}
+                      onClick={() => c.setWizardChannelType("private")}
+                    >
+                      {c.wizardChannelType === "private" && (
+                        <motion.span className="seg-pill" layoutId="wizard-seg" transition={transition.base} />
+                      )}
+                      <span className="seg-label"><Lock size={15} /> Приватный</span>
+                    </button>
+                    <button
+                      type="button"
+                      className={c.wizardChannelType === "public" ? "is-active" : ""}
+                      onClick={() => c.setWizardChannelType("public")}
+                    >
+                      {c.wizardChannelType === "public" && (
+                        <motion.span className="seg-pill" layoutId="wizard-seg" transition={transition.base} />
+                      )}
+                      <span className="seg-label"><Globe size={15} /> Публичный</span>
+                    </button>
+                  </div>
+
+                  <button
+                    className="spacemodal__add"
+                    onClick={() => void c.addWizardChannel()}
+                    disabled={!c.wizardChannelName.trim() || c.wizardChannelPending}
+                  >
+                    {c.wizardChannelPending ? "Создаём..." : "Добавить канал"}
+                  </button>
+
+                  {c.wizardChannels.length > 0 && (
+                    <div className="spacemodal__chips">
+                      {c.wizardChannels.map((channel) => (
+                        <span key={channel.id} className="spacemodal__chip">
+                          <Hash size={13} />
+                          {channel.name}
+                        </span>
+                      ))}
+                    </div>
                   )}
-                  <span className="seg-label"><Lock size={15} /> Приватное</span>
-                </button>
-                <button
-                  type="button"
-                  className={c.newSpaceType === "public" ? "is-active" : ""}
-                  onClick={() => c.setNewSpaceType("public")}
-                >
-                  {c.newSpaceType === "public" && (
-                    <motion.span className="seg-pill" layoutId="space-seg" transition={transition.base} />
-                  )}
-                  <span className="seg-label"><Globe size={15} /> Публичное</span>
-                </button>
-              </div>
 
-              <p className="spacemodal__hint">
-                {c.newSpaceType === "private"
-                  ? "Доступ по группе или приглашению."
-                  : "Войти может любой сотрудник."}{" "}
-                Внутри создастся канал #general.
-              </p>
-
-              <button
-                className="spacemodal__create"
-                onClick={() => void c.createSpace()}
-                disabled={!c.newSpaceName.trim() || c.creatingSpacePending}
-              >
-                {c.creatingSpacePending ? "Создаём..." : "Создать пространство"}
-              </button>
+                  <button className="spacemodal__create" onClick={c.finishSpaceWizard}>
+                    {c.wizardChannels.length > 0 ? "Готово" : "Пропустить"}
+                  </button>
+                </>
+              )}
             </motion.div>
           </motion.div>
         )}
