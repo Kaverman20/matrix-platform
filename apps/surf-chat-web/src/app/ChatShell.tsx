@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from "framer-motion";
-import { EventTimeline } from "matrix-js-sdk";
+import { EventTimeline, type MatrixClient } from "matrix-js-sdk";
 import {
   AlignLeft,
   ArrowLeft,
@@ -20,7 +20,9 @@ import {
   Pin,
   Phone,
   Plus,
+  Search,
   Star,
+  UserPlus,
   Users,
   Video,
   X,
@@ -60,6 +62,12 @@ const RIGHT_PANEL_WIDTH = 320;
 
 type RightPanelSection = "overview" | "members" | "media" | "notifications";
 type ChatView = "flat" | "bubbles";
+type CreateChannelType = "private" | "public";
+type UserDirectoryEntry = {
+  user_id: string;
+  display_name?: string;
+  avatar_url?: string;
+};
 
 export function ChatShell() {
   const { client, logout } = useMatrix();
@@ -95,6 +103,16 @@ export function ChatShell() {
   const [spaceAvatarFile, setSpaceAvatarFile] = useState<File | null>(null);
   const [spaceAvatarPreview, setSpaceAvatarPreview] = useState<string | null>(null);
   const [creatingSpacePending, setCreatingSpacePending] = useState(false);
+  const [creatingChannel, setCreatingChannel] = useState(false);
+  const [newChannelName, setNewChannelName] = useState("");
+  const [newChannelType, setNewChannelType] = useState<CreateChannelType>("private");
+  const [creatingChannelPending, setCreatingChannelPending] = useState(false);
+  const [creatingDm, setCreatingDm] = useState(false);
+  const [dmQuery, setDmQuery] = useState("");
+  const [dmResults, setDmResults] = useState<UserDirectoryEntry[]>([]);
+  const [dmSearching, setDmSearching] = useState(false);
+  const [selectedDmUserId, setSelectedDmUserId] = useState<string | null>(null);
+  const [creatingDmPending, setCreatingDmPending] = useState(false);
   const favouritePersistTimer = useRef<number | null>(null);
   const composerRef = useRef<ComposerHandle | null>(null);
   const highlightTimer = useRef<number | null>(null);
@@ -417,6 +435,30 @@ export function ChatShell() {
     setCreatingSpacePending(false);
   };
 
+  const openCreateChannel = () => {
+    setNewChannelName("");
+    setNewChannelType("private");
+    setCreatingChannel(true);
+  };
+
+  const closeCreateChannel = () => {
+    setCreatingChannel(false);
+    setCreatingChannelPending(false);
+  };
+
+  const openCreateDm = () => {
+    setDmQuery("");
+    setDmResults([]);
+    setSelectedDmUserId(null);
+    setCreatingDm(true);
+  };
+
+  const closeCreateDm = () => {
+    setCreatingDm(false);
+    setCreatingDmPending(false);
+    setDmSearching(false);
+  };
+
   const pickSpaceAvatar = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0] ?? null;
     if (spaceAvatarPreview) {
@@ -487,6 +529,102 @@ export function ChatShell() {
     }
   };
 
+  const createChannel = async () => {
+    const name = newChannelName.trim();
+    if (!client || !name || creatingChannelPending) return;
+
+    setCreatingChannelPending(true);
+    const server = client.getDomain() ?? "";
+    const isPublic = newChannelType === "public";
+
+    try {
+      const initialState: Array<{ type: string; state_key: string; content: Record<string, unknown> }> = [];
+
+      if (effectiveActiveSpaceId) {
+        if (isPublic) {
+          initialState.push({
+            type: "m.space.parent",
+            state_key: effectiveActiveSpaceId,
+            content: { canonical: true, via: [server] },
+          });
+        } else {
+          initialState.push(
+            {
+              type: "m.room.join_rules",
+              state_key: "",
+              content: {
+                join_rule: "restricted",
+                allow: [{ type: "m.room_membership", room_id: effectiveActiveSpaceId }],
+              },
+            },
+            {
+              type: "m.space.parent",
+              state_key: effectiveActiveSpaceId,
+              content: { canonical: true, via: [server] },
+            },
+          );
+        }
+      }
+
+      const result = await client.createRoom({
+        name,
+        preset: (isPublic ? "public_chat" : "private_chat") as never,
+        ...(isPublic ? { visibility: "public" as never } : {}),
+        ...(initialState.length > 0 ? { initial_state: initialState as never } : {}),
+      } as never);
+
+      const roomId = (result as { room_id: string }).room_id;
+
+      if (effectiveActiveSpaceId) {
+        await client.sendStateEvent(
+          effectiveActiveSpaceId,
+          "m.space.child" as never,
+          { via: [server] } as never,
+          roomId,
+        );
+      }
+
+      closeCreateChannel();
+      setActiveRoomId(roomId);
+    } catch (error) {
+      console.error("[create-channel]", error);
+      window.alert("Не удалось создать канал.");
+    } finally {
+      setCreatingChannelPending(false);
+    }
+  };
+
+  const createDirectChat = async () => {
+    if (!client || !selectedDmUserId || creatingDmPending) return;
+
+    const existingRoomId = findDirectRoomId(client, selectedDmUserId);
+    if (existingRoomId) {
+      closeCreateDm();
+      setActiveRoomId(existingRoomId);
+      return;
+    }
+
+    setCreatingDmPending(true);
+    try {
+      const result = await client.createRoom({
+        is_direct: true,
+        invite: [selectedDmUserId],
+        preset: "trusted_private_chat" as never,
+      } as never);
+
+      const roomId = (result as { room_id: string }).room_id;
+      await ensureDirectRoomAccountData(client, selectedDmUserId, roomId);
+
+      closeCreateDm();
+      setActiveRoomId(roomId);
+    } catch (error) {
+      console.error("[create-dm]", error);
+      window.alert("Не удалось создать личный чат.");
+    } finally {
+      setCreatingDmPending(false);
+    }
+  };
+
   const reorderFavouriteRooms = (rooms: typeof roomGroups.favourites) => {
     if (!client) return;
     if (favouritePersistTimer.current) {
@@ -521,18 +659,75 @@ export function ChatShell() {
   }, []);
 
   useEffect(() => {
-    if (!creatingSpace) return;
+    if (!client || !creatingDm) return;
+
+    const term = dmQuery.trim();
+    const myUserId = client.getUserId();
+
+    if (term.length < 2) return;
+
+    let alive = true;
+
+    const timer = window.setTimeout(() => {
+      setDmSearching(true);
+      void client.searchUserDirectory({ term, limit: 8 })
+        .then((response) => {
+          if (!alive) return;
+
+          const results = (response.results ?? [])
+            .filter((entry) => entry.user_id !== myUserId)
+            .map((entry) => ({
+              user_id: entry.user_id,
+              display_name: entry.display_name,
+              avatar_url: entry.avatar_url,
+            }));
+
+          setDmResults(results);
+          setSelectedDmUserId((current) => (
+            current && results.some((entry) => entry.user_id === current)
+              ? current
+              : results[0]?.user_id ?? null
+          ));
+        })
+        .catch((error) => {
+          if (!alive) return;
+          console.error("[search-user-directory]", error);
+          setDmResults([]);
+          setSelectedDmUserId(null);
+        })
+        .finally(() => {
+          if (!alive) return;
+          setDmSearching(false);
+        });
+    }, 180);
+
+    return () => {
+      alive = false;
+      window.clearTimeout(timer);
+    };
+  }, [client, creatingDm, dmQuery]);
+
+  useEffect(() => {
+    if (!creatingSpace && !creatingChannel && !creatingDm) return;
 
     const onKey = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         event.preventDefault();
+        if (creatingDm) {
+          closeCreateDm();
+          return;
+        }
+        if (creatingChannel) {
+          closeCreateChannel();
+          return;
+        }
         closeCreateSpace();
       }
     };
 
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [creatingSpace]);
+  }, [creatingChannel, creatingDm, creatingSpace]);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -634,6 +829,8 @@ export function ChatShell() {
           onSelectRoom={selectRoom}
           onToggleFavourite={toggleFavouriteRoom}
           onReorderFavourites={reorderFavouriteRooms}
+          onCreateChannel={openCreateChannel}
+          onCreateDm={openCreateDm}
         />
         <div
           className={`chat-shell__room-list-resizer${roomListResizing ? " is-active" : ""}`}
@@ -954,6 +1151,204 @@ export function ChatShell() {
         )}
       </AnimatePresence>
       <AnimatePresence>
+        {creatingChannel && (
+          <motion.div
+            className="modal-backdrop"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={closeCreateChannel}
+          >
+            <motion.div
+              className="spacemodal"
+              role="dialog"
+              aria-modal="true"
+              aria-label="Создать канал"
+              onClick={(event) => event.stopPropagation()}
+              initial={{ scale: 0.94, opacity: 0, y: 8 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.94, opacity: 0, y: 8 }}
+              transition={transition.base}
+            >
+              <button className="spacemodal__close" onClick={closeCreateChannel} aria-label="Закрыть">
+                <X size={18} />
+              </button>
+
+              <div className="spacemodal__heading">Новый канал</div>
+
+              <div
+                className="spacemodal__avatar spacemodal__avatar--static"
+                style={{ background: colorForId(newChannelName || effectiveActiveSpaceId || "channel") }}
+              >
+                {newChannelName.trim() ? newChannelName.trim()[0].toUpperCase() : <Hash size={34} />}
+              </div>
+
+              <input
+                autoFocus
+                className="spacemodal__name"
+                placeholder="Название канала"
+                value={newChannelName}
+                onChange={(event) => setNewChannelName(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" && newChannelName.trim()) {
+                    void createChannel();
+                  }
+                }}
+              />
+
+              <div className="spacemodal__toggle">
+                <button
+                  type="button"
+                  className={newChannelType === "private" ? "is-active" : ""}
+                  onClick={() => setNewChannelType("private")}
+                >
+                  {newChannelType === "private" && (
+                    <motion.span className="seg-pill" layoutId="channel-seg" transition={transition.base} />
+                  )}
+                  <span className="seg-label"><Lock size={15} /> Приватный</span>
+                </button>
+                <button
+                  type="button"
+                  className={newChannelType === "public" ? "is-active" : ""}
+                  onClick={() => setNewChannelType("public")}
+                >
+                  {newChannelType === "public" && (
+                    <motion.span className="seg-pill" layoutId="channel-seg" transition={transition.base} />
+                  )}
+                  <span className="seg-label"><Globe size={15} /> Публичный</span>
+                </button>
+              </div>
+
+              <p className="spacemodal__hint">
+                {effectiveActiveSpaceId
+                  ? `Канал будет создан внутри пространства ${activeSpace?.name ?? "без названия"}.`
+                  : "Канал появится в общем списке чатов."}{" "}
+                {newChannelType === "private"
+                  ? "Для приватного канала доступ будет ограничен."
+                  : "Для публичного канала можно открыть общий доступ."}
+              </p>
+
+              <button
+                className="spacemodal__create"
+                onClick={() => void createChannel()}
+                disabled={!newChannelName.trim() || creatingChannelPending}
+              >
+                {creatingChannelPending ? "Создаём..." : "Создать канал"}
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+      <AnimatePresence>
+        {creatingDm && (
+          <motion.div
+            className="modal-backdrop"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={closeCreateDm}
+          >
+            <motion.div
+              className="spacemodal"
+              role="dialog"
+              aria-modal="true"
+              aria-label="Создать личный чат"
+              onClick={(event) => event.stopPropagation()}
+              initial={{ scale: 0.94, opacity: 0, y: 8 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.94, opacity: 0, y: 8 }}
+              transition={transition.base}
+            >
+              <button className="spacemodal__close" onClick={closeCreateDm} aria-label="Закрыть">
+                <X size={18} />
+              </button>
+
+              <div className="spacemodal__heading">Новый личный чат</div>
+
+              <div
+                className="spacemodal__avatar spacemodal__avatar--static"
+                style={{ background: colorForId(selectedDmUserId || dmQuery || "dm") }}
+              >
+                <UserPlus size={32} />
+              </div>
+
+              <label className="spacemodal__search">
+                <Search size={16} />
+                <input
+                  autoFocus
+                  className="spacemodal__searchInput"
+                  placeholder="Имя или Matrix ID"
+                  value={dmQuery}
+                  onChange={(event) => {
+                    const value = event.target.value;
+                    setDmQuery(value);
+                    const trimmed = value.trim();
+                    if (trimmed.length < 2) {
+                      setDmResults([]);
+                      setSelectedDmUserId(null);
+                      setDmSearching(false);
+                    } else {
+                      setDmSearching(true);
+                    }
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" && selectedDmUserId) {
+                      event.preventDefault();
+                      void createDirectChat();
+                    }
+                  }}
+                />
+              </label>
+
+              <div className="spacemodal__userlist">
+                {dmQuery.trim().length < 2 ? (
+                  <div className="spacemodal__empty">Введите хотя бы 2 символа, чтобы найти пользователя.</div>
+                ) : dmSearching ? (
+                  <div className="spacemodal__empty">Ищем пользователей...</div>
+                ) : dmResults.length > 0 ? (
+                  dmResults.map((entry) => {
+                    const active = entry.user_id === selectedDmUserId;
+                    return (
+                      <button
+                        key={entry.user_id}
+                        type="button"
+                        className={`spacemodal__user${active ? " is-active" : ""}`}
+                        onClick={() => setSelectedDmUserId(entry.user_id)}
+                      >
+                        <span
+                          className="spacemodal__userAvatar"
+                          style={{ background: colorForId(entry.user_id) }}
+                        >
+                          {(entry.display_name || entry.user_id)[0]?.toUpperCase() ?? "?"}
+                        </span>
+                        <span className="spacemodal__userBody">
+                          <strong>{entry.display_name || entry.user_id}</strong>
+                          {entry.display_name && <span>{entry.user_id}</span>}
+                        </span>
+                      </button>
+                    );
+                  })
+                ) : (
+                  <div className="spacemodal__empty">Никого не нашли.</div>
+                )}
+              </div>
+
+              <p className="spacemodal__hint">
+                Если личный чат с этим пользователем уже есть, мы просто откроем существующий.
+              </p>
+
+              <button
+                className="spacemodal__create"
+                onClick={() => void createDirectChat()}
+                disabled={!selectedDmUserId || creatingDmPending}
+              >
+                {creatingDmPending ? "Создаём..." : "Создать личный чат"}
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+      <AnimatePresence>
         {creatingSpace && (
           <motion.div
             className="modal-backdrop"
@@ -1070,6 +1465,39 @@ function membersLabel(count: number): string {
   if (mod10 === 1 && mod100 !== 11) return `${count} участник`;
   if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return `${count} участника`;
   return `${count} участников`;
+}
+
+function findDirectRoomId(client: MatrixClient, targetUserId: string): string | null {
+  const direct = (client.getAccountData("m.direct" as never)?.getContent() ?? {}) as Record<string, string[]>;
+  const explicit = Array.isArray(direct[targetUserId]) ? direct[targetUserId] : [];
+
+  for (const roomId of explicit) {
+    const room = client.getRoom(roomId);
+    if (room && room.getMyMembership() === "join") return roomId;
+  }
+
+  const me = client.getUserId();
+  for (const room of client.getRooms()) {
+    if (room.isSpaceRoom()) continue;
+    if (room.getMyMembership() !== "join") continue;
+    const members = room.getJoinedMembers();
+    if (members.length !== 2) continue;
+    const hasTarget = members.some((member) => member.userId === targetUserId);
+    const hasMe = members.some((member) => member.userId === me);
+    if (hasTarget && hasMe) return room.roomId;
+  }
+
+  return null;
+}
+
+async function ensureDirectRoomAccountData(client: MatrixClient, targetUserId: string, roomId: string): Promise<void> {
+  const content = {
+    ...((client.getAccountData("m.direct" as never)?.getContent() ?? {}) as Record<string, string[]>),
+  };
+  const roomIds = new Set(content[targetUserId] ?? []);
+  roomIds.add(roomId);
+  content[targetUserId] = Array.from(roomIds);
+  await client.setAccountData("m.direct" as never, content as never);
 }
 
 const ESC_TIP_DURATION = 2;

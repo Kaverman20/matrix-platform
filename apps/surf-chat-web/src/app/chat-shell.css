@@ -362,6 +362,14 @@
   filter: brightness(0.92);
 }
 
+.spacemodal__avatar--static {
+  cursor: default;
+}
+
+.spacemodal__avatar--static:hover {
+  filter: none;
+}
+
 .spacemodal__avatarImg {
   position: absolute;
   inset: 0;
@@ -410,6 +418,44 @@
 
 .spacemodal__name:focus {
   border-bottom-color: var(--color-accent);
+}
+
+.spacemodal__search {
+  width: 100%;
+  height: 44px;
+  margin-top: 24px;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  padding: 0 var(--space-3);
+  color: var(--color-text-faint);
+  background: var(--color-bg-sunken);
+  transition:
+    border-color 150ms ease,
+    color 150ms ease,
+    background 150ms ease;
+}
+
+.spacemodal__search:focus-within {
+  border-color: var(--color-accent-ring);
+  color: var(--color-text-muted);
+  background: var(--color-bg);
+}
+
+.spacemodal__searchInput {
+  min-width: 0;
+  flex: 1;
+  border: 0;
+  outline: 0;
+  color: var(--color-text);
+  background: transparent;
+  font: inherit;
+}
+
+.spacemodal__searchInput::placeholder {
+  color: var(--color-text-faint);
 }
 
 .spacemodal__toggle {
@@ -461,6 +507,91 @@
   color: var(--color-text-faint);
   font-size: var(--text-sm);
   line-height: 1.5;
+}
+
+.spacemodal__userlist {
+  width: 100%;
+  max-height: 240px;
+  margin-top: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow: auto;
+}
+
+.spacemodal__empty {
+  padding: 14px 12px;
+  border-radius: var(--radius-md);
+  color: var(--color-text-muted);
+  background: var(--color-bg-sunken);
+  font-size: var(--text-sm);
+  text-align: center;
+}
+
+.spacemodal__user {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 10px 12px;
+  color: var(--color-text);
+  background: var(--color-bg);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color 140ms ease,
+    background 140ms ease,
+    transform 140ms ease,
+    box-shadow 140ms ease;
+}
+
+.spacemodal__user:hover {
+  background: var(--color-bg-subtle);
+  transform: translateY(-1px);
+}
+
+.spacemodal__user.is-active {
+  border-color: var(--color-accent);
+  background: var(--color-accent-subtle);
+  box-shadow: var(--shadow-sm);
+}
+
+.spacemodal__userAvatar {
+  width: 38px;
+  height: 38px;
+  flex: 0 0 38px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius-md);
+  color: var(--color-text-onAccent);
+  font-size: var(--text-sm);
+  font-weight: 700;
+}
+
+.spacemodal__userBody {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.spacemodal__userBody strong,
+.spacemodal__userBody span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.spacemodal__userBody strong {
+  color: var(--color-text-strong);
+  font-size: var(--text-sm);
+}
+
+.spacemodal__userBody span {
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
 }
 
 .spacemodal__create {

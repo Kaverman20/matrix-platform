@@ -1,6 +1,6 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion, Reorder } from "framer-motion";
-import { ChevronDown, Hash, MessageCircle, PanelLeftClose, PanelLeftOpen, Search, Star } from "lucide-react";
+import { ChevronDown, Hash, MessageCircle, PanelLeftClose, PanelLeftOpen, Plus, Search, Star, UserPlus } from "lucide-react";
 import type { MatrixRoomSummary } from "@matrix-platform/matrix-core";
 import { fadeUp, transition } from "@matrix-platform/ui";
 import "./room-list.css";
@@ -16,6 +16,8 @@ type Props = {
   onSelectRoom: (roomId: string) => void;
   onToggleFavourite: (roomId: string) => void;
   onReorderFavourites: (rooms: MatrixRoomSummary[]) => void;
+  onCreateChannel: () => void;
+  onCreateDm: () => void;
 };
 
 export function RoomList({
@@ -29,15 +31,19 @@ export function RoomList({
   onSelectRoom,
   onToggleFavourite,
   onReorderFavourites,
+  onCreateChannel,
+  onCreateDm,
 }: Props) {
   const [query, setQuery] = useState("");
   const [tip, setTip] = useState<{ left: number; text: string; top: number } | null>(null);
   const [favouriteOrderIds, setFavouriteOrderIds] = useState<string[]>([]);
+  const [createMenuOpen, setCreateMenuOpen] = useState(false);
   const [openSections, setOpenSections] = useState({
     favourites: true,
     channels: true,
     dms: true,
   });
+  const createMenuRef = useRef<HTMLDivElement | null>(null);
   const total = favourites.length + channels.length + dms.length;
   const searchValue = query.trim().toLowerCase();
   const orderedFavourites = useMemo(
@@ -68,6 +74,29 @@ export function RoomList({
     });
   };
 
+  useEffect(() => {
+    if (!createMenuOpen) return;
+
+    const onPointerDown = (event: PointerEvent) => {
+      if (!createMenuRef.current?.contains(event.target as Node)) {
+        setCreateMenuOpen(false);
+      }
+    };
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setCreateMenuOpen(false);
+      }
+    };
+
+    window.addEventListener("pointerdown", onPointerDown);
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("pointerdown", onPointerDown);
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [createMenuOpen]);
+
   return (
     <aside className={`room-list${collapsed ? " is-collapsed" : ""}`}>
       <div className="room-list__head">
@@ -79,6 +108,72 @@ export function RoomList({
           <strong>Surf Chat</strong>
           <span>{total} чатов</span>
         </motion.div>
+        {!collapsed && (
+          <div className="room-list__actions" ref={createMenuRef}>
+            <button
+              type="button"
+              className={`room-list__create${createMenuOpen ? " is-open" : ""}`}
+              title="Создать"
+              onClick={() => setCreateMenuOpen((value) => !value)}
+            >
+              <span className="room-list__createIcon">
+                <Plus size={16} />
+              </span>
+              <span>Создать</span>
+              <motion.span
+                className="room-list__createCaret"
+                animate={{ rotate: createMenuOpen ? 45 : 0 }}
+                transition={transition.fast}
+              >
+                <Plus size={12} />
+              </motion.span>
+            </button>
+            <AnimatePresence>
+              {createMenuOpen && (
+                <motion.div
+                  className="room-list__createMenu"
+                  initial={{ opacity: 0, y: -6, scale: 0.98 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: -6, scale: 0.98 }}
+                  transition={transition.fast}
+                >
+                  <button
+                    type="button"
+                    className="room-list__createItem"
+                    onClick={() => {
+                      setCreateMenuOpen(false);
+                      onCreateChannel();
+                    }}
+                  >
+                    <span className="room-list__createItemIcon">
+                      <Hash size={15} />
+                    </span>
+                    <span className="room-list__createItemBody">
+                      <strong>Новый канал</strong>
+                      <small>{activeSpaceId ? "Внутри выбранного пространства" : "В общем списке чатов"}</small>
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    className="room-list__createItem"
+                    onClick={() => {
+                      setCreateMenuOpen(false);
+                      onCreateDm();
+                    }}
+                  >
+                    <span className="room-list__createItemIcon">
+                      <UserPlus size={15} />
+                    </span>
+                    <span className="room-list__createItemBody">
+                      <strong>Личный чат</strong>
+                      <small>Найти пользователя и начать переписку</small>
+                    </span>
+                  </button>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        )}
         <button
           type="button"
           className="room-list__collapse"
@@ -142,7 +237,7 @@ export function RoomList({
           onHideTip={() => setTip(null)}
         />
         <RoomSection
-          title="Личные"
+          title="Личные сообщения"
           icon={<MessageCircle size={14} />}
           rooms={visibleDms}
           open={openSections.dms}
