@@ -1,0 +1,29 @@
+.room-settings__topic {
+  width: 100%;
+  margin-top: 14px;
+  padding: 10px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  color: var(--color-text);
+  background: var(--color-bg-sunken);
+  font: inherit;
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  resize: vertical;
+  transition: border-color 150ms ease, background 150ms ease;
+}
+
+.room-settings__topic:focus {
+  outline: 0;
+  border-color: var(--color-accent-ring);
+  background: var(--color-bg);
+}
+
+.room-settings__topic::placeholder {
+  color: var(--color-text-faint);
+}
+
+.room-settings__topic:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}

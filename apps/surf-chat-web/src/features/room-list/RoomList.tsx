@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion, Reorder } from "framer-motion";
-import { Boxes, ChevronDown, ChevronLeft, ChevronRight, Hash, LogOut, MessageCircle, MoreHorizontal, PanelLeftClose, PanelLeftOpen, Plus, Search, Star } from "lucide-react";
+import { Boxes, ChevronDown, ChevronLeft, ChevronRight, Hash, LogOut, MessageCircle, MoreHorizontal, PanelLeftClose, PanelLeftOpen, Plus, Search, Settings, Star } from "lucide-react";
 import type { MatrixRoomSummary, MatrixSpaceSummary } from "@matrix-platform/matrix-core";
 import { fadeUp, transition } from "@matrix-platform/ui";
 import { AuthedImage } from "../media/AuthedImage";
@@ -26,6 +26,8 @@ type Props = {
   onCreateDm: () => void;
   onCreateSubspace: () => void;
   onLeaveSpace: () => void;
+  onOpenSettings: (roomId: string) => void;
+  onLeaveRoom: (roomId: string) => void;
 };
 
 export function RoomList({
@@ -48,11 +50,14 @@ export function RoomList({
   onCreateDm,
   onCreateSubspace,
   onLeaveSpace,
+  onOpenSettings,
+  onLeaveRoom,
 }: Props) {
   const [query, setQuery] = useState("");
   const [tip, setTip] = useState<{ left: number; text: string; top: number } | null>(null);
   const [favouriteOrderIds, setFavouriteOrderIds] = useState<string[]>([]);
   const [spaceMenuOpen, setSpaceMenuOpen] = useState(false);
+  const [rowMenu, setRowMenu] = useState<{ room: MatrixRoomSummary; x: number; y: number } | null>(null);
   const [openSections, setOpenSections] = useState({
     subspaces: true,
     favourites: true,
@@ -60,6 +65,7 @@ export function RoomList({
     dms: true,
   });
   const spaceMenuRef = useRef<HTMLDivElement | null>(null);
+  const rowMenuRef = useRef<HTMLDivElement | null>(null);
   const total = favourites.length + channels.length + dms.length;
   const searchValue = query.trim().toLowerCase();
   const orderedFavourites = useMemo(
@@ -113,6 +119,32 @@ export function RoomList({
     };
   }, [spaceMenuOpen]);
 
+  const openRowMenu = (room: MatrixRoomSummary, x: number, y: number) => {
+    setRowMenu({
+      room,
+      x: Math.min(x, window.innerWidth - 230),
+      y: Math.min(y, window.innerHeight - 170),
+    });
+  };
+
+  useEffect(() => {
+    if (!rowMenu) return;
+
+    const onPointerDown = (event: PointerEvent) => {
+      if (!rowMenuRef.current?.contains(event.target as Node)) setRowMenu(null);
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setRowMenu(null);
+    };
+
+    window.addEventListener("pointerdown", onPointerDown);
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("pointerdown", onPointerDown);
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [rowMenu]);
+
   return (
     <aside className={`room-list${collapsed ? " is-collapsed" : ""}`}>
       <div className="room-list__head" ref={spaceMenuRef}>
@@ -156,6 +188,18 @@ export function RoomList({
               exit={{ opacity: 0, y: -6, scale: 0.98 }}
               transition={transition.fast}
             >
+              <button
+                type="button"
+                className="space-bar__menuItem"
+                onClick={() => {
+                  setSpaceMenuOpen(false);
+                  if (activeSpace) onOpenSettings(activeSpace.id);
+                }}
+              >
+                <Settings size={16} />
+                <span>Настройки пространства</span>
+              </button>
+              <div className="row-menu__divider" />
               <button
                 type="button"
                 className="space-bar__menuItem space-bar__menuItem--danger"
@@ -261,6 +305,7 @@ export function RoomList({
           onToggleFavourite={onToggleFavourite}
           onShowTip={showRoomTip}
           onHideTip={() => setTip(null)}
+          onOpenRowMenu={openRowMenu}
           reorderable={!searchValue && activeSpaceId === null}
           onReorder={(rooms) => {
             setFavouriteOrderIds(rooms.map((room) => room.id));
@@ -279,6 +324,7 @@ export function RoomList({
           onToggleFavourite={onToggleFavourite}
           onShowTip={showRoomTip}
           onHideTip={() => setTip(null)}
+          onOpenRowMenu={openRowMenu}
           onAdd={!searchValue ? onCreateChannel : undefined}
           addLabel="Создать канал"
         />
@@ -294,6 +340,7 @@ export function RoomList({
           onToggleFavourite={onToggleFavourite}
           onShowTip={showRoomTip}
           onHideTip={() => setTip(null)}
+          onOpenRowMenu={openRowMenu}
           onAdd={!searchValue && activeSpaceId === null ? onCreateDm : undefined}
           addLabel="Создать личный чат"
         />
@@ -321,6 +368,54 @@ export function RoomList({
           </motion.div>
         )}
       </AnimatePresence>
+      <AnimatePresence>
+        {rowMenu && (
+          <motion.div
+            ref={rowMenuRef}
+            className="row-menu"
+            style={{ left: rowMenu.x, top: rowMenu.y }}
+            initial={{ opacity: 0, scale: 0.96, y: -4 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.96, y: -4 }}
+            transition={transition.fast}
+          >
+            <button
+              type="button"
+              className="row-menu__item"
+              onClick={() => {
+                onOpenSettings(rowMenu.room.id);
+                setRowMenu(null);
+              }}
+            >
+              <Settings size={16} />
+              <span>Настройки</span>
+            </button>
+            <button
+              type="button"
+              className="row-menu__item"
+              onClick={() => {
+                onToggleFavourite(rowMenu.room.id);
+                setRowMenu(null);
+              }}
+            >
+              <Star size={16} fill={rowMenu.room.favourite ? "currentColor" : "none"} />
+              <span>{rowMenu.room.favourite ? "Убрать из избранного" : "В избранное"}</span>
+            </button>
+            <div className="row-menu__divider" />
+            <button
+              type="button"
+              className="row-menu__item row-menu__item--danger"
+              onClick={() => {
+                onLeaveRoom(rowMenu.room.id);
+                setRowMenu(null);
+              }}
+            >
+              <LogOut size={16} />
+              <span>{rowMenu.room.kind === "dm" ? "Покинуть чат" : "Покинуть канал"}</span>
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </aside>
   );
 }
@@ -341,6 +436,7 @@ type SectionProps = {
   onReorder?: (rooms: MatrixRoomSummary[]) => void;
   onAdd?: () => void;
   addLabel?: string;
+  onOpenRowMenu: (room: MatrixRoomSummary, x: number, y: number) => void;
 };
 
 function RoomSection({
@@ -359,6 +455,7 @@ function RoomSection({
   onReorder,
   onAdd,
   addLabel,
+  onOpenRowMenu,
 }: SectionProps) {
   if (rooms.length === 0 && !onAdd) return null;
   const renderRoom = (room: MatrixRoomSummary, index: number) => {
@@ -371,6 +468,10 @@ function RoomSection({
         tabIndex={0}
         className={`room-row${isActive ? " is-active" : ""}${room.favourite ? " room-row--fav" : ""}`}
         onClick={() => onSelectRoom(room.id)}
+        onContextMenu={(event) => {
+          event.preventDefault();
+          onOpenRowMenu(room, event.clientX, event.clientY);
+        }}
         onMouseEnter={(event) => onShowTip(room.name, event.currentTarget)}
         onMouseLeave={onHideTip}
         onKeyDown={(event) => {
@@ -411,7 +512,7 @@ function RoomSection({
           <button
             type="button"
             className={`room-row__pin${room.favourite ? " is-on" : ""}`}
-            title={room.favourite ? "Открепить" : "Закрепить"}
+            title={room.favourite ? "Убрать из избранного" : "В избранное"}
             onClick={(event) => {
               event.stopPropagation();
               onToggleFavourite(room.id);
@@ -419,6 +520,20 @@ function RoomSection({
             onPointerDown={(event) => event.stopPropagation()}
           >
             <Star size={15} fill={room.favourite ? "currentColor" : "none"} />
+          </button>
+          <button
+            type="button"
+            className="room-row__more"
+            title="Ещё"
+            aria-label="Действия с чатом"
+            onClick={(event) => {
+              event.stopPropagation();
+              const rect = event.currentTarget.getBoundingClientRect();
+              onOpenRowMenu(room, rect.right, rect.bottom);
+            }}
+            onPointerDown={(event) => event.stopPropagation()}
+          >
+            <MoreHorizontal size={16} />
           </button>
         </span>
       </motion.div>

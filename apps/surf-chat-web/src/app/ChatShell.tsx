@@ -36,6 +36,8 @@ import {
 } from "../features/message-actions/MessageContextMenu";
 import { RoomList } from "../features/room-list/RoomList";
 import { useRoomGroups } from "../features/room-list/useRoomGroups";
+import { RoomSettingsModal } from "../features/room-settings/RoomSettingsModal";
+import { useRoomSettings } from "../features/room-settings/useRoomSettings";
 import { CreateModals } from "../features/spaces/CreateModals";
 import { SpaceRail } from "../features/spaces/SpaceRail";
 import { useRoomCreation } from "../features/spaces/useRoomCreation";
@@ -113,6 +115,7 @@ export function ChatShell() {
     onOpenRoom: setActiveRoomId,
     onOpenSpace: setActiveSpaceId,
   });
+  const roomSettings = useRoomSettings({ client });
   const activeSpaceChildSet = useMemo(
     () => (activeSpace ? new Set(activeSpace.childIds) : null),
     [activeSpace],
@@ -255,6 +258,20 @@ export function ChatShell() {
     setHighlightMessageId(null);
     setOptimisticPinnedIds(null);
     clearComposerMode();
+  };
+
+  const leaveRoom = async (roomId: string) => {
+    if (!client) return;
+    const room = client.getRoom(roomId);
+    const label = room?.name || "этот чат";
+    if (!window.confirm(`Покинуть «${label}»?`)) return;
+    try {
+      await client.leave(roomId);
+      if (activeRoomId === roomId) setActiveRoomId(null);
+    } catch (error) {
+      console.error("[leave-room]", error);
+      window.alert("Не удалось покинуть чат.");
+    }
   };
 
   const leaveActiveSpace = async () => {
@@ -548,6 +565,8 @@ export function ChatShell() {
           onCreateDm={creation.openCreateDm}
           onCreateSubspace={creation.openCreateSubspace}
           onLeaveSpace={() => void leaveActiveSpace()}
+          onOpenSettings={roomSettings.openSettings}
+          onLeaveRoom={(roomId) => void leaveRoom(roomId)}
         />
         <div
           className={`chat-shell__room-list-resizer${roomListResizing ? " is-active" : ""}`}
@@ -872,6 +891,7 @@ export function ChatShell() {
         activeSpaceId={effectiveActiveSpaceId}
         activeSpaceName={activeSpace?.name ?? null}
       />
+      <RoomSettingsModal settings={roomSettings} />
     </div>
   );
 }
