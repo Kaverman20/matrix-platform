@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion, Reorder } from "framer-motion";
-import { ChevronDown, ChevronLeft, ChevronRight, Hash, LogOut, MessageCircle, MoreHorizontal, PanelLeftClose, PanelLeftOpen, Plus, Search, Star } from "lucide-react";
+import { Boxes, ChevronDown, ChevronLeft, ChevronRight, Hash, LogOut, MessageCircle, MoreHorizontal, PanelLeftClose, PanelLeftOpen, Plus, Search, Star } from "lucide-react";
 import type { MatrixRoomSummary, MatrixSpaceSummary } from "@matrix-platform/matrix-core";
 import { fadeUp, transition } from "@matrix-platform/ui";
 import { AuthedImage } from "../media/AuthedImage";
@@ -54,6 +54,7 @@ export function RoomList({
   const [favouriteOrderIds, setFavouriteOrderIds] = useState<string[]>([]);
   const [spaceMenuOpen, setSpaceMenuOpen] = useState(false);
   const [openSections, setOpenSections] = useState({
+    subspaces: true,
     favourites: true,
     channels: true,
     dms: true,
@@ -114,15 +115,30 @@ export function RoomList({
 
   return (
     <aside className={`room-list${collapsed ? " is-collapsed" : ""}`}>
-      <div className="room-list__head">
-        <motion.div
-          className="room-list__title"
-          animate={{ opacity: collapsed ? 0 : 1, width: collapsed ? 0 : "auto" }}
-          transition={transition.slow}
-        >
-          <strong>Surf Chat</strong>
-          <span>{total} чатов</span>
-        </motion.div>
+      <div className="room-list__head" ref={spaceMenuRef}>
+        {!collapsed && activeSpace && (
+          <>
+            <span className="space-bar__avatar" style={{ background: activeSpace.color }}>
+              {activeSpace.label}
+              <AuthedImage url={activeSpace.avatarUrl} className="space-bar__avatar-img" />
+            </span>
+            <span className="space-bar__name">{activeSpace.name}</span>
+            <button
+              type="button"
+              className={`space-bar__more${spaceMenuOpen ? " is-open" : ""}`}
+              title="Управление пространством"
+              aria-label="Управление пространством"
+              onClick={() => setSpaceMenuOpen((value) => !value)}
+            >
+              <MoreHorizontal size={18} />
+            </button>
+          </>
+        )}
+        {!collapsed && !activeSpace && (
+          <div className="room-list__title">
+            <strong>Surf Chat</strong>
+          </div>
+        )}
         <button
           type="button"
           className="room-list__collapse"
@@ -131,49 +147,31 @@ export function RoomList({
         >
           {collapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
         </button>
+        <AnimatePresence>
+          {spaceMenuOpen && (
+            <motion.div
+              className="space-bar__menu"
+              initial={{ opacity: 0, y: -6, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -6, scale: 0.98 }}
+              transition={transition.fast}
+            >
+              <button
+                type="button"
+                className="space-bar__menuItem space-bar__menuItem--danger"
+                onClick={() => {
+                  setSpaceMenuOpen(false);
+                  onLeaveSpace();
+                }}
+              >
+                <LogOut size={16} />
+                <span>Выйти из пространства</span>
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
 
-      {!collapsed && activeSpace && (
-        <div className="space-bar" ref={spaceMenuRef}>
-          <span className="space-bar__avatar" style={{ background: activeSpace.color }}>
-            {activeSpace.label}
-            <AuthedImage url={activeSpace.avatarUrl} className="space-bar__avatar-img" />
-          </span>
-          <span className="space-bar__name">{activeSpace.name}</span>
-          <button
-            type="button"
-            className={`space-bar__more${spaceMenuOpen ? " is-open" : ""}`}
-            title="Управление пространством"
-            aria-label="Управление пространством"
-            onClick={() => setSpaceMenuOpen((value) => !value)}
-          >
-            <MoreHorizontal size={18} />
-          </button>
-          <AnimatePresence>
-            {spaceMenuOpen && (
-              <motion.div
-                className="space-bar__menu"
-                initial={{ opacity: 0, y: -6, scale: 0.98 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: -6, scale: 0.98 }}
-                transition={transition.fast}
-              >
-                <button
-                  type="button"
-                  className="space-bar__menuItem space-bar__menuItem--danger"
-                  onClick={() => {
-                    setSpaceMenuOpen(false);
-                    onLeaveSpace();
-                  }}
-                >
-                  <LogOut size={16} />
-                  <span>Выйти из пространства</span>
-                </button>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
-      )}
       <AnimatePresence initial={false}>
         {!collapsed && (
           <motion.div
@@ -203,9 +201,24 @@ export function RoomList({
           </button>
         )}
         {!collapsed && activeSpaceId && (
-          <div className="room-list__subspaces">
+          <section className="room-section">
             <div className="room-section__head">
-              <span className="room-list__subspaces-title">Сабспейсы</span>
+              <button
+                type="button"
+                className="room-section__title"
+                onClick={() => setOpenSections((state) => ({ ...state, subspaces: !state.subspaces }))}
+              >
+                <motion.span
+                  className="room-section__chevron"
+                  animate={{ rotate: openSections.subspaces ? 0 : -90 }}
+                  transition={transition.fast}
+                >
+                  <ChevronDown size={14} />
+                </motion.span>
+                <span className="room-section__icon"><Boxes size={14} /></span>
+                <span>Сабспейсы</span>
+                <em>{subspaces.length}</em>
+              </button>
               <button
                 type="button"
                 className="room-section__add"
@@ -216,22 +229,26 @@ export function RoomList({
                 <Plus size={15} />
               </button>
             </div>
-            {subspaces.map((space) => (
-              <button
-                key={space.id}
-                type="button"
-                className="room-subspace"
-                onClick={() => onSelectSpace(space.id)}
-              >
-                <span className="room-subspace__avatar" style={{ background: space.color }}>
-                  {space.label}
-                  {space.avatarUrl && <AuthedImage url={space.avatarUrl} className="room-subspace__avatar-img" />}
-                </span>
-                <strong>{space.name}</strong>
-                <ChevronRight size={15} />
-              </button>
-            ))}
-          </div>
+            <div className={`room-section__body${openSections.subspaces ? " is-open" : ""}`}>
+              <div className="room-section__body-inner">
+                {subspaces.map((space) => (
+                  <button
+                    key={space.id}
+                    type="button"
+                    className="room-subspace"
+                    onClick={() => onSelectSpace(space.id)}
+                  >
+                    <span className="room-subspace__avatar" style={{ background: space.color }}>
+                      {space.label}
+                      {space.avatarUrl && <AuthedImage url={space.avatarUrl} className="room-subspace__avatar-img" />}
+                    </span>
+                    <strong>{space.name}</strong>
+                    <ChevronRight size={15} />
+                  </button>
+                ))}
+              </div>
+            </div>
+          </section>
         )}
         <RoomSection
           title="Избранное"
