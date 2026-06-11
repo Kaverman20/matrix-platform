@@ -429,7 +429,13 @@
   color: var(--color-text-faint);
   background: transparent;
   cursor: pointer;
-  transition: color 120ms ease, background 120ms ease;
+  opacity: 0;
+  transition: color 120ms ease, background 120ms ease, opacity 120ms ease;
+}
+
+.room-section:hover .room-section__add,
+.room-section__add:focus-visible {
+  opacity: 1;
 }
 
 .room-section__add:hover {

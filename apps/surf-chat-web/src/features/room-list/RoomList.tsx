@@ -217,7 +217,6 @@ export function RoomList({
                 </motion.span>
                 <span className="room-section__icon"><Boxes size={14} /></span>
                 <span>Сабспейсы</span>
-                <em>{subspaces.length}</em>
               </button>
               <button
                 type="button"
@@ -447,7 +446,6 @@ function RoomSection({
               </motion.span>
               <span className="room-section__icon">{icon}</span>
               <span>{title}</span>
-              <em>{rooms.length}</em>
             </button>
             {onAdd && (
               <button
