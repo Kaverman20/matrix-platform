@@ -3,6 +3,7 @@ import { AnimatePresence, motion, Reorder } from "framer-motion";
 import { ChevronDown, ChevronLeft, ChevronRight, Hash, MessageCircle, PanelLeftClose, PanelLeftOpen, Plus, Search, Star, UserPlus } from "lucide-react";
 import type { MatrixRoomSummary, MatrixSpaceSummary } from "@matrix-platform/matrix-core";
 import { fadeUp, transition } from "@matrix-platform/ui";
+import { AuthedImage } from "../media/AuthedImage";
 import "./room-list.css";
 
 type Props = {
@@ -231,6 +232,7 @@ export function RoomList({
               >
                 <span className="room-subspace__avatar" style={{ background: space.color }}>
                   {space.label}
+                  {space.avatarUrl && <AuthedImage url={space.avatarUrl} className="room-subspace__avatar-img" />}
                 </span>
                 <strong>{space.name}</strong>
                 <ChevronRight size={15} />
@@ -376,13 +378,8 @@ function RoomSection({
           />
         )}
         <span className="room-row__avatar" style={{ background: room.color }}>
-          {room.avatarUrl ? (
-            <img className="room-row__avatar-img" src={room.avatarUrl} alt="" />
-          ) : room.kind === "channel" ? (
-            <Hash size={17} />
-          ) : (
-            room.name.slice(0, 1).toUpperCase()
-          )}
+          {room.kind === "channel" ? <Hash size={17} /> : room.name.slice(0, 1).toUpperCase()}
+          {room.avatarUrl && <AuthedImage url={room.avatarUrl} className="room-row__avatar-img" />}
           {collapsed && room.unread > 0 && <span className="room-row__badge room-row__badge--corner">{room.unread}</span>}
         </span>
         <span className="room-row__main">
