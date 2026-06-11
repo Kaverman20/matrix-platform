@@ -257,6 +257,19 @@ export function ChatShell() {
     clearComposerMode();
   };
 
+  const leaveActiveSpace = async () => {
+    if (!client || !effectiveActiveSpaceId) return;
+    if (!window.confirm(`Выйти из пространства «${activeSpace?.name ?? ""}»?`)) return;
+    const parentId = spaceParentId.get(effectiveActiveSpaceId) ?? null;
+    try {
+      await client.leave(effectiveActiveSpaceId);
+      setActiveSpaceId(parentId);
+    } catch (error) {
+      console.error("[leave-space]", error);
+      window.alert("Не удалось выйти из пространства.");
+    }
+  };
+
   const composerKey = [
     activeRoom?.id ?? "none",
     editingMessage
@@ -522,6 +535,7 @@ export function ChatShell() {
           activeRoomId={activeRoomId}
           collapsed={roomListCollapsed}
           activeSpaceId={effectiveActiveSpaceId}
+          activeSpace={activeSpace}
           subspaces={subspaces}
           parentSpaceName={parentSpace?.name ?? null}
           onBack={() => parentSpace && setActiveSpaceId(parentSpace.id)}
@@ -532,6 +546,8 @@ export function ChatShell() {
           onReorderFavourites={reorderFavouriteRooms}
           onCreateChannel={creation.openCreateChannel}
           onCreateDm={creation.openCreateDm}
+          onCreateSubspace={creation.openCreateSubspace}
+          onLeaveSpace={() => void leaveActiveSpace()}
         />
         <div
           className={`chat-shell__room-list-resizer${roomListResizing ? " is-active" : ""}`}

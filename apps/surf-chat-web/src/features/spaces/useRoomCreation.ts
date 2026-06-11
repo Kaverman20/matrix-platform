@@ -45,7 +45,9 @@ export function useRoomCreation({ client, activeSpaceId, onOpenRoom, onOpenSpace
   const [wizardType, setWizardType] = useState<CreateRoomType>("private");
   const [wizardPending, setWizardPending] = useState(false);
 
+  // The "create channel" modal doubles as "create sub-space" (channelKind).
   const [creatingChannel, setCreatingChannel] = useState(false);
+  const [channelKind, setChannelKind] = useState<"channel" | "space">("channel");
   const [newChannelName, setNewChannelName] = useState("");
   const [newChannelType, setNewChannelType] = useState<CreateRoomType>("private");
   const [creatingChannelPending, setCreatingChannelPending] = useState(false);
@@ -96,6 +98,14 @@ export function useRoomCreation({ client, activeSpaceId, onOpenRoom, onOpenSpace
   };
 
   const openCreateChannel = () => {
+    setChannelKind("channel");
+    setNewChannelName("");
+    setNewChannelType("private");
+    setCreatingChannel(true);
+  };
+
+  const openCreateSubspace = () => {
+    setChannelKind("space");
     setNewChannelName("");
     setNewChannelType("private");
     setCreatingChannel(true);
@@ -234,15 +244,23 @@ export function useRoomCreation({ client, activeSpaceId, onOpenRoom, onOpenSpace
   const createChannel = async () => {
     const name = newChannelName.trim();
     if (!client || !name || creatingChannelPending) return;
+    // Sub-space creation requires a parent space (only offered inside a space).
+    if (channelKind === "space" && !activeSpaceId) return;
 
     setCreatingChannelPending(true);
     try {
-      const roomId = await createChannelRoom(client, activeSpaceId, name, newChannelType === "public");
-      closeCreateChannel();
-      onOpenRoom(roomId);
+      if (channelKind === "space" && activeSpaceId) {
+        const subspaceId = await createSubspaceRoom(client, activeSpaceId, name, newChannelType === "public");
+        closeCreateChannel();
+        onOpenSpace(subspaceId);
+      } else {
+        const roomId = await createChannelRoom(client, activeSpaceId, name, newChannelType === "public");
+        closeCreateChannel();
+        onOpenRoom(roomId);
+      }
     } catch (error) {
       console.error("[create-channel]", error);
-      window.alert("Не удалось создать канал.");
+      window.alert(channelKind === "space" ? "Не удалось создать сабспейс." : "Не удалось создать канал.");
     } finally {
       setCreatingChannelPending(false);
     }
@@ -391,14 +409,16 @@ export function useRoomCreation({ client, activeSpaceId, onOpenRoom, onOpenSpace
     enterWizardItem,
     wizardBack,
     finishSpaceWizard,
-    // channel
+    // channel / sub-space (shared modal, switched by channelKind)
     creatingChannel,
+    channelKind,
     newChannelName,
     setNewChannelName,
     newChannelType,
     setNewChannelType,
     creatingChannelPending,
     openCreateChannel,
+    openCreateSubspace,
     closeCreateChannel,
     createChannel,
     // dm

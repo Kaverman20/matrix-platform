@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion, Reorder } from "framer-motion";
-import { ChevronDown, ChevronLeft, ChevronRight, Hash, MessageCircle, PanelLeftClose, PanelLeftOpen, Plus, Search, Star, UserPlus } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, Hash, LogOut, MessageCircle, MoreHorizontal, PanelLeftClose, PanelLeftOpen, Plus, Search, Star } from "lucide-react";
 import type { MatrixRoomSummary, MatrixSpaceSummary } from "@matrix-platform/matrix-core";
 import { fadeUp, transition } from "@matrix-platform/ui";
 import { AuthedImage } from "../media/AuthedImage";
@@ -13,6 +13,7 @@ type Props = {
   activeRoomId: string | null;
   collapsed: boolean;
   activeSpaceId: string | null;
+  activeSpace: MatrixSpaceSummary | null;
   subspaces: MatrixSpaceSummary[];
   parentSpaceName: string | null;
   onBack: () => void;
@@ -23,6 +24,8 @@ type Props = {
   onReorderFavourites: (rooms: MatrixRoomSummary[]) => void;
   onCreateChannel: () => void;
   onCreateDm: () => void;
+  onCreateSubspace: () => void;
+  onLeaveSpace: () => void;
 };
 
 export function RoomList({
@@ -32,6 +35,7 @@ export function RoomList({
   activeRoomId,
   collapsed,
   activeSpaceId,
+  activeSpace,
   subspaces,
   parentSpaceName,
   onBack,
@@ -42,17 +46,19 @@ export function RoomList({
   onReorderFavourites,
   onCreateChannel,
   onCreateDm,
+  onCreateSubspace,
+  onLeaveSpace,
 }: Props) {
   const [query, setQuery] = useState("");
   const [tip, setTip] = useState<{ left: number; text: string; top: number } | null>(null);
   const [favouriteOrderIds, setFavouriteOrderIds] = useState<string[]>([]);
-  const [createMenuOpen, setCreateMenuOpen] = useState(false);
+  const [spaceMenuOpen, setSpaceMenuOpen] = useState(false);
   const [openSections, setOpenSections] = useState({
     favourites: true,
     channels: true,
     dms: true,
   });
-  const createMenuRef = useRef<HTMLDivElement | null>(null);
+  const spaceMenuRef = useRef<HTMLDivElement | null>(null);
   const total = favourites.length + channels.length + dms.length;
   const searchValue = query.trim().toLowerCase();
   const orderedFavourites = useMemo(
@@ -84,17 +90,17 @@ export function RoomList({
   };
 
   useEffect(() => {
-    if (!createMenuOpen) return;
+    if (!spaceMenuOpen) return;
 
     const onPointerDown = (event: PointerEvent) => {
-      if (!createMenuRef.current?.contains(event.target as Node)) {
-        setCreateMenuOpen(false);
+      if (!spaceMenuRef.current?.contains(event.target as Node)) {
+        setSpaceMenuOpen(false);
       }
     };
 
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
-        setCreateMenuOpen(false);
+        setSpaceMenuOpen(false);
       }
     };
 
@@ -104,7 +110,7 @@ export function RoomList({
       window.removeEventListener("pointerdown", onPointerDown);
       window.removeEventListener("keydown", onKeyDown);
     };
-  }, [createMenuOpen]);
+  }, [spaceMenuOpen]);
 
   return (
     <aside className={`room-list${collapsed ? " is-collapsed" : ""}`}>
@@ -117,72 +123,6 @@ export function RoomList({
           <strong>Surf Chat</strong>
           <span>{total} чатов</span>
         </motion.div>
-        {!collapsed && (
-          <div className="room-list__actions" ref={createMenuRef}>
-            <button
-              type="button"
-              className={`room-list__create${createMenuOpen ? " is-open" : ""}`}
-              title="Создать"
-              onClick={() => setCreateMenuOpen((value) => !value)}
-            >
-              <span className="room-list__createIcon">
-                <Plus size={16} />
-              </span>
-              <span>Создать</span>
-              <motion.span
-                className="room-list__createCaret"
-                animate={{ rotate: createMenuOpen ? 45 : 0 }}
-                transition={transition.fast}
-              >
-                <Plus size={12} />
-              </motion.span>
-            </button>
-            <AnimatePresence>
-              {createMenuOpen && (
-                <motion.div
-                  className="room-list__createMenu"
-                  initial={{ opacity: 0, y: -6, scale: 0.98 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: -6, scale: 0.98 }}
-                  transition={transition.fast}
-                >
-                  <button
-                    type="button"
-                    className="room-list__createItem"
-                    onClick={() => {
-                      setCreateMenuOpen(false);
-                      onCreateChannel();
-                    }}
-                  >
-                    <span className="room-list__createItemIcon">
-                      <Hash size={15} />
-                    </span>
-                    <span className="room-list__createItemBody">
-                      <strong>Новый канал</strong>
-                      <small>{activeSpaceId ? "Внутри выбранного пространства" : "В общем списке чатов"}</small>
-                    </span>
-                  </button>
-                  <button
-                    type="button"
-                    className="room-list__createItem"
-                    onClick={() => {
-                      setCreateMenuOpen(false);
-                      onCreateDm();
-                    }}
-                  >
-                    <span className="room-list__createItemIcon">
-                      <UserPlus size={15} />
-                    </span>
-                    <span className="room-list__createItemBody">
-                      <strong>Личный чат</strong>
-                      <small>Найти пользователя и начать переписку</small>
-                    </span>
-                  </button>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
-        )}
         <button
           type="button"
           className="room-list__collapse"
@@ -192,6 +132,48 @@ export function RoomList({
           {collapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
         </button>
       </div>
+
+      {!collapsed && activeSpace && (
+        <div className="space-bar" ref={spaceMenuRef}>
+          <span className="space-bar__avatar" style={{ background: activeSpace.color }}>
+            {activeSpace.label}
+            <AuthedImage url={activeSpace.avatarUrl} className="space-bar__avatar-img" />
+          </span>
+          <span className="space-bar__name">{activeSpace.name}</span>
+          <button
+            type="button"
+            className={`space-bar__more${spaceMenuOpen ? " is-open" : ""}`}
+            title="Управление пространством"
+            aria-label="Управление пространством"
+            onClick={() => setSpaceMenuOpen((value) => !value)}
+          >
+            <MoreHorizontal size={18} />
+          </button>
+          <AnimatePresence>
+            {spaceMenuOpen && (
+              <motion.div
+                className="space-bar__menu"
+                initial={{ opacity: 0, y: -6, scale: 0.98 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: -6, scale: 0.98 }}
+                transition={transition.fast}
+              >
+                <button
+                  type="button"
+                  className="space-bar__menuItem space-bar__menuItem--danger"
+                  onClick={() => {
+                    setSpaceMenuOpen(false);
+                    onLeaveSpace();
+                  }}
+                >
+                  <LogOut size={16} />
+                  <span>Выйти из пространства</span>
+                </button>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+      )}
       <AnimatePresence initial={false}>
         {!collapsed && (
           <motion.div
@@ -220,9 +202,20 @@ export function RoomList({
             <span>{parentSpaceName}</span>
           </button>
         )}
-        {!collapsed && subspaces.length > 0 && (
+        {!collapsed && activeSpaceId && (
           <div className="room-list__subspaces">
-            <div className="room-list__subspaces-title">Сабспейсы</div>
+            <div className="room-section__head">
+              <span className="room-list__subspaces-title">Сабспейсы</span>
+              <button
+                type="button"
+                className="room-section__add"
+                title="Создать сабспейс"
+                aria-label="Создать сабспейс"
+                onClick={onCreateSubspace}
+              >
+                <Plus size={15} />
+              </button>
+            </div>
             {subspaces.map((space) => (
               <button
                 key={space.id}
@@ -270,6 +263,8 @@ export function RoomList({
           onToggleFavourite={onToggleFavourite}
           onShowTip={showRoomTip}
           onHideTip={() => setTip(null)}
+          onAdd={!searchValue ? onCreateChannel : undefined}
+          addLabel="Создать канал"
         />
         <RoomSection
           title="Личные сообщения"
@@ -283,6 +278,8 @@ export function RoomList({
           onToggleFavourite={onToggleFavourite}
           onShowTip={showRoomTip}
           onHideTip={() => setTip(null)}
+          onAdd={!searchValue && activeSpaceId === null ? onCreateDm : undefined}
+          addLabel="Создать личный чат"
         />
       </div>
 
@@ -326,6 +323,8 @@ type SectionProps = {
   onHideTip: () => void;
   reorderable?: boolean;
   onReorder?: (rooms: MatrixRoomSummary[]) => void;
+  onAdd?: () => void;
+  addLabel?: string;
 };
 
 function RoomSection({
@@ -342,8 +341,10 @@ function RoomSection({
   onHideTip,
   reorderable = false,
   onReorder,
+  onAdd,
+  addLabel,
 }: SectionProps) {
-  if (rooms.length === 0) return null;
+  if (rooms.length === 0 && !onAdd) return null;
   const renderRoom = (room: MatrixRoomSummary, index: number) => {
     const isActive = room.id === activeRoomId;
 
@@ -412,26 +413,37 @@ function RoomSection({
     <section className="room-section">
       <AnimatePresence initial={false}>
         {!collapsed && (
-          <motion.button
-            type="button"
-            className="room-section__title"
-            onClick={onToggleOpen}
+          <motion.div
+            className="room-section__head"
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 28 }}
             exit={{ opacity: 0, height: 0 }}
             transition={transition.fast}
           >
-            <motion.span
-              className="room-section__chevron"
-              animate={{ rotate: open ? 0 : -90 }}
-              transition={transition.fast}
-            >
-              <ChevronDown size={14} />
-            </motion.span>
-            <span className="room-section__icon">{icon}</span>
-            <span>{title}</span>
-            <em>{rooms.length}</em>
-          </motion.button>
+            <button type="button" className="room-section__title" onClick={onToggleOpen}>
+              <motion.span
+                className="room-section__chevron"
+                animate={{ rotate: open ? 0 : -90 }}
+                transition={transition.fast}
+              >
+                <ChevronDown size={14} />
+              </motion.span>
+              <span className="room-section__icon">{icon}</span>
+              <span>{title}</span>
+              <em>{rooms.length}</em>
+            </button>
+            {onAdd && (
+              <button
+                type="button"
+                className="room-section__add"
+                title={addLabel}
+                aria-label={addLabel}
+                onClick={onAdd}
+              >
+                <Plus size={15} />
+              </button>
+            )}
+          </motion.div>
         )}
       </AnimatePresence>
       <div className={`room-section__body${open ? " is-open" : ""}`}>

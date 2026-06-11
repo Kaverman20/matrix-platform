@@ -14,6 +14,7 @@ type Props = {
 export function CreateModals({ creation, activeSpaceId, activeSpaceName }: Props) {
   const c = creation;
   const avatarInputRef = useRef<HTMLInputElement | null>(null);
+  const isSub = c.channelKind === "space";
 
   return (
     <>
@@ -30,7 +31,7 @@ export function CreateModals({ creation, activeSpaceId, activeSpaceName }: Props
               className="spacemodal"
               role="dialog"
               aria-modal="true"
-              aria-label="Создать канал"
+              aria-label={isSub ? "Создать сабспейс" : "Создать канал"}
               onClick={(event) => event.stopPropagation()}
               initial={{ scale: 0.94, opacity: 0, y: 8 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
@@ -41,19 +42,19 @@ export function CreateModals({ creation, activeSpaceId, activeSpaceName }: Props
                 <X size={18} />
               </button>
 
-              <div className="spacemodal__heading">Новый канал</div>
+              <div className="spacemodal__heading">{isSub ? "Новый сабспейс" : "Новый канал"}</div>
 
               <div
                 className="spacemodal__avatar spacemodal__avatar--static"
                 style={{ background: colorForId(c.newChannelName || activeSpaceId || "channel") }}
               >
-                {c.newChannelName.trim() ? c.newChannelName.trim()[0].toUpperCase() : <Hash size={34} />}
+                {c.newChannelName.trim() ? c.newChannelName.trim()[0].toUpperCase() : isSub ? <Boxes size={34} /> : <Hash size={34} />}
               </div>
 
               <input
                 autoFocus
                 className="spacemodal__name"
-                placeholder="Название канала"
+                placeholder={isSub ? "Название сабспейса" : "Название канала"}
                 value={c.newChannelName}
                 onChange={(event) => c.setNewChannelName(event.target.value)}
                 onKeyDown={(event) => {
@@ -87,12 +88,14 @@ export function CreateModals({ creation, activeSpaceId, activeSpaceName }: Props
               </div>
 
               <p className="spacemodal__hint">
-                {activeSpaceId
-                  ? `Канал будет создан внутри пространства ${activeSpaceName ?? "без названия"}.`
-                  : "Канал появится в общем списке чатов."}{" "}
+                {isSub
+                  ? `Сабспейс появится внутри пространства ${activeSpaceName ?? "без названия"}.`
+                  : activeSpaceId
+                    ? `Канал будет создан внутри пространства ${activeSpaceName ?? "без названия"}.`
+                    : "Канал появится в общем списке чатов."}{" "}
                 {c.newChannelType === "private"
-                  ? "Для приватного канала доступ будет ограничен."
-                  : "Для публичного канала можно открыть общий доступ."}
+                  ? "Доступ будет ограничен."
+                  : "Можно открыть общий доступ."}
               </p>
 
               <button
@@ -100,7 +103,7 @@ export function CreateModals({ creation, activeSpaceId, activeSpaceName }: Props
                 onClick={() => void c.createChannel()}
                 disabled={!c.newChannelName.trim() || c.creatingChannelPending}
               >
-                {c.creatingChannelPending ? "Создаём..." : "Создать канал"}
+                {c.creatingChannelPending ? "Создаём..." : isSub ? "Создать сабспейс" : "Создать канал"}
               </button>
             </motion.div>
           </motion.div>
