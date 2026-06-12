@@ -263,14 +263,18 @@ export function ChatShell() {
   const leaveRoom = async (roomId: string) => {
     if (!client) return;
     const room = client.getRoom(roomId);
-    const label = room?.name || "этот чат";
+    const isSpace = room?.isSpaceRoom() ?? false;
+    const label = room?.name || (isSpace ? "это пространство" : "этот чат");
     if (!window.confirm(`Покинуть «${label}»?`)) return;
     try {
       await client.leave(roomId);
       if (activeRoomId === roomId) setActiveRoomId(null);
+      if (effectiveActiveSpaceId === roomId) {
+        setActiveSpaceId(spaceParentId.get(roomId) ?? null);
+      }
     } catch (error) {
       console.error("[leave-room]", error);
-      window.alert("Не удалось покинуть чат.");
+      window.alert(isSpace ? "Не удалось покинуть пространство." : "Не удалось покинуть чат.");
     }
   };
 

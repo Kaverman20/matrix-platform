@@ -317,8 +317,34 @@
   font-weight: 600;
 }
 
-.room-subspace svg:last-child {
+.room-subspace__chevron {
+  flex: 0 0 auto;
   color: var(--color-text-faint);
+}
+
+.room-subspace__more {
+  flex: 0 0 auto;
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: var(--radius-sm);
+  color: var(--color-text-faint);
+  background: transparent;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 120ms ease, color 120ms ease, background 120ms ease;
+}
+
+.room-subspace:hover .room-subspace__more,
+.room-subspace__more:focus-visible {
+  opacity: 1;
+}
+
+.room-subspace__more:hover {
+  color: var(--color-text-strong);
+  background: var(--color-bg-subtle);
 }
 
 .room-subspace__avatar {

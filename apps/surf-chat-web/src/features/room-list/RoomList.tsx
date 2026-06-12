@@ -58,6 +58,7 @@ export function RoomList({
   const [favouriteOrderIds, setFavouriteOrderIds] = useState<string[]>([]);
   const [spaceMenuOpen, setSpaceMenuOpen] = useState(false);
   const [rowMenu, setRowMenu] = useState<{ room: MatrixRoomSummary; x: number; y: number } | null>(null);
+  const [subMenu, setSubMenu] = useState<{ space: MatrixSpaceSummary; x: number; y: number } | null>(null);
   const [openSections, setOpenSections] = useState({
     subspaces: true,
     favourites: true,
@@ -66,6 +67,7 @@ export function RoomList({
   });
   const spaceMenuRef = useRef<HTMLDivElement | null>(null);
   const rowMenuRef = useRef<HTMLDivElement | null>(null);
+  const subMenuRef = useRef<HTMLDivElement | null>(null);
   const total = favourites.length + channels.length + dms.length;
   const searchValue = query.trim().toLowerCase();
   const orderedFavourites = useMemo(
@@ -120,6 +122,7 @@ export function RoomList({
   }, [spaceMenuOpen]);
 
   const openRowMenu = (room: MatrixRoomSummary, x: number, y: number) => {
+    setSubMenu(null);
     setRowMenu({
       room,
       x: Math.min(x, window.innerWidth - 230),
@@ -127,14 +130,28 @@ export function RoomList({
     });
   };
 
+  const openSubMenu = (space: MatrixSpaceSummary, x: number, y: number) => {
+    setRowMenu(null);
+    setSubMenu({
+      space,
+      x: Math.min(x, window.innerWidth - 230),
+      y: Math.min(y, window.innerHeight - 140),
+    });
+  };
+
   useEffect(() => {
-    if (!rowMenu) return;
+    if (!rowMenu && !subMenu) return;
 
     const onPointerDown = (event: PointerEvent) => {
-      if (!rowMenuRef.current?.contains(event.target as Node)) setRowMenu(null);
+      const node = event.target as Node;
+      if (!rowMenuRef.current?.contains(node)) setRowMenu(null);
+      if (!subMenuRef.current?.contains(node)) setSubMenu(null);
     };
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setRowMenu(null);
+      if (event.key === "Escape") {
+        setRowMenu(null);
+        setSubMenu(null);
+      }
     };
 
     window.addEventListener("pointerdown", onPointerDown);
@@ -143,7 +160,7 @@ export function RoomList({
       window.removeEventListener("pointerdown", onPointerDown);
       window.removeEventListener("keydown", onKeyDown);
     };
-  }, [rowMenu]);
+  }, [rowMenu, subMenu]);
 
   return (
     <aside className={`room-list${collapsed ? " is-collapsed" : ""}`}>
@@ -275,19 +292,43 @@ export function RoomList({
             <div className={`room-section__body${openSections.subspaces ? " is-open" : ""}`}>
               <div className="room-section__body-inner">
                 {subspaces.map((space) => (
-                  <button
+                  <div
                     key={space.id}
-                    type="button"
+                    role="button"
+                    tabIndex={0}
                     className="room-subspace"
                     onClick={() => onSelectSpace(space.id)}
+                    onContextMenu={(event) => {
+                      event.preventDefault();
+                      openSubMenu(space, event.clientX, event.clientY);
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        onSelectSpace(space.id);
+                      }
+                    }}
                   >
                     <span className="room-subspace__avatar" style={{ background: space.color }}>
                       {space.label}
                       {space.avatarUrl && <AuthedImage url={space.avatarUrl} className="room-subspace__avatar-img" />}
                     </span>
                     <strong>{space.name}</strong>
-                    <ChevronRight size={15} />
-                  </button>
+                    <button
+                      type="button"
+                      className="room-subspace__more"
+                      title="Действия с пространством"
+                      aria-label="Действия с пространством"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        const rect = event.currentTarget.getBoundingClientRect();
+                        openSubMenu(space, rect.right, rect.bottom);
+                      }}
+                    >
+                      <MoreHorizontal size={15} />
+                    </button>
+                    <ChevronRight size={15} className="room-subspace__chevron" />
+                  </div>
                 ))}
               </div>
             </div>
@@ -302,7 +343,6 @@ export function RoomList({
           activeRoomId={activeRoomId}
           collapsed={collapsed}
           onSelectRoom={onSelectRoom}
-          onToggleFavourite={onToggleFavourite}
           onShowTip={showRoomTip}
           onHideTip={() => setTip(null)}
           onOpenRowMenu={openRowMenu}
@@ -321,7 +361,6 @@ export function RoomList({
           activeRoomId={activeRoomId}
           collapsed={collapsed}
           onSelectRoom={onSelectRoom}
-          onToggleFavourite={onToggleFavourite}
           onShowTip={showRoomTip}
           onHideTip={() => setTip(null)}
           onOpenRowMenu={openRowMenu}
@@ -337,7 +376,6 @@ export function RoomList({
           activeRoomId={activeRoomId}
           collapsed={collapsed}
           onSelectRoom={onSelectRoom}
-          onToggleFavourite={onToggleFavourite}
           onShowTip={showRoomTip}
           onHideTip={() => setTip(null)}
           onOpenRowMenu={openRowMenu}
@@ -416,6 +454,43 @@ export function RoomList({
           </motion.div>
         )}
       </AnimatePresence>
+      <AnimatePresence>
+        {subMenu && (
+          <motion.div
+            ref={subMenuRef}
+            className="row-menu"
+            style={{ left: subMenu.x, top: subMenu.y }}
+            initial={{ opacity: 0, scale: 0.96, y: -4 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.96, y: -4 }}
+            transition={transition.fast}
+          >
+            <button
+              type="button"
+              className="row-menu__item"
+              onClick={() => {
+                onOpenSettings(subMenu.space.id);
+                setSubMenu(null);
+              }}
+            >
+              <Settings size={16} />
+              <span>Настройки</span>
+            </button>
+            <div className="row-menu__divider" />
+            <button
+              type="button"
+              className="row-menu__item row-menu__item--danger"
+              onClick={() => {
+                onLeaveRoom(subMenu.space.id);
+                setSubMenu(null);
+              }}
+            >
+              <LogOut size={16} />
+              <span>Покинуть пространство</span>
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </aside>
   );
 }
@@ -429,7 +504,6 @@ type SectionProps = {
   activeRoomId: string | null;
   collapsed: boolean;
   onSelectRoom: (roomId: string) => void;
-  onToggleFavourite: (roomId: string) => void;
   onShowTip: (text: string, element: HTMLElement) => void;
   onHideTip: () => void;
   reorderable?: boolean;
@@ -448,7 +522,6 @@ function RoomSection({
   activeRoomId,
   collapsed,
   onSelectRoom,
-  onToggleFavourite,
   onShowTip,
   onHideTip,
   reorderable = false,
@@ -509,18 +582,6 @@ function RoomSection({
         </span>
         <span className="room-row__meta">
           {!collapsed && room.unread > 0 && <span className="room-row__badge">{room.unread}</span>}
-          <button
-            type="button"
-            className={`room-row__pin${room.favourite ? " is-on" : ""}`}
-            title={room.favourite ? "Убрать из избранного" : "В избранное"}
-            onClick={(event) => {
-              event.stopPropagation();
-              onToggleFavourite(room.id);
-            }}
-            onPointerDown={(event) => event.stopPropagation()}
-          >
-            <Star size={15} fill={room.favourite ? "currentColor" : "none"} />
-          </button>
           <button
             type="button"
             className="room-row__more"
