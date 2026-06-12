@@ -199,6 +199,7 @@
 .room-list.is-collapsed .room-list__collapse {
   width: 46px;
   height: 46px;
+  margin: 0;
   background: var(--color-bg-sunken);
 }
 
@@ -385,6 +386,15 @@
 
 .room-list.is-collapsed .room-section__body {
   grid-template-rows: 1fr;
+}
+
+.room-list.is-collapsed .room-section__items {
+  align-items: center;
+}
+
+.room-list.is-collapsed .room-row__reorder-item {
+  display: flex;
+  justify-content: center;
 }
 
 .room-section__title {
