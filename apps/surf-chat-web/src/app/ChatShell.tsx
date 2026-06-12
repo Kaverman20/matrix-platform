@@ -8,7 +8,6 @@ import {
   FileText,
   Hash,
   MessageSquare,
-  PanelLeftOpen,
   PanelRight,
   Pin,
   Phone,
@@ -50,7 +49,7 @@ import "./chat-shell.css";
 
 const ROOM_LIST_WIDTH = 304;
 const ROOM_LIST_MAX = 440;
-const ROOM_LIST_COLLAPSED_WIDTH = 0;
+const ROOM_LIST_COLLAPSED_WIDTH = 84;
 const ROOM_LIST_COLLAPSE_THRESHOLD = 200;
 const RAIL_WIDTH = 72;
 const RIGHT_PANEL_WIDTH = 320;
@@ -573,26 +572,13 @@ export function ChatShell() {
           onOpenSettings={roomSettings.openSettings}
           onLeaveRoom={(roomId) => void leaveRoom(roomId)}
         />
-        {!roomListCollapsed && (
-          <div
-            className={`chat-shell__room-list-resizer${roomListResizing ? " is-active" : ""}`}
-            onPointerDown={startRoomListResize}
-          />
-        )}
+        <div
+          className={`chat-shell__room-list-resizer${roomListResizing ? " is-active" : ""}`}
+          onPointerDown={startRoomListResize}
+        />
       </motion.div>
 
-      <main className={`chat-main${activeRoom ? "" : " is-empty"}${roomListCollapsed ? " is-collapsed" : ""}`}>
-        {roomListCollapsed && (
-          <button
-            type="button"
-            className="chat-main__expand"
-            title="Развернуть список"
-            aria-label="Развернуть список"
-            onClick={toggleRoomListCollapse}
-          >
-            <PanelLeftOpen size={18} />
-          </button>
-        )}
+      <main className={`chat-main${activeRoom ? "" : " is-empty"}`}>
         {activeRoom ? (
           <>
             <header className="chat-main__header">
