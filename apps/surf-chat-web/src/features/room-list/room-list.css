@@ -392,11 +392,6 @@
   align-items: center;
 }
 
-.room-list.is-collapsed .room-row__reorder-item {
-  display: flex;
-  justify-content: center;
-}
-
 .room-section__title {
   width: 100%;
   height: 28px;

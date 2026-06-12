@@ -346,7 +346,7 @@ export function RoomList({
           onShowTip={showRoomTip}
           onHideTip={() => setTip(null)}
           onOpenRowMenu={openRowMenu}
-          reorderable={!searchValue && activeSpaceId === null}
+          reorderable={!collapsed && !searchValue && activeSpaceId === null}
           onReorder={(rooms) => {
             setFavouriteOrderIds(rooms.map((room) => room.id));
             onReorderFavourites(rooms);
