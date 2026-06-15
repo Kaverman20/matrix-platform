@@ -120,7 +120,7 @@ export function ChatShell() {
     [roomGroups.channels, roomGroups.dms, roomGroups.favourites],
   );
   const allRoomIds = useMemo(() => allRooms.map((room) => room.id), [allRooms]);
-  usePreloadTimelineMessages(client, allRoomIds);
+  usePreloadTimelineMessages(client, allRoomIds, activeRoomId);
   const effectiveActiveSpaceId = useMemo(
     () => (activeSpaceId && roomGroups.spaces.some((space) => space.id === activeSpaceId) ? activeSpaceId : null),
     [activeSpaceId, roomGroups.spaces],
