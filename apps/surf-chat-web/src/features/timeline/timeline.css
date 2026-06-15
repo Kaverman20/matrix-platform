@@ -3,6 +3,10 @@
   display: flex;
   flex-direction: column;
   overflow-y: auto;
+  /* We anchor scroll position manually on history prepend (see Timeline.tsx).
+     Disable the browser's native scroll anchoring so the two don't fight and
+     produce subtle micro-jumps during momentum scrolling. */
+  overflow-anchor: none;
   padding: var(--space-5);
   background: var(--color-bg);
 }

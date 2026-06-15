@@ -16,7 +16,7 @@ import {
   Video,
   X,
 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { transition } from "@matrix-platform/ui";
 import {
   buildForwardData,
@@ -209,10 +209,10 @@ export function ChatShell() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [client, activeRoomId, messages.length],
   );
-  const loadOlder = async (): Promise<boolean> => {
+  const loadOlder = useCallback(async (): Promise<boolean> => {
     if (!client || !activeRoomId) return false;
     return paginateBackwards(client, activeRoomId, 120);
-  };
+  }, [client, activeRoomId]);
   const activeMatrixRoom = useMemo(
     () => (client && activeRoomId ? client.getRoom(activeRoomId) : null),
     [activeRoomId, client],

@@ -106,11 +106,17 @@ export function Timeline({
   const [atStart, setAtStart] = useState(!hasOlder);
   const prependAnchor = useRef<ViewportAnchor | null>(null);
   const didInit = useRef(false);
+  // Set once a pagination attempt returns no new messages — i.e. we've genuinely
+  // reached the room start. Locks `atStart` so the sync-tick effect below can't
+  // flip it back: some homeservers keep handing out a backwards token even at the
+  // start of a room (common for DMs), which would otherwise ping-pong atStart and
+  // re-trigger endless pagination (the room intro visibly flickers).
+  const reachedStart = useRef(false);
   // Whether the view is pinned to the bottom (true until the user scrolls up).
   const stick = useRef(true);
 
   useEffect(() => {
-    if (!hasOlder || !atStart) return;
+    if (!hasOlder || !atStart || reachedStart.current) return;
     // hasOlder can become known after the first Matrix sync tick.
     setAtStart(false);
   }, [atStart, hasOlder]);
@@ -137,6 +143,7 @@ export function Timeline({
         const added = await onLoadOlder();
         if (!added) {
           prependAnchor.current = null;
+          reachedStart.current = true;
           setAtStart(true);
           break;
         }
