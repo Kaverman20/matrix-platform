@@ -17,20 +17,12 @@
 }
 
 .timeline__item {
-  --enter-index: 0;
-  position: absolute;
-  top: 0;
-  left: 0;
+  position: relative;
   width: 100%;
 }
 
 .timeline__item-inner {
   display: flow-root;
-}
-
-.timeline__virtual {
-  position: relative;
-  width: 100%;
 }
 
 .timeline__empty {
