@@ -1,4 +1,12 @@
-import { useEffect, useLayoutEffect, useRef, useState, type SyntheticEvent, type UIEvent } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type SyntheticEvent,
+  type UIEvent,
+} from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { CheckCheck, Forward, Hash, MessagesSquare } from "lucide-react";
 import type { MatrixMessage, MatrixRoomSummary } from "@matrix-platform/matrix-core";
@@ -155,8 +163,14 @@ export function Timeline({
           next.sender !== message.sender ||
           next.timestamp - message.timestamp >= 5 * 60 * 1000;
 
+        const enterIndex = Math.min(index, 14);
+
         return (
-          <div key={message.id}>
+          <div
+            key={message.id}
+            className="timeline__item"
+            style={{ "--enter-index": enterIndex } as CSSProperties}
+          >
             {startsNewDay && <DayDivider timestamp={message.timestamp} />}
             {view === "bubbles" ? (
               <BubbleMessage
