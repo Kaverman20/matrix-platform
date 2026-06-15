@@ -200,7 +200,7 @@ export function ChatShell() {
   );
   const loadOlder = async (): Promise<boolean> => {
     if (!client || !activeRoomId) return false;
-    return paginateBackwards(client, activeRoomId, 40);
+    return paginateBackwards(client, activeRoomId, 120);
   };
   const activeMatrixRoom = useMemo(
     () => (client && activeRoomId ? client.getRoom(activeRoomId) : null),

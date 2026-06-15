@@ -21,6 +21,7 @@ type Props = {
 };
 
 const TOP_THRESHOLD = 160;
+const HISTORY_PREFETCH_PAGES = 2;
 
 export function Timeline({
   messages,
@@ -50,21 +51,28 @@ export function Timeline({
   // Whether the view is pinned to the bottom (true until the user scrolls up).
   const stick = useRef(true);
 
-  const runLoad = () => {
+  const runLoad = (options: { pages?: number; silent?: boolean } = {}) => {
     const el = scrollRef.current;
     if (!el || !onLoadOlder || atStart || loadingRef.current) return;
 
+    const pages = options.pages ?? 1;
+    const silent = options.silent ?? false;
     loadingRef.current = true;
-    setLoading(true);
+    if (!silent) setLoading(true);
     restoreFromBottom.current = el.scrollHeight - el.scrollTop;
-    void onLoadOlder().then((added) => {
-      loadingRef.current = false;
-      setLoading(false);
-      // No new messages surfaced → there is no older history left to show.
-      if (!added) {
-        restoreFromBottom.current = null;
-        setAtStart(true);
+
+    void (async () => {
+      for (let page = 0; page < pages; page += 1) {
+        const added = await onLoadOlder();
+        if (!added) {
+          restoreFromBottom.current = null;
+          setAtStart(true);
+          break;
+        }
       }
+    })().finally(() => {
+      loadingRef.current = false;
+      if (!silent) setLoading(false);
     });
   };
 
@@ -99,15 +107,21 @@ export function Timeline({
     return () => observer.disconnect();
   }, []);
 
-  // Seamless scrollback (Telegram-style): whenever the top isn't filled with
-  // older history yet, keep loading — both when the room is too short to scroll
-  // and after each page lands. Bounded by atStart flipping once history ends.
+  // Prepare a little older history after the latest messages are visible. This
+  // keeps first paint fast while reducing "hit loading" moments during the
+  // first upward scroll. It only runs while the user is still at the bottom.
   useEffect(() => {
     const el = scrollRef.current;
-    if (!el || atStart || loadingRef.current) return;
-    if (el.scrollHeight <= el.clientHeight + TOP_THRESHOLD) runLoad();
+    if (!el || atStart || loadingRef.current || !onLoadOlder || messages.length === 0) return;
+
+    const timer = window.setTimeout(() => {
+      if (!stick.current) return;
+      runLoad({ pages: HISTORY_PREFETCH_PAGES, silent: true });
+    }, 450);
+
+    return () => window.clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [atStart, messages.length]);
+  }, [room.id]);
 
   const handleScroll = (event: UIEvent<HTMLDivElement>) => {
     const el = event.currentTarget;
