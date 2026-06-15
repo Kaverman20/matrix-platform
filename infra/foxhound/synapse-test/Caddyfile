@@ -13,9 +13,17 @@ admin.foxhound.run {
 }
 
 chat.foxhound.run {
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "DENY"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
+        Content-Security-Policy "default-src 'self'; connect-src 'self' https://matrix.foxhound.run https://*.foxhound.run; img-src 'self' data: blob: https://matrix.foxhound.run; media-src 'self' blob: https://matrix.foxhound.run; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'; upgrade-insecure-requests"
+    }
+
     root * /srv/surfchat
     try_files {path} /index.html
     file_server
     encode gzip
 }
-

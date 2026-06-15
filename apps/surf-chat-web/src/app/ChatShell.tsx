@@ -65,6 +65,7 @@ const ROOM_LIST_COLLAPSED_WIDTH = 84;
 const ROOM_LIST_COLLAPSE_THRESHOLD = 200;
 const RAIL_WIDTH = 72;
 const RIGHT_PANEL_WIDTH = 320;
+const ACTIVE_ROOM_STORAGE_KEY = "surf-chat:active-room";
 
 type RightPanelSection = "overview" | "members" | "media" | "notifications";
 type ChatView = "flat" | "bubbles";
@@ -72,7 +73,9 @@ type ChatView = "flat" | "bubbles";
 export function ChatShell() {
   const { client, logout } = useMatrix();
   const roomGroups = useRoomGroups(client);
-  const [activeRoomId, setActiveRoomId] = useState<string | null>(null);
+  const [activeRoomId, setActiveRoomId] = useState<string | null>(
+    () => window.localStorage.getItem(ACTIVE_ROOM_STORAGE_KEY),
+  );
   const [replyTo, setReplyTo] = useState<MatrixMessageReference | null>(null);
   const [editingMessage, setEditingMessage] = useState<MatrixMessageReference | null>(null);
   const [pendingForward, setPendingForward] = useState<MatrixForwardData[] | null>(null);
@@ -110,6 +113,14 @@ export function ChatShell() {
   useEffect(() => {
     localStorage.setItem("surf-chat:view", chatView);
   }, [chatView]);
+
+  useEffect(() => {
+    if (activeRoomId) {
+      window.localStorage.setItem(ACTIVE_ROOM_STORAGE_KEY, activeRoomId);
+    } else {
+      window.localStorage.removeItem(ACTIVE_ROOM_STORAGE_KEY);
+    }
+  }, [activeRoomId]);
 
   const allRooms = useMemo(
     () => [

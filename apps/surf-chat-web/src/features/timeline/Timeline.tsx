@@ -31,6 +31,21 @@ type Props = {
 
 const TOP_THRESHOLD = 160;
 const HISTORY_PREFETCH_PAGES = 2;
+const SCROLL_STORAGE_PREFIX = "surf-chat:room-scroll:";
+
+const scrollStorageKey = (roomId: string) => `${SCROLL_STORAGE_PREFIX}${roomId}`;
+
+function getStoredDistanceFromBottom(roomId: string): number | null {
+  const raw = window.localStorage.getItem(scrollStorageKey(roomId));
+  if (!raw) return null;
+  const value = Number(raw);
+  return Number.isFinite(value) && value >= 0 ? value : null;
+}
+
+function storeDistanceFromBottom(roomId: string, el: HTMLElement): void {
+  const distance = Math.max(0, el.scrollHeight - el.scrollTop - el.clientHeight);
+  window.localStorage.setItem(scrollStorageKey(roomId), String(Math.round(distance)));
+}
 
 export function Timeline({
   messages,
@@ -97,7 +112,7 @@ export function Timeline({
 
   // Position the view after each render — instantly, never smooth, so entry and
   // new messages don't jitter. On scrollback, restore the prior offset; on first
-  // mount and while pinned to the bottom, jump to the very bottom.
+  // mount, restore the last known distance from the bottom when possible.
   useLayoutEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
@@ -105,11 +120,16 @@ export function Timeline({
     if (restoreFromBottom.current !== null) {
       el.scrollTop = el.scrollHeight - restoreFromBottom.current;
       restoreFromBottom.current = null;
-    } else if (!didInit.current || stick.current) {
+    } else if (!didInit.current) {
+      const savedDistance = getStoredDistanceFromBottom(room.id);
+      el.scrollTop = savedDistance === null
+        ? el.scrollHeight
+        : Math.max(0, el.scrollHeight - el.clientHeight - savedDistance);
+    } else if (stick.current) {
       el.scrollTop = el.scrollHeight;
     }
     didInit.current = true;
-  }, [messages.length, rowVirtualizer]);
+  }, [messages.length, room.id, rowVirtualizer]);
 
   // Late layout (images decoding, reactions) grows the content after the initial
   // scroll — keep the view glued to the bottom while the user is at the bottom.
@@ -145,6 +165,7 @@ export function Timeline({
   const handleScroll = (event: UIEvent<HTMLDivElement>) => {
     const el = event.currentTarget;
     stick.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+    storeDistanceFromBottom(room.id, el);
     if (el.scrollTop <= TOP_THRESHOLD) runLoad();
   };
 
