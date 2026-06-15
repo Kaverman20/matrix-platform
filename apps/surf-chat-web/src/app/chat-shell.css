@@ -715,7 +715,7 @@
 .right-panel__row {
   width: 100%;
   display: grid;
-  grid-template-columns: 22px minmax(0, 1fr) auto auto;
+  grid-template-columns: 22px minmax(0, 1fr) minmax(44px, auto) 16px;
   align-items: center;
   gap: var(--space-3);
   border: 0;
@@ -736,16 +736,30 @@
 }
 
 .right-panel__row span {
+  grid-column: 2;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.right-panel__row em,
-.right-panel__row svg:last-child {
+.right-panel__row em {
+  grid-column: 3;
+  justify-self: end;
   color: var(--color-text-faint);
   font-size: var(--text-sm);
   font-style: normal;
+  white-space: nowrap;
+}
+
+.right-panel__row svg:first-child {
+  grid-column: 1;
+}
+
+.right-panel__row svg:last-child {
+  grid-column: 4;
+  justify-self: end;
+  color: var(--color-text-faint);
+  font-size: var(--text-sm);
 }
 
 .right-panel__section-head {
