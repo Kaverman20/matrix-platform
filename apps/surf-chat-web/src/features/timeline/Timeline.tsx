@@ -77,6 +77,11 @@ function pinToBottom(roomId: string, el: HTMLElement): void {
   storeDistanceFromBottom(roomId, el, true);
 }
 
+function scrollToBottom(roomId: string, el: HTMLElement, behavior: ScrollBehavior = "auto"): void {
+  el.scrollTo({ top: el.scrollHeight, behavior });
+  storeDistanceFromBottom(roomId, el, true);
+}
+
 function captureViewportAnchor(el: HTMLElement): ViewportAnchor | null {
   const viewportTop = el.getBoundingClientRect().top;
   const items = Array.from(
@@ -197,7 +202,7 @@ export function Timeline({
     const el = scrollRef.current;
     if (!el) return;
     stick.current = true;
-    pinToBottom(room.id, el);
+    scrollToBottom(room.id, el, "smooth");
     setNewMessagesCount(0);
     const latestMessageId = messages.at(-1)?.id;
     if (latestMessageId) onReadUpTo?.(latestMessageId);
