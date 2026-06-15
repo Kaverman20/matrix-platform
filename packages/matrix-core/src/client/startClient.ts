@@ -39,7 +39,7 @@ export async function startMatrixClient(
 
   const client = createClient(options);
   await store?.startup();
-  await client.startClient({ initialSyncLimit: 30, threadSupport: true });
+  await client.startClient({ initialSyncLimit: 100, threadSupport: true });
   return client;
 }
 

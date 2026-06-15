@@ -34,6 +34,12 @@ const TOP_THRESHOLD = 160;
 const SCROLL_STORAGE_PREFIX = "surf-chat:room-scroll:";
 const BOTTOM_THRESHOLD = 160;
 
+type ViewportAnchor = {
+  id: string;
+  top: number;
+  fallbackDistanceFromBottom: number;
+};
+
 const scrollStorageKey = (roomId: string) => `${SCROLL_STORAGE_PREFIX}${roomId}`;
 
 function getStoredDistanceFromBottom(roomId: string): number | null {
@@ -62,6 +68,22 @@ function pinToBottom(roomId: string, el: HTMLElement): void {
   storeDistanceFromBottom(roomId, el, true);
 }
 
+function captureViewportAnchor(el: HTMLElement): ViewportAnchor | null {
+  const viewportTop = el.getBoundingClientRect().top;
+  const items = Array.from(
+    el.querySelectorAll<HTMLElement>(".timeline__item[data-message-id]"),
+  );
+  const anchor = items.find((item) => item.getBoundingClientRect().bottom >= viewportTop + 8);
+  const id = anchor?.dataset.messageId;
+  if (!anchor || !id) return null;
+
+  return {
+    id,
+    top: anchor.getBoundingClientRect().top,
+    fallbackDistanceFromBottom: el.scrollHeight - el.scrollTop,
+  };
+}
+
 export function Timeline({
   messages,
   highlightMessageId,
@@ -83,9 +105,7 @@ export function Timeline({
   // the very start of the room. The component is keyed by room id and remounts
   // on room switch, so this resets automatically per room.
   const [atStart, setAtStart] = useState(!hasOlder);
-  // Distance from the bottom captured before a scrollback load, so we can
-  // restore the viewport once older messages are prepended.
-  const restoreFromBottom = useRef<number | null>(null);
+  const prependAnchor = useRef<ViewportAnchor | null>(null);
   const didInit = useRef(false);
   // Whether the view is pinned to the bottom (true until the user scrolls up).
   const stick = useRef(true);
@@ -114,13 +134,13 @@ export function Timeline({
     const silent = options.silent ?? false;
     loadingRef.current = true;
     if (!silent) setLoading(true);
-    restoreFromBottom.current = el.scrollHeight - el.scrollTop;
+    prependAnchor.current = captureViewportAnchor(el);
 
     void (async () => {
       for (let page = 0; page < pages; page += 1) {
         const added = await onLoadOlder();
         if (!added) {
-          restoreFromBottom.current = null;
+          prependAnchor.current = null;
           setAtStart(true);
           break;
         }
@@ -131,16 +151,25 @@ export function Timeline({
     });
   };
 
-  // Position the view after each render — instantly, never smooth, so entry and
-  // new messages don't jitter. On scrollback, restore the prior offset; on first
-  // mount, restore the last known distance from the bottom when possible.
+  // Position the view after each render — instantly, never smooth. On scrollback,
+  // keep the same message anchored in the same viewport position; this is what
+  // stops prepended history from throwing the reader around.
   useLayoutEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
 
-    if (restoreFromBottom.current !== null) {
-      el.scrollTop = el.scrollHeight - restoreFromBottom.current;
-      restoreFromBottom.current = null;
+    if (prependAnchor.current) {
+      const anchor = prependAnchor.current;
+      const node = el.querySelector<HTMLElement>(
+        `.timeline__item[data-message-id="${CSS.escape(anchor.id)}"]`,
+      );
+      if (node) {
+        el.scrollTop += node.getBoundingClientRect().top - anchor.top;
+      } else {
+        el.scrollTop = el.scrollHeight - anchor.fallbackDistanceFromBottom;
+      }
+      prependAnchor.current = null;
+      stick.current = false;
     } else if (!didInit.current) {
       const savedDistance = getStoredDistanceFromBottom(room.id);
       if (savedDistance === null || savedDistance < BOTTOM_THRESHOLD) {
@@ -162,7 +191,7 @@ export function Timeline({
     const el = scrollRef.current;
     if (!content || !el) return;
     const observer = new ResizeObserver(() => {
-      if (restoreFromBottom.current === null && stick.current) {
+      if (!prependAnchor.current && stick.current) {
         pinToBottom(room.id, el);
       }
     });
@@ -205,6 +234,11 @@ export function Timeline({
       <div className="timeline__spacer" />
       <div className="timeline__content" ref={contentRef}>
       {loading && <div className="timeline__loading">Загрузка истории…</div>}
+      {!atStart && onLoadOlder && (
+        <button type="button" className="timeline__load-more" onClick={() => runLoad()}>
+          Загрузить предыдущие сообщения
+        </button>
+      )}
       {atStart && showIntro && <RoomIntro room={room} />}
       <div
         className="timeline__virtual"
@@ -236,6 +270,7 @@ export function Timeline({
             key={message.id}
             ref={rowVirtualizer.measureElement}
             data-index={virtualItem.index}
+            data-message-id={message.id}
             className="timeline__item"
             style={{
               "--enter-index": enterIndex,
