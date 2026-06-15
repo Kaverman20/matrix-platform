@@ -769,14 +769,6 @@ export function ChatShell() {
                 >
                   <MessagesSquare size={18} />
                 </button>
-                <button
-                  type="button"
-                  className="icon-button"
-                  title="Настройки комнаты"
-                  onClick={() => roomSettings.openSettings(activeRoom.id)}
-                >
-                  <Settings size={18} />
-                </button>
                 <button type="button" className="icon-button" title="Звонок">
                   <Phone size={18} />
                 </button>
