@@ -1,6 +1,7 @@
 import {
   useEffect,
   useLayoutEffect,
+  useCallback,
   useRef,
   useState,
   type CSSProperties,
@@ -31,6 +32,7 @@ type Props = {
 };
 
 const TOP_THRESHOLD = 160;
+const SCROLLBACK_PREFETCH_INDEX = 8;
 const SCROLL_STORAGE_PREFIX = "surf-chat:room-scroll:";
 const BOTTOM_THRESHOLD = 160;
 
@@ -116,9 +118,10 @@ export function Timeline({
     getScrollElement: () => scrollRef.current,
     estimateSize: () => (view === "bubbles" ? 78 : 70),
     getItemKey: (index) => messages[index]?.id ?? index,
-    overscan: 18,
+    overscan: 30,
   });
   const virtualItems = rowVirtualizer.getVirtualItems();
+  const firstVirtualIndex = virtualItems[0]?.index ?? Number.POSITIVE_INFINITY;
 
   useEffect(() => {
     if (!hasOlder || !atStart) return;
@@ -126,12 +129,12 @@ export function Timeline({
     setAtStart(false);
   }, [atStart, hasOlder]);
 
-  const runLoad = (options: { pages?: number; silent?: boolean } = {}) => {
+  const runLoad = useCallback((options: { pages?: number; silent?: boolean } = {}) => {
     const el = scrollRef.current;
     if (!el || !onLoadOlder || atStart || loadingRef.current) return;
 
     const pages = options.pages ?? 1;
-    const silent = options.silent ?? false;
+    const silent = options.silent ?? true;
     loadingRef.current = true;
     if (!silent) setLoading(true);
     prependAnchor.current = captureViewportAnchor(el);
@@ -149,7 +152,13 @@ export function Timeline({
       loadingRef.current = false;
       if (!silent) setLoading(false);
     });
-  };
+  }, [atStart, onLoadOlder]);
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el || stick.current || firstVirtualIndex > SCROLLBACK_PREFETCH_INDEX) return;
+    runLoad();
+  }, [firstVirtualIndex, runLoad, room.id]);
 
   // Position the view after each render — instantly, never smooth. On scrollback,
   // keep the same message anchored in the same viewport position; this is what
@@ -234,11 +243,6 @@ export function Timeline({
       <div className="timeline__spacer" />
       <div className="timeline__content" ref={contentRef}>
       {loading && <div className="timeline__loading">Загрузка истории…</div>}
-      {!atStart && onLoadOlder && (
-        <button type="button" className="timeline__load-more" onClick={() => runLoad()}>
-          Загрузить предыдущие сообщения
-        </button>
-      )}
       {atStart && showIntro && <RoomIntro room={room} />}
       <div
         className="timeline__virtual"

@@ -33,30 +33,6 @@
   width: 100%;
 }
 
-.timeline__load-more {
-  position: sticky;
-  top: var(--space-2);
-  z-index: 3;
-  align-self: center;
-  display: block;
-  margin: 0 auto var(--space-3);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-pill);
-  padding: 6px 12px;
-  color: var(--color-text-muted);
-  background: color-mix(in srgb, var(--color-bg-subtle) 92%, white);
-  box-shadow: var(--shadow-sm);
-  font: inherit;
-  font-size: var(--text-xs);
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.timeline__load-more:hover {
-  color: var(--color-text);
-  background: var(--color-bg-subtle);
-}
-
 .timeline__empty {
   margin: auto;
   color: var(--color-text-muted);
