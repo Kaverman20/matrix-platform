@@ -1,12 +1,43 @@
-.message-menu {
+.message-menu-anchor {
   position: fixed;
   z-index: 1000;
+  /* Smooth (compositor) shift when the picker would overflow the viewport. */
+  transition: transform 160ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+.message-menu {
   width: auto;
   max-width: 380px;
   display: flex;
   flex-direction: column;
   gap: 8px;
   pointer-events: auto;
+  transform-origin: top left;
+  animation: message-menu-pop 140ms cubic-bezier(0.2, 0, 0, 1) both;
+}
+
+@keyframes message-menu-pop {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.message-menu__fade {
+  animation: message-menu-fade 140ms cubic-bezier(0.2, 0, 0, 1) both;
+}
+
+@keyframes message-menu-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 .message-menu__quick {

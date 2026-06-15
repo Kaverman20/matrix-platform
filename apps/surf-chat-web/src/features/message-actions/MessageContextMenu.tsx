@@ -1,13 +1,11 @@
 import { useEffect, useRef, useState } from "react";
-import { AnimatePresence, motion } from "framer-motion";
-import { ArrowLeft, ChevronRight, Copy, Forward, Pencil, Pin, Reply, Trash2 } from "lucide-react";
+import { ArrowLeft, ChevronRight, Copy, Forward, MessagesSquare, Pencil, Pin, Reply, Trash2 } from "lucide-react";
 import data from "@emoji-mart/data";
 import Picker from "@emoji-mart/react";
 import type { MatrixMessage } from "@matrix-platform/matrix-core";
-import { transition } from "@matrix-platform/ui";
 import "./message-context-menu.css";
 
-export type MessageAction = "reply" | "edit" | "copy" | "forward" | "pin" | "delete";
+export type MessageAction = "reply" | "thread" | "edit" | "copy" | "forward" | "pin" | "delete";
 const QUICK_REACTIONS = ["👍", "❤️", "😂", "🔥", "👏", "🤔", "👎"];
 
 type Props = {
@@ -58,67 +56,60 @@ export function MessageContextMenu({ canPin, message, x, y, onAction, onClose, o
   };
 
   return (
-    <motion.div
-      ref={ref}
-      className="message-menu"
-      style={{ left, top }}
-      role="menu"
-      aria-label="Действия с сообщением"
-      initial={{ opacity: 0, scale: 0.96, y: -4 }}
-      animate={{ opacity: 1, scale: 1, y: -pickerOverflow }}
-      exit={{ opacity: 0, scale: 0.96, y: -pickerOverflow - 4 }}
-      transition={transition.fast}
-      layout
-      onContextMenu={(event) => event.preventDefault()}
+    // Anchor handles position + the (compositor-only) vertical shift when the
+    // emoji picker would overflow the viewport. The menu itself animates in via
+    // a CSS keyframe — kept off the main thread so it stays smooth on battery.
+    <div
+      className="message-menu-anchor"
+      style={{ left, top, transform: `translateY(${-pickerOverflow}px)` }}
     >
-      <motion.div className="message-menu__quick" aria-label="Быстрые реакции" layout>
-        {pickerOpen ? (
-          <button
-            type="button"
-            className="message-menu__quick-btn message-menu__quick-back"
-            onClick={() => setPickerOpen(false)}
-            aria-label="Назад к быстрым реакциям"
-          >
-            <ArrowLeft size={18} />
-          </button>
-        ) : (
-          <>
-            {QUICK_REACTIONS.map((key) => (
-              <button
-                key={key}
-                type="button"
-                className="message-menu__quick-btn"
-                onClick={() => {
-                  onReact(message, key);
-                  onClose();
-                }}
-                aria-label={`Реакция ${key}`}
-              >
-                <span className="message-menu__quick-emoji">{key}</span>
-              </button>
-            ))}
+      <div
+        ref={ref}
+        className="message-menu"
+        role="menu"
+        aria-label="Действия с сообщением"
+        onContextMenu={(event) => event.preventDefault()}
+      >
+        <div className="message-menu__quick" aria-label="Быстрые реакции">
+          {pickerOpen ? (
             <button
               type="button"
-              className="message-menu__quick-btn message-menu__quick-more"
-              onClick={() => setPickerOpen(true)}
-              aria-label="Больше реакций"
+              className="message-menu__quick-btn message-menu__quick-back"
+              onClick={() => setPickerOpen(false)}
+              aria-label="Назад к быстрым реакциям"
             >
-              <ChevronRight size={18} />
+              <ArrowLeft size={18} />
             </button>
-          </>
-        )}
-      </motion.div>
-      <motion.div className="message-menu__body" layout transition={transition.base}>
-        <AnimatePresence mode="wait" initial={false}>
+          ) : (
+            <>
+              {QUICK_REACTIONS.map((key) => (
+                <button
+                  key={key}
+                  type="button"
+                  className="message-menu__quick-btn"
+                  onClick={() => {
+                    onReact(message, key);
+                    onClose();
+                  }}
+                  aria-label={`Реакция ${key}`}
+                >
+                  <span className="message-menu__quick-emoji">{key}</span>
+                </button>
+              ))}
+              <button
+                type="button"
+                className="message-menu__quick-btn message-menu__quick-more"
+                onClick={() => setPickerOpen(true)}
+                aria-label="Больше реакций"
+              >
+                <ChevronRight size={18} />
+              </button>
+            </>
+          )}
+        </div>
+        <div className="message-menu__body">
           {pickerOpen ? (
-            <motion.div
-              key="picker"
-              className="message-menu__picker"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={transition.fast}
-            >
+            <div className="message-menu__picker message-menu__fade">
               <Picker
                 data={data}
                 onEmojiSelect={(event: { native: string }) => {
@@ -132,20 +123,19 @@ export function MessageContextMenu({ canPin, message, x, y, onAction, onClose, o
                 skinTonePosition="none"
                 maxFrequentRows={2}
               />
-            </motion.div>
+            </div>
           ) : (
-            <motion.ul
-              key="actions"
-              className="message-menu__list"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={transition.fast}
-            >
+            <ul className="message-menu__list message-menu__fade">
               <li>
                 <button type="button" role="menuitem" className="message-menu__action" onClick={() => runAction("reply")}>
                   <Reply size={17} />
                   <span>Ответить</span>
+                </button>
+              </li>
+              <li>
+                <button type="button" role="menuitem" className="message-menu__action" onClick={() => runAction("thread")}>
+                  <MessagesSquare size={16} />
+                  <span>Ответить в треде</span>
                 </button>
               </li>
               {message.own && (
@@ -194,11 +184,11 @@ export function MessageContextMenu({ canPin, message, x, y, onAction, onClose, o
                   </button>
                 </li>
               )}
-            </motion.ul>
+            </ul>
           )}
-        </AnimatePresence>
-      </motion.div>
-    </motion.div>
+        </div>
+      </div>
+    </div>
   );
 }
 

@@ -1,0 +1,25 @@
+services:
+  matrix-keycloak-sync:
+    build: .
+    container_name: matrix-keycloak-sync
+    restart: unless-stopped
+    command: python sync.py --watch
+    env_file:
+      - config.env
+    volumes:
+      - ./mapping.yaml:/app/mapping.yaml:ro
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+    # If Synapse/Keycloak are on an external Docker network, enable this block.
+    # networks:
+    #   - matrix-net
+
+# networks:
+#   matrix-net:
+#     external: true
+#     name: synapse_default
+

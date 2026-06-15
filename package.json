@@ -8,7 +8,7 @@
     "lint": "pnpm -r lint",
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm -r test",
-    "verify": "pnpm lint && pnpm typecheck && pnpm build"
+    "verify": "pnpm lint && pnpm typecheck && pnpm test && pnpm build"
   },
   "packageManager": "pnpm@10.0.0",
   "devDependencies": {

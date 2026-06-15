@@ -5,12 +5,10 @@ type WellKnownMatrixClient = {
 };
 
 export async function resolveBaseUrl(input: string): Promise<string> {
-  let serverName = input.trim();
+  const serverName = input.trim();
   if (!serverName) throw new Error("Homeserver is required");
 
   if (/^https?:\/\//.test(serverName)) return trimTrailingSlash(serverName);
-
-  serverName = serverName.replace(/^https?:\/\//, "");
 
   try {
     const res = await fetch(`https://${serverName}/.well-known/matrix/client`);

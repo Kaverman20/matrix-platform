@@ -40,6 +40,13 @@ export function useRoomGroups(client: MatrixClient | null): MatrixRoomGroups {
     // a channel added to a space appears without waiting for an unrelated event.
     client.on(RoomStateEvent.Events, bump);
 
+    // The unread badge resets slightly after our read receipt is processed.
+    // UnreadNotifications is emitted on the Room (not re-emitted by the client),
+    // so listen per-room — otherwise the list shows the stale count until some
+    // other event happens to fire.
+    const rooms = client.getRooms();
+    for (const room of rooms) room.on(RoomEvent.UnreadNotifications, bump);
+
     return () => {
       if (timer) window.clearTimeout(timer);
       client.off(ClientEvent.Sync, bump);
@@ -50,6 +57,7 @@ export function useRoomGroups(client: MatrixClient | null): MatrixRoomGroups {
       client.off(RoomEvent.Tags, bump);
       client.off(RoomMemberEvent.Name, bump);
       client.off(RoomStateEvent.Events, bump);
+      for (const room of rooms) room.off(RoomEvent.UnreadNotifications, bump);
     };
   }, [client]);
 

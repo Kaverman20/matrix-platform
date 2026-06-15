@@ -6,5 +6,5 @@ Deployment and operations assets.
 docker/   Container images and local compose files
 k8s/      Kubernetes manifests and overlays
 synapse/  Synapse-specific deployment/configuration notes
+foxhound/ Current VPS runtime manifests for matrix.foxhound.run
 ```
-

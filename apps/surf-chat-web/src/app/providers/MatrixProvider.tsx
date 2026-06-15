@@ -43,13 +43,22 @@ export function MatrixProvider({ children }: Props) {
       try {
         const nextClient = await startMatrixClient(session);
 
-        const markReady = (state: SyncState) => {
+        const onSync = (state: SyncState) => {
           if (state === SyncState.Prepared || state === SyncState.Syncing) {
             setStatus("ready");
+            // Once we're ready we no longer need to track sync for the initial
+            // boot — drop the listener so it doesn't pile up across re-logins.
+            nextClient.off(ClientEvent.Sync, onSync);
+          } else if (state === SyncState.Error) {
+            // First sync failed (bad network / invalid token without a logout
+            // signal) — surface it instead of hanging on the boot screen.
+            setError("Не удалось синхронизироваться с сервером");
+            setStatus("error");
+            nextClient.off(ClientEvent.Sync, onSync);
           }
         };
 
-        nextClient.on(ClientEvent.Sync, markReady);
+        nextClient.on(ClientEvent.Sync, onSync);
         nextClient.on(HttpApiEvent.SessionLoggedOut, () => {
           resetToLogin("Сессия истекла - войдите заново");
         });
@@ -57,6 +66,7 @@ export function MatrixProvider({ children }: Props) {
         const syncState = nextClient.getSyncState();
         if (syncState === SyncState.Prepared || syncState === SyncState.Syncing) {
           setStatus("ready");
+          nextClient.off(ClientEvent.Sync, onSync);
         }
 
         setClient(nextClient);

@@ -1,8 +1,7 @@
-import { useEffect, useRef, type SyntheticEvent } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type SyntheticEvent, type UIEvent } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { CheckCheck, Forward, Hash } from "lucide-react";
+import { CheckCheck, Forward, Hash, MessagesSquare } from "lucide-react";
 import type { MatrixMessage, MatrixRoomSummary } from "@matrix-platform/matrix-core";
-import { fadeUp, transition } from "@matrix-platform/ui";
 import { MessageMedia } from "../media/MessageMedia";
 import { ReactionPill } from "../reactions/ReactionPill";
 import "./timeline.css";
@@ -13,9 +12,15 @@ type Props = {
   onOpenImage: (src: string) => void;
   onOpenMessageMenu: (message: MatrixMessage, x: number, y: number) => void;
   onToggleReaction: (message: MatrixMessage, key: string) => void;
+  onOpenThread: (rootId: string) => void;
+  onLoadOlder?: () => Promise<boolean>;
+  hasOlder?: boolean;
+  showIntro?: boolean;
   room: MatrixRoomSummary;
   view: "flat" | "bubbles";
 };
+
+const TOP_THRESHOLD = 160;
 
 export function Timeline({
   messages,
@@ -23,26 +28,104 @@ export function Timeline({
   onOpenImage,
   onOpenMessageMenu,
   onToggleReaction,
+  onOpenThread,
+  onLoadOlder,
+  hasOlder = false,
+  showIntro = true,
   room,
   view,
 }: Props) {
-  const bottomRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
+  const loadingRef = useRef(false);
+  const [loading, setLoading] = useState(false);
+  // Becomes true once paginating returns no more messages — i.e. we've reached
+  // the very start of the room. The component is keyed by room id and remounts
+  // on room switch, so this resets automatically per room.
+  const [atStart, setAtStart] = useState(!hasOlder);
+  // Distance from the bottom captured before a scrollback load, so we can
+  // restore the viewport once older messages are prepended.
+  const restoreFromBottom = useRef<number | null>(null);
+  const didInit = useRef(false);
+  // Whether the view is pinned to the bottom (true until the user scrolls up).
+  const stick = useRef(true);
 
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ block: "end" });
+  const runLoad = () => {
+    const el = scrollRef.current;
+    if (!el || !onLoadOlder || atStart || loadingRef.current) return;
+
+    loadingRef.current = true;
+    setLoading(true);
+    restoreFromBottom.current = el.scrollHeight - el.scrollTop;
+    void onLoadOlder().then((added) => {
+      loadingRef.current = false;
+      setLoading(false);
+      // No new messages surfaced → there is no older history left to show.
+      if (!added) {
+        restoreFromBottom.current = null;
+        setAtStart(true);
+      }
+    });
+  };
+
+  // Position the view after each render — instantly, never smooth, so entry and
+  // new messages don't jitter. On scrollback, restore the prior offset; on first
+  // mount and while pinned to the bottom, jump to the very bottom.
+  useLayoutEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+
+    if (restoreFromBottom.current !== null) {
+      el.scrollTop = el.scrollHeight - restoreFromBottom.current;
+      restoreFromBottom.current = null;
+    } else if (!didInit.current || stick.current) {
+      el.scrollTop = el.scrollHeight;
+    }
+    didInit.current = true;
   }, [messages.length]);
 
+  // Late layout (images decoding, reactions) grows the content after the initial
+  // scroll — keep the view glued to the bottom while the user is at the bottom.
+  useEffect(() => {
+    const content = contentRef.current;
+    const el = scrollRef.current;
+    if (!content || !el) return;
+    const observer = new ResizeObserver(() => {
+      if (restoreFromBottom.current === null && stick.current) {
+        el.scrollTop = el.scrollHeight;
+      }
+    });
+    observer.observe(content);
+    return () => observer.disconnect();
+  }, []);
+
+  // Seamless scrollback (Telegram-style): whenever the top isn't filled with
+  // older history yet, keep loading — both when the room is too short to scroll
+  // and after each page lands. Bounded by atStart flipping once history ends.
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el || atStart || loadingRef.current) return;
+    if (el.scrollHeight <= el.clientHeight + TOP_THRESHOLD) runLoad();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [atStart, messages.length]);
+
+  const handleScroll = (event: UIEvent<HTMLDivElement>) => {
+    const el = event.currentTarget;
+    stick.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+    if (el.scrollTop <= TOP_THRESHOLD) runLoad();
+  };
+
   return (
-    <motion.section
+    <section
       key={room.id}
+      ref={scrollRef}
+      onScroll={handleScroll}
       className={`timeline${view === "bubbles" ? " timeline--bubbles" : ""}`}
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      transition={transition.base}
     >
       <div className="timeline__spacer" />
-      <RoomIntro room={room} />
+      <div className="timeline__content" ref={contentRef}>
+      {loading && <div className="timeline__loading">Загрузка истории…</div>}
+      {atStart && showIntro && <RoomIntro room={room} />}
       {messages.map((message, index) => {
         const previous = messages[index - 1];
         const next = messages[index + 1];
@@ -59,31 +142,19 @@ export function Timeline({
           next.timestamp - message.timestamp >= 5 * 60 * 1000;
 
         return (
-          <motion.div
-            key={message.id}
-            layout
-            variants={fadeUp}
-            initial="hidden"
-            animate="visible"
-            transition={transition.base}
-          >
+          <div key={message.id}>
             {startsNewDay && <DayDivider timestamp={message.timestamp} />}
             {view === "bubbles" ? (
-              <motion.div
-                initial={{ opacity: 0, y: 10, scale: 0.985 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                transition={{ ...transition.base, duration: 0.24 }}
-              >
-                <BubbleMessage
-                  compact={compact}
-                  groupEnd={groupEnd}
-                  highlighted={message.id === highlightMessageId}
-                  message={message}
-                  onOpenImage={onOpenImage}
-                  onOpenMessageMenu={onOpenMessageMenu}
-                  onToggleReaction={onToggleReaction}
-                />
-              </motion.div>
+              <BubbleMessage
+                compact={compact}
+                groupEnd={groupEnd}
+                highlighted={message.id === highlightMessageId}
+                message={message}
+                onOpenImage={onOpenImage}
+                onOpenMessageMenu={onOpenMessageMenu}
+                onToggleReaction={onToggleReaction}
+                onOpenThread={onOpenThread}
+              />
             ) : (
               <FlatMessage
                 compact={compact}
@@ -92,14 +163,15 @@ export function Timeline({
                 onOpenImage={onOpenImage}
                 onOpenMessageMenu={onOpenMessageMenu}
                 onToggleReaction={onToggleReaction}
+                onOpenThread={onOpenThread}
               />
             )}
-          </motion.div>
+          </div>
         );
       })}
       {messages.length === 0 && <div className="timeline__empty">Сообщений пока нет.</div>}
-      <div ref={bottomRef} />
-    </motion.section>
+      </div>
+    </section>
   );
 }
 
@@ -110,6 +182,7 @@ function FlatMessage({
   onOpenImage,
   onOpenMessageMenu,
   onToggleReaction,
+  onOpenThread,
 }: {
   compact: boolean;
   highlighted: boolean;
@@ -117,6 +190,7 @@ function FlatMessage({
   onOpenImage: (src: string) => void;
   onOpenMessageMenu: (message: MatrixMessage, x: number, y: number) => void;
   onToggleReaction: (message: MatrixMessage, key: string) => void;
+  onOpenThread: (rootId: string) => void;
 }) {
   return (
     <article
@@ -155,6 +229,7 @@ function FlatMessage({
             </AnimatePresence>
           </motion.div>
         )}
+        {message.thread && <ThreadChip message={message} onOpenThread={onOpenThread} />}
       </div>
       <div className="message__aside">
         <time>{message.time}</time>
@@ -172,6 +247,7 @@ function BubbleMessage({
   onOpenImage,
   onOpenMessageMenu,
   onToggleReaction,
+  onOpenThread,
 }: {
   compact: boolean;
   groupEnd: boolean;
@@ -180,6 +256,7 @@ function BubbleMessage({
   onOpenImage: (src: string) => void;
   onOpenMessageMenu: (message: MatrixMessage, x: number, y: number) => void;
   onToggleReaction: (message: MatrixMessage, key: string) => void;
+  onOpenThread: (rootId: string) => void;
 }) {
   return (
     <article
@@ -224,6 +301,7 @@ function BubbleMessage({
             </AnimatePresence>
           </div>
         )}
+        {message.thread && <ThreadChip message={message} onOpenThread={onOpenThread} />}
         <div className="bubble__time">
           {message.edited && <span className="message__edited">изменено</span>}
           {message.time}
@@ -272,6 +350,37 @@ function MessageContent({
       {!bubble && message.edited && <span className="message__edited">(изменено)</span>}
     </div>
   );
+}
+
+function ThreadChip({
+  message,
+  onOpenThread,
+}: {
+  message: MatrixMessage;
+  onOpenThread: (rootId: string) => void;
+}) {
+  const thread = message.thread;
+  if (!thread) return null;
+
+  return (
+    <button
+      type="button"
+      className={`thread-chip${thread.unread ? " thread-chip--unread" : ""}`}
+      onClick={() => onOpenThread(message.id)}
+    >
+      <MessagesSquare size={14} />
+      <span>{repliesLabel(thread.count)}</span>
+      {thread.lastAuthor && <em>· {thread.lastAuthor}</em>}
+    </button>
+  );
+}
+
+function repliesLabel(count: number): string {
+  const mod10 = count % 10;
+  const mod100 = count % 100;
+  if (mod10 === 1 && mod100 !== 11) return `${count} ответ`;
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return `${count} ответа`;
+  return `${count} ответов`;
 }
 
 function BubbleTail({ own }: { own: boolean }) {

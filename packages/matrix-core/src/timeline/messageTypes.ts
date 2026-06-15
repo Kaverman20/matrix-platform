@@ -14,6 +14,14 @@ export type MatrixMessage = {
   reactions: MatrixReaction[];
   replyTo?: MatrixMessageReference;
   pinned?: boolean;
+  thread?: MatrixThreadSummary;
+};
+
+export type MatrixThreadSummary = {
+  /** Number of replies in the thread (excludes the root message). */
+  count: number;
+  lastAuthor?: string;
+  unread: boolean;
 };
 
 export type MatrixReaction = {

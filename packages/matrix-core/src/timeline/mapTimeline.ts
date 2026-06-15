@@ -5,6 +5,7 @@ import type {
   MatrixMedia,
   MatrixMessageReference,
   MatrixReaction,
+  MatrixThreadSummary,
 } from "./messageTypes";
 import { FORWARD_KEY } from "./sendMessage";
 
@@ -16,6 +17,32 @@ export function buildTimelineMessages(
   if (!room) return [];
 
   return buildMessagesFromEvents(client, room, room.getLiveTimeline().getEvents());
+}
+
+/** Messages inside a single thread (root + replies), oldest first. */
+export function buildThreadMessages(
+  client: MatrixClient,
+  roomId: string,
+  rootId: string,
+): MatrixMessage[] {
+  const room = client.getRoom(roomId);
+  if (!room) return [];
+
+  const thread = room.getThread(rootId);
+  if (!thread) {
+    // No replies yet — show just the root so a new thread can be started.
+    const root = room.findEventById(rootId);
+    return root ? buildMessagesFromEvents(client, room, [root]) : [];
+  }
+
+  const events = [...thread.timeline];
+  // Ensure the root message leads the thread even if it isn't in the thread's
+  // own timeline array.
+  if (thread.rootEvent && !events.some((event) => event.getId() === rootId)) {
+    events.unshift(thread.rootEvent);
+  }
+
+  return buildMessagesFromEvents(client, room, events);
 }
 
 function buildMessagesFromEvents(
@@ -57,8 +84,25 @@ function buildMessagesFromEvents(
         reactions: reactionsByTarget.get(eventId) ?? [],
         replyTo: getReplyReference(room, event, eventById),
         pinned: pinnedIds.has(eventId),
+        thread: getThreadSummary(room, eventId),
       };
     });
+}
+
+function getThreadSummary(room: Room, rootId: string): MatrixThreadSummary | undefined {
+  const thread = room.getThread(rootId);
+  if (!thread || thread.length === 0) return undefined;
+
+  const lastSender = thread.replyToEvent?.getSender() ?? "";
+  const lastAuthor = lastSender
+    ? room.getMember(lastSender)?.name || lastSender
+    : undefined;
+
+  return {
+    count: thread.length,
+    lastAuthor,
+    unread: room.getThreadUnreadNotificationCount(rootId) > 0,
+  };
 }
 
 function getPinnedEventIds(room: Room): Set<string> {
@@ -222,8 +266,15 @@ function getReplyReference(
   eventById: Map<string, MatrixEvent>,
 ): MatrixMessageReference | undefined {
   const relation = event.getContent()["m.relates_to"] as
-    | { "m.in_reply_to"?: { event_id?: unknown } }
+    | {
+        rel_type?: unknown;
+        is_falling_back?: unknown;
+        "m.in_reply_to"?: { event_id?: unknown };
+      }
     | undefined;
+  // Thread replies carry a fallback in_reply_to for non-thread clients — don't
+  // render it as a visible "reply to previous" inside the thread.
+  if (relation?.rel_type === "m.thread" && relation.is_falling_back) return undefined;
   const eventId = relation?.["m.in_reply_to"]?.event_id;
   if (typeof eventId !== "string" || !eventId) return undefined;
 

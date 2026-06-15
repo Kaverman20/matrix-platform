@@ -5,7 +5,8 @@
 
 .message-media--image,
 .message-media--broken {
-  width: min(340px, 68vw);
+  width: 340px;
+  max-width: 100%;
   min-height: 150px;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
@@ -45,18 +46,21 @@
 }
 
 .message-media--video {
-  width: min(380px, 72vw);
+  width: 380px;
+  max-width: 100%;
   max-height: 320px;
   border-radius: var(--radius-lg);
   background: black;
 }
 
 .message-media--audio {
-  width: min(360px, 70vw);
+  width: 360px;
+  max-width: 100%;
 }
 
 .message-media--file {
-  width: min(360px, 70vw);
+  width: 360px;
+  max-width: 100%;
   display: grid;
   grid-template-columns: 40px minmax(0, 1fr) 32px;
   align-items: center;

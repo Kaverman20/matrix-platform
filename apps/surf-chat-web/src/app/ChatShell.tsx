@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from "framer-motion";
-import { EventTimeline } from "matrix-js-sdk";
+import { EventTimeline, RoomStateEvent, type MatrixEvent } from "matrix-js-sdk";
 import {
   AlignLeft,
   ArrowLeft,
@@ -8,6 +8,7 @@ import {
   FileText,
   Hash,
   MessageSquare,
+  MessagesSquare,
   PanelRight,
   Pin,
   Phone,
@@ -19,6 +20,10 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { transition } from "@matrix-platform/ui";
 import {
   buildForwardData,
+  canPaginateBackwards,
+  loadRoomThreads,
+  markRoomRead,
+  paginateBackwards,
   removeReaction,
   sendReaction,
   type MatrixForwardData,
@@ -42,9 +47,13 @@ import { CreateModals } from "../features/spaces/CreateModals";
 import { SpaceRail } from "../features/spaces/SpaceRail";
 import { useRoomCreation } from "../features/spaces/useRoomCreation";
 import { EmptyState } from "../features/timeline/EmptyState";
+import { GlobalThreadsPanel } from "../features/threads/GlobalThreadsPanel";
+import { ThreadPanel } from "../features/threads/ThreadPanel";
+import { ThreadsListPanel } from "../features/threads/ThreadsListPanel";
 import { Timeline } from "../features/timeline/Timeline";
 import { usePinnedMessages } from "../features/timeline/usePinnedMessages";
 import { useTimelineMessages } from "../features/timeline/useTimelineMessages";
+import { formatTypingLabel, useTyping } from "../features/timeline/useTyping";
 import "./chat-shell.css";
 
 const ROOM_LIST_WIDTH = 304;
@@ -72,6 +81,11 @@ export function ChatShell() {
   const [showRightPanel, setShowRightPanel] = useState(false);
   const [rightPanelSection, setRightPanelSection] = useState<RightPanelSection>("overview");
   const [activeSpaceId, setActiveSpaceId] = useState<string | null>(null);
+  const [activeThreadRootId, setActiveThreadRootId] = useState<string | null>(null);
+  const [showThreadsList, setShowThreadsList] = useState(false);
+  const [showAllThreads, setShowAllThreads] = useState(false);
+  const [threadEditing, setThreadEditing] = useState<MatrixMessageReference | null>(null);
+  const [threadReplyTo, setThreadReplyTo] = useState<MatrixMessageReference | null>(null);
   const [roomListCollapsed, setRoomListCollapsed] = useState(false);
   const [roomListWidth, setRoomListWidth] = useState(ROOM_LIST_WIDTH);
   const [roomListResizing, setRoomListResizing] = useState(false);
@@ -81,6 +95,7 @@ export function ChatShell() {
     message: MatrixMessage;
     x: number;
     y: number;
+    source: "main" | "thread";
   } | null>(null);
   const [pinnedIndex, setPinnedIndex] = useState(0);
   const [highlightMessageId, setHighlightMessageId] = useState<string | null>(null);
@@ -171,6 +186,17 @@ export function ChatShell() {
   }, [activeRoomId, allRooms]);
   const messages = useTimelineMessages(client, activeRoomId);
   const pinnedMessages = usePinnedMessages(client, activeRoomId, optimisticPinnedIds);
+  const typingLabel = formatTypingLabel(useTyping(client, activeRoomId));
+  const hasOlder = useMemo(
+    () => Boolean(client && activeRoomId && canPaginateBackwards(client, activeRoomId)),
+    // messages.length is intentionally a dep: re-evaluate after each page loads.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [client, activeRoomId, messages.length],
+  );
+  const loadOlder = async (): Promise<boolean> => {
+    if (!client || !activeRoomId) return false;
+    return paginateBackwards(client, activeRoomId, 40);
+  };
   const activeMatrixRoom = useMemo(
     () => (client && activeRoomId ? client.getRoom(activeRoomId) : null),
     [activeRoomId, client],
@@ -257,7 +283,23 @@ export function ChatShell() {
     setPinnedIndex(0);
     setHighlightMessageId(null);
     setOptimisticPinnedIds(null);
+    setActiveThreadRootId(null);
+    setShowThreadsList(false);
     clearComposerMode();
+  };
+
+  const openThreadFromGlobal = (roomId: string, rootId: string) => {
+    setActiveRoomId(roomId);
+    setRightPanelSection("overview");
+    setPinnedIndex(0);
+    setHighlightMessageId(null);
+    setOptimisticPinnedIds(null);
+    setShowThreadsList(false);
+    setShowAllThreads(false);
+    clearComposerMode();
+    setActiveThreadRootId(rootId);
+    // Wait for the new room's timeline to render, then highlight the root.
+    window.setTimeout(() => focusPinnedMessage(rootId), 220);
   };
 
   const leaveRoom = async (roomId: string) => {
@@ -302,15 +344,29 @@ export function ChatShell() {
           : "plain",
   ].join(":");
 
-  const openMessageMenu = (message: MatrixMessage, x: number, y: number) => {
-    setMessageMenu({ message, x, y });
+  const openMessageMenu = (
+    message: MatrixMessage,
+    x: number,
+    y: number,
+    source: "main" | "thread" = "main",
+  ) => {
+    setMessageMenu({ message, x, y, source });
   };
 
   const handleMessageAction = (action: MessageAction, message: MatrixMessage) => {
     if (!client || !activeRoomId) return;
+    const inThread = messageMenu?.source === "thread";
 
-    if (action === "reply") startReply(message);
-    if (action === "edit") startEdit(message);
+    // Reply / edit inside the thread stay in the thread composer.
+    if (action === "reply") {
+      if (inThread) setThreadReplyTo(messageReference(message));
+      else startReply(message);
+    }
+    if (action === "thread") openThread(message.id);
+    if (action === "edit") {
+      if (inThread) setThreadEditing(messageReference(message));
+      else startEdit(message);
+    }
     if (action === "copy" && message.text) void navigator.clipboard.writeText(message.text);
     if (action === "forward") {
       setForwarding([buildForwardData(client, activeRoomId, message)]);
@@ -354,7 +410,11 @@ export function ChatShell() {
   };
 
   const focusPinnedMessage = (messageId: string) => {
-    const node = document.querySelector<HTMLElement>(`[data-mid="${CSS.escape(messageId)}"]`);
+    // Scope to the main chat so we don't grab the same message rendered inside
+    // the thread panel.
+    const node = document.querySelector<HTMLElement>(
+      `.chat-main [data-mid="${CSS.escape(messageId)}"]`,
+    );
     if (!node) return;
 
     node.scrollIntoView({ block: "center", behavior: "smooth" });
@@ -363,6 +423,14 @@ export function ChatShell() {
       window.clearTimeout(highlightTimer.current);
     }
     highlightTimer.current = window.setTimeout(() => setHighlightMessageId(null), 1700);
+  };
+
+  const openThread = (rootId: string) => {
+    setThreadEditing(null);
+    setThreadReplyTo(null);
+    setActiveThreadRootId(rootId);
+    // Highlight + scroll to the root message in the main chat.
+    window.setTimeout(() => focusPinnedMessage(rootId), 90);
   };
 
   const cyclePinnedMessage = () => {
@@ -474,13 +542,21 @@ export function ChatShell() {
   const forwardingRef = useRef(forwarding);
   const lightboxRef = useRef(lightbox);
   const messageMenuRef = useRef(messageMenu);
+  const activeThreadRootIdRef = useRef(activeThreadRootId);
+  const showThreadsListRef = useRef(showThreadsList);
+  const showAllThreadsRef = useRef(showAllThreads);
+  const showRightPanelRef = useRef(showRightPanel);
 
   useEffect(() => {
     activeRoomRef.current = activeRoom;
     forwardingRef.current = forwarding;
     lightboxRef.current = lightbox;
     messageMenuRef.current = messageMenu;
-  }, [activeRoom, forwarding, lightbox, messageMenu]);
+    activeThreadRootIdRef.current = activeThreadRootId;
+    showThreadsListRef.current = showThreadsList;
+    showAllThreadsRef.current = showAllThreads;
+    showRightPanelRef.current = showRightPanel;
+  }, [activeRoom, forwarding, lightbox, messageMenu, activeThreadRootId, showThreadsList, showAllThreads, showRightPanel]);
 
   useEffect(() => {
     return () => {
@@ -489,6 +565,40 @@ export function ChatShell() {
       }
     };
   }, []);
+
+  // Once the real m.room.pinned_events state lands (our own echo or another
+  // member's change), drop the optimistic override so live state wins again.
+  useEffect(() => {
+    if (!client || !activeRoomId) return;
+
+    const onState = (event: MatrixEvent) => {
+      if (event.getType() !== "m.room.pinned_events") return;
+      if (event.getRoomId() !== activeRoomId) return;
+      setOptimisticPinnedIds(null);
+    };
+
+    client.on(RoomStateEvent.Events, onState);
+    return () => {
+      client.off(RoomStateEvent.Events, onState);
+    };
+  }, [client, activeRoomId]);
+
+  // Send a read receipt when the open room receives (or already has) messages
+  // and the tab is visible, so unread counts clear server-side and across
+  // devices. Re-runs as new messages arrive in the active room.
+  const lastMessageId = messages.length ? messages[messages.length - 1].id : null;
+  useEffect(() => {
+    if (!client || !activeRoomId || !lastMessageId) return;
+    if (document.visibilityState !== "visible") return;
+    void markRoomRead(client, activeRoomId);
+  }, [client, activeRoomId, lastMessageId]);
+
+  // Load historical threads when a room opens so thread chips populate in the
+  // timeline (threads outside the initial sync window aren't known otherwise).
+  useEffect(() => {
+    if (!client || !activeRoomId) return;
+    void loadRoomThreads(client, activeRoomId);
+  }, [client, activeRoomId]);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -509,6 +619,27 @@ export function ChatShell() {
         setMessageMenu(null);
         return;
       }
+      // Close overlays/panels one layer at a time before leaving the room.
+      if (showAllThreadsRef.current) {
+        event.preventDefault();
+        setShowAllThreads(false);
+        return;
+      }
+      if (activeThreadRootIdRef.current) {
+        event.preventDefault();
+        setActiveThreadRootId(null);
+        return;
+      }
+      if (showThreadsListRef.current) {
+        event.preventDefault();
+        setShowThreadsList(false);
+        return;
+      }
+      if (showRightPanelRef.current) {
+        event.preventDefault();
+        setShowRightPanel(false);
+        return;
+      }
       if (composerRef.current?.escape()) {
         event.preventDefault();
         return;
@@ -520,6 +651,9 @@ export function ChatShell() {
         setHighlightMessageId(null);
         setOptimisticPinnedIds(null);
         setRightPanelSection("overview");
+        setActiveThreadRootId(null);
+        setShowThreadsList(false);
+        setShowRightPanel(false);
         setMessageMenu(null);
         clearComposerMode();
       }
@@ -537,6 +671,7 @@ export function ChatShell() {
         onSelectHome={() => setActiveSpaceId(null)}
         onSelectSpace={setActiveSpaceId}
         onCreateSpace={creation.openCreateSpace}
+        onOpenAllThreads={() => setShowAllThreads(true)}
         onLogout={() => void logout()}
       />
 
@@ -584,7 +719,10 @@ export function ChatShell() {
             <header className="chat-main__header">
               <div className="chat-main__title">
                 {activeRoom.kind === "channel" && <Hash size={18} strokeWidth={2.5} />}
-                <h1>{activeRoom.name}</h1>
+                <div className="chat-main__title-text">
+                  <h1>{activeRoom.name}</h1>
+                  {typingLabel && <span className="chat-main__typing">{typingLabel}</span>}
+                </div>
               </div>
               <div className="chat-main__actions">
                 <button
@@ -594,6 +732,14 @@ export function ChatShell() {
                   onClick={() => setChatView((value) => (value === "bubbles" ? "flat" : "bubbles"))}
                 >
                   {chatView === "bubbles" ? <AlignLeft size={18} /> : <MessageSquare size={18} />}
+                </button>
+                <button
+                  type="button"
+                  className={`icon-button${showThreadsList ? " is-active" : ""}`}
+                  title="Треды"
+                  onClick={() => setShowThreadsList((value) => !value)}
+                >
+                  <MessagesSquare size={18} />
                 </button>
                 <button type="button" className="icon-button" title="Звонок">
                   <Phone size={18} />
@@ -648,18 +794,19 @@ export function ChatShell() {
                 );
               })()}
             </AnimatePresence>
-            <AnimatePresence mode="wait">
-              <Timeline
-                key={activeRoom.id}
-                highlightMessageId={highlightMessageId}
-                messages={messages}
-                onOpenImage={setLightbox}
-                onOpenMessageMenu={openMessageMenu}
-                onToggleReaction={toggleReaction}
-                room={activeRoom}
-                view={chatView}
-              />
-            </AnimatePresence>
+            <Timeline
+              key={activeRoom.id}
+              highlightMessageId={highlightMessageId}
+              messages={messages}
+              onOpenImage={setLightbox}
+              onOpenMessageMenu={openMessageMenu}
+              onToggleReaction={toggleReaction}
+              onOpenThread={openThread}
+              onLoadOlder={loadOlder}
+              hasOlder={hasOlder}
+              room={activeRoom}
+              view={chatView}
+            />
             <Composer
               ref={composerRef}
               key={composerKey}
@@ -841,19 +988,52 @@ export function ChatShell() {
           </motion.aside>
         )}
       </AnimatePresence>
-      <AnimatePresence>
-        {messageMenu && (
+      {activeRoom && showThreadsList && !activeThreadRootId && (
+        <ThreadsListPanel
+          roomId={activeRoom.id}
+          onSelect={(rootId) => {
+            setActiveThreadRootId(rootId);
+            setShowThreadsList(false);
+          }}
+          onClose={() => setShowThreadsList(false)}
+        />
+      )}
+      {activeRoom && activeThreadRootId && (
+        <ThreadPanel
+          roomId={activeRoom.id}
+          room={activeRoom}
+          rootId={activeThreadRootId}
+          view={chatView}
+          highlightMessageId={highlightMessageId}
+          editing={threadEditing}
+          replyTo={threadReplyTo}
+          onOpenImage={setLightbox}
+          onOpenMessageMenu={(message, x, y) => openMessageMenu(message, x, y, "thread")}
+          onToggleReaction={toggleReaction}
+          onCancelEdit={() => setThreadEditing(null)}
+          onCancelReply={() => setThreadReplyTo(null)}
+          onSent={() => {
+            setThreadEditing(null);
+            setThreadReplyTo(null);
+          }}
+          onClose={() => {
+            setActiveThreadRootId(null);
+            setThreadEditing(null);
+            setThreadReplyTo(null);
+          }}
+        />
+      )}
+      {messageMenu && (
         <MessageContextMenu
           canPin={canPinMessages}
           message={messageMenu.message}
           x={messageMenu.x}
           y={messageMenu.y}
-            onAction={handleMessageAction}
-            onReact={toggleReaction}
-            onClose={() => setMessageMenu(null)}
-          />
-        )}
-      </AnimatePresence>
+          onAction={handleMessageAction}
+          onReact={toggleReaction}
+          onClose={() => setMessageMenu(null)}
+        />
+      )}
       <AnimatePresence>
         {forwarding && (
           <ForwardModal
@@ -864,32 +1044,29 @@ export function ChatShell() {
           />
         )}
       </AnimatePresence>
-      <AnimatePresence>
-        {lightbox && (
-          <motion.div
-            className="lightbox"
-            onMouseDown={() => setLightbox(null)}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={transition.fast}
-          >
-            <motion.img
+      {lightbox && (
+          <div className="lightbox" onMouseDown={() => setLightbox(null)}>
+            <img
               className="lightbox__image"
               src={lightbox}
               alt=""
-              initial={{ opacity: 0, scale: 0.96, y: 8 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.96, y: 8 }}
-              transition={transition.fast}
               onMouseDown={(event) => event.stopPropagation()}
             />
-            <button type="button" className="lightbox__close" title="Закрыть">
+            <button
+              type="button"
+              className="lightbox__close"
+              title="Закрыть"
+              onClick={() => setLightbox(null)}
+            >
               <X size={20} />
             </button>
-          </motion.div>
+          </div>
         )}
-      </AnimatePresence>
+      <GlobalThreadsPanel
+        open={showAllThreads}
+        onSelect={openThreadFromGlobal}
+        onClose={() => setShowAllThreads(false)}
+      />
       <CreateModals
         creation={creation}
         activeSpaceId={effectiveActiveSpaceId}

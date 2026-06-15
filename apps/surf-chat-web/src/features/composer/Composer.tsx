@@ -10,6 +10,7 @@ import {
   sendMediaMessage,
   sendReplyMessage,
   sendTextMessage,
+  setTyping,
   type MatrixForwardData,
   type MatrixMessageReference,
 } from "@matrix-platform/matrix-core";
@@ -53,6 +54,7 @@ export const Composer = forwardRef<ComposerHandle, Props>(function Composer({
   const attachWrapRef = useRef<HTMLDivElement>(null);
   const emojiWrapRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const lastTypingSentRef = useRef(0);
   const mode = editingMessage ? "edit" : pendingForward ? "forward" : replyTo ? "reply" : "plain";
   const context = editingMessage ?? replyTo ?? pendingForward?.[0] ?? null;
   const contextAuthor = context && "author" in context ? context.author : undefined;
@@ -66,6 +68,34 @@ export const Composer = forwardRef<ComposerHandle, Props>(function Composer({
     if (!context) return;
     requestAnimationFrame(() => textareaRef.current?.focus());
   }, [context]);
+
+  // Tell the server the user stopped typing when the composer unmounts (room
+  // switch / logout) so a stale "typing…" doesn't linger for others.
+  useEffect(() => {
+    return () => {
+      if (client && lastTypingSentRef.current) {
+        lastTypingSentRef.current = 0;
+        void setTyping(client, roomId, false);
+      }
+    };
+  }, [client, roomId]);
+
+  const notifyTyping = (value: string) => {
+    if (!client || mode === "edit") return;
+    if (!value.trim()) {
+      if (lastTypingSentRef.current) {
+        lastTypingSentRef.current = 0;
+        void setTyping(client, roomId, false);
+      }
+      return;
+    }
+    const now = Date.now();
+    // Server typing timeout is 4s — refresh at most every 3s to avoid spamming.
+    if (now - lastTypingSentRef.current > 3000) {
+      lastTypingSentRef.current = now;
+      void setTyping(client, roomId, true);
+    }
+  };
 
   useEffect(() => {
     if (!attachOpen && !emojiOpen) return;
@@ -107,6 +137,10 @@ export const Composer = forwardRef<ComposerHandle, Props>(function Composer({
     setSending(true);
     setAttachOpen(false);
     setEmojiOpen(false);
+    if (client && lastTypingSentRef.current) {
+      lastTypingSentRef.current = 0;
+      void setTyping(client, roomId, false);
+    }
     try {
       if (pendingForward) {
         if (text) await sendTextMessage(client, roomId, text);
@@ -329,7 +363,10 @@ export const Composer = forwardRef<ComposerHandle, Props>(function Composer({
           rows={1}
           placeholder={mode === "edit" ? "Изменить сообщение" : "Сообщение"}
           disabled={sending || uploading}
-          onChange={(e) => setDraft(e.target.value)}
+          onChange={(e) => {
+            setDraft(e.target.value);
+            notifyTyping(e.target.value);
+          }}
           onKeyDown={(e) => {
             if (e.key === "Enter" && !e.shiftKey) {
               e.preventDefault();

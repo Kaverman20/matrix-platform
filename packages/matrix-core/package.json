@@ -9,13 +9,14 @@
     "build": "tsc -b",
     "lint": "eslint .",
     "typecheck": "tsc -b --noEmit",
-    "test": "echo \"No tests yet\""
+    "test": "vitest run"
   },
   "dependencies": {
     "matrix-js-sdk": "41.7.0-rc.3"
   },
   "devDependencies": {
-    "typescript": "~6.0.2"
+    "typescript": "~6.0.2",
+    "vitest": "^3.2.4"
   }
 }
 

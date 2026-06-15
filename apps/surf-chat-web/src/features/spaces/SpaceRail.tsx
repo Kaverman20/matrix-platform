@@ -1,4 +1,4 @@
-import { LogOut, Plus } from "lucide-react";
+import { LogOut, MessagesSquare, Plus } from "lucide-react";
 import type { MatrixSpaceSummary } from "@matrix-platform/matrix-core";
 import { AuthedImage } from "../media/AuthedImage";
 import "./space-rail.css";
@@ -10,6 +10,7 @@ type Props = {
   onSelectHome: () => void;
   onSelectSpace: (spaceId: string) => void;
   onCreateSpace: () => void;
+  onOpenAllThreads: () => void;
   onLogout: () => void;
 };
 
@@ -19,6 +20,7 @@ export function SpaceRail({
   onSelectHome,
   onSelectSpace,
   onCreateSpace,
+  onOpenAllThreads,
   onLogout,
 }: Props) {
   return (
@@ -41,16 +43,25 @@ export function SpaceRail({
           />
         ))}
       </div>
-      <button
-        className="space-rail__item space-rail__item--add"
-        title="Создать пространство"
-        onClick={onCreateSpace}
-      >
-        <Plus size={20} />
-      </button>
-      <button className="space-rail__logout" title="Выйти" onClick={onLogout}>
-        <LogOut size={18} />
-      </button>
+      <div className="space-rail__bottom">
+        <button
+          className="space-rail__item space-rail__item--add"
+          title="Создать пространство"
+          onClick={onCreateSpace}
+        >
+          <Plus size={20} />
+        </button>
+        <button
+          className="space-rail__item space-rail__item--add"
+          title="Все треды"
+          onClick={onOpenAllThreads}
+        >
+          <MessagesSquare size={20} />
+        </button>
+        <button className="space-rail__logout" title="Выйти" onClick={onLogout}>
+          <LogOut size={18} />
+        </button>
+      </div>
     </nav>
   );
 }

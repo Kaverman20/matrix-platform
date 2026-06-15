@@ -1,0 +1,8 @@
+mappings:
+  - keycloak_group: "/GR_SSJR_ALL1"
+    matrix_spaces:
+      - "!CoGWRMgEjjcPuRmUSK:matrix.foxhound.run"
+    matrix_rooms:
+      - "!wUPTqgRwHhmFiIgCHS:matrix.foxhound.run"
+      - "!vcWvUNcyAVcZIJeRLX:matrix.foxhound.run"
+

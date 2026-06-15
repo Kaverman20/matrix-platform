@@ -19,6 +19,14 @@ The current VPS stack lives under:
 - `/opt/synapse-test/` — Synapse, PostgreSQL, Ketesa, Caddy
 - `/opt/matrix-keycloak-sync/` — Keycloak group to Matrix access sync
 
+Repository copies of the runtime manifests live under:
+
+- `infra/foxhound/synapse-test/`
+- `services/matrix-keycloak-sync/`
+
+Runtime secrets are intentionally excluded. Use the `*.example` files as
+templates for server-local `.env` / `config.env` files.
+
 ## Development Default
 
 Local Surf Chat development should use:
@@ -34,4 +42,3 @@ The old workspace currently has this value in `surf-chat/.env`.
 - Login gate: `GR_chat_user` in the OIDC token.
 - Mapping sync group paths use leading slash, for example `/GR_SSJR_ALL1`.
 - Space access uses Matrix restricted rooms tied to parent Space membership.
-

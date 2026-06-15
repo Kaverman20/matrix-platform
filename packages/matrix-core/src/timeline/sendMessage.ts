@@ -31,15 +31,56 @@ export async function sendReplyMessage(
   const body = text.trim();
   if (!body) return;
 
+  // Rich-reply fallback so clients that don't render m.in_reply_to (older
+  // clients, bots) still show the quoted message as a "> " blockquote.
+  const fallback = buildReplyFallback(replyTo, body);
+
   await client.sendEvent(roomId, EventType.RoomMessage, {
     msgtype: MsgType.Text,
-    body,
+    body: fallback.body,
+    format: "org.matrix.custom.html",
+    formatted_body: fallback.formattedBody,
     "m.relates_to": {
       "m.in_reply_to": {
         event_id: replyTo.id,
       },
     },
   });
+}
+
+export function buildReplyFallback(
+  replyTo: MatrixMessageReference,
+  body: string,
+): { body: string; formattedBody: string } {
+  const quotedText = (replyTo.text ?? "").trim();
+  const sender = replyTo.sender ?? "";
+  const quotedLines = quotedText
+    ? quotedText.split("\n").map((line) => `> ${line}`).join("\n")
+    : "";
+  const plainBody = sender
+    ? `> <${sender}>${quotedText ? ` ${quotedText}` : ""}\n\n${body}`
+    : quotedLines
+      ? `${quotedLines}\n\n${body}`
+      : body;
+
+  const link = sender
+    ? `<a href="https://matrix.to/#/${encodeURIComponent(sender)}">${escapeHtml(
+        replyTo.author ?? sender,
+      )}</a>`
+    : escapeHtml(replyTo.author ?? "");
+  const formattedBody =
+    `<mx-reply><blockquote>${link}<br>${escapeHtml(quotedText)}</blockquote></mx-reply>` +
+    escapeHtml(body);
+
+  return { body: plainBody, formattedBody };
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
 }
 
 export async function sendEditMessage(
@@ -108,6 +149,7 @@ export async function sendMediaMessage(
   roomId: string,
   file: File,
   uploadInfo: MediaUploadInfo = {},
+  threadRootId?: string,
 ): Promise<void> {
   const upload = await client.uploadContent(file, {
     name: file.name,
@@ -115,6 +157,7 @@ export async function sendMediaMessage(
   });
   const contentUri = upload.content_uri;
   const msgtype = msgTypeForFile(file);
+  const thread = client.getRoom(roomId)?.getThread(threadRootId ?? "");
 
   await client.sendEvent(roomId, EventType.RoomMessage, {
     msgtype,
@@ -126,6 +169,16 @@ export async function sendMediaMessage(
       ...(uploadInfo.width ? { w: uploadInfo.width } : {}),
       ...(uploadInfo.height ? { h: uploadInfo.height } : {}),
     },
+    ...(threadRootId
+      ? {
+          "m.relates_to": {
+            rel_type: RelationType.Thread,
+            event_id: threadRootId,
+            is_falling_back: true,
+            "m.in_reply_to": { event_id: thread?.lastReply()?.getId() ?? threadRootId },
+          },
+        }
+      : {}),
   } as never);
 }
 

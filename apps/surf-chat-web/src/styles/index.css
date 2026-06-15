@@ -10,6 +10,29 @@
   box-sizing: border-box;
 }
 
+/* Low-power / reduced-motion: make everything instant so a throttled CPU (e.g.
+   on low battery) doesn't stutter through animations. Driven by the OS setting
+   and by the .reduce-motion class we set when on a low battery. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-delay: 0ms !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+.reduce-motion *,
+.reduce-motion *::before,
+.reduce-motion *::after {
+  animation-duration: 0.001ms !important;
+  animation-delay: 0ms !important;
+  transition-duration: 0.001ms !important;
+  scroll-behavior: auto !important;
+}
+
 body {
   margin: 0;
   min-width: 320px;

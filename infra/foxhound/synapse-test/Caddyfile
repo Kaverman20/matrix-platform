@@ -1,0 +1,21 @@
+# Caddy obtains and renews Let's Encrypt certificates for these domains.
+# Matrix endpoints are proxied to Synapse on the internal Docker network.
+matrix.foxhound.run {
+    reverse_proxy /_matrix/* synapse:8008
+    reverse_proxy /_synapse/client/* synapse:8008
+    reverse_proxy /_synapse/admin/* synapse:8008
+
+    respond / "Surf Chat Matrix homeserver" 200
+}
+
+admin.foxhound.run {
+    reverse_proxy ketesa:8080
+}
+
+chat.foxhound.run {
+    root * /srv/surfchat
+    try_files {path} /index.html
+    file_server
+    encode gzip
+}
+
