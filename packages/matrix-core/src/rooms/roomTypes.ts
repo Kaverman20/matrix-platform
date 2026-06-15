@@ -14,6 +14,7 @@ export type MatrixRoomSummary = {
   favouriteOrder: number;
   memberCount: number;
   topic: string;
+  directUserId?: string;
 };
 
 export type MatrixSpaceSummary = {
@@ -36,4 +37,3 @@ export type MatrixRoomGroups = {
   channels: MatrixRoomSummary[];
   dms: MatrixRoomSummary[];
 };
-

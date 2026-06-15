@@ -39,9 +39,7 @@ export function buildRoomGroups(client: MatrixClient): MatrixRoomGroups {
     channels: rooms
       .filter((room) => !room.favourite && room.kind === "channel")
       .sort(byActivity),
-    dms: rooms
-      .filter((room) => !room.favourite && room.kind === "dm")
-      .sort(byActivity),
+    dms: dedupeDirectRooms(rooms.filter((room) => !room.favourite && room.kind === "dm")).sort(byActivity),
   };
 }
 
@@ -52,6 +50,7 @@ function mapRoom(
 ): MatrixRoomSummary {
   const isDm = isDmLike(room, dmIds);
   const last = getLastMessage(room, client, isDm);
+  const directUserId = isDm ? getDirectUserId(room, client) : undefined;
   const favTag = room.tags?.["m.favourite"] as FavouriteTag | undefined;
   const topic = room.currentState.getStateEvents("m.room.topic", "")?.getContent()
     ?.topic;
@@ -70,7 +69,27 @@ function mapRoom(
     favouriteOrder: typeof favTag?.order === "number" ? favTag.order : 0,
     memberCount: room.getInvitedAndJoinedMemberCount(),
     topic: typeof topic === "string" ? topic : "",
+    directUserId,
   };
+}
+
+function dedupeDirectRooms(rooms: MatrixRoomSummary[]): MatrixRoomSummary[] {
+  const byUser = new Map<string, MatrixRoomSummary>();
+  const withoutPeer: MatrixRoomSummary[] = [];
+
+  for (const room of rooms) {
+    if (!room.directUserId) {
+      withoutPeer.push(room);
+      continue;
+    }
+
+    const existing = byUser.get(room.directUserId);
+    if (!existing || room.timestamp > existing.timestamp) {
+      byUser.set(room.directUserId, room);
+    }
+  }
+
+  return [...byUser.values(), ...withoutPeer];
 }
 
 function mapSpace(room: Room, client: MatrixClient, spaceIdSet: Set<string>): MatrixSpaceSummary {
@@ -120,6 +139,12 @@ function isDmLike(room: Room, dmIds: Set<string>): boolean {
   const hasAlias = Boolean(room.getCanonicalAlias());
 
   return !hasName && !hasAlias;
+}
+
+function getDirectUserId(room: Room, client: MatrixClient): string | undefined {
+  const me = client.getUserId();
+  const members = room.getJoinedMembers();
+  return members.find((member) => member.userId !== me)?.userId;
 }
 
 function getLastMessage(
@@ -193,4 +218,3 @@ function formatTime(timestamp: number): string {
     minute: "2-digit",
   });
 }
-

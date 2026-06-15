@@ -269,15 +269,19 @@ export function useRoomCreation({ client, activeSpaceId, onOpenRoom, onOpenSpace
   const createDirectChat = async () => {
     if (!client || !selectedDmUserId || creatingDmPending) return;
 
-    const existingRoomId = findDirectRoomId(client, selectedDmUserId);
-    if (existingRoomId) {
-      closeCreateDm();
-      onOpenRoom(existingRoomId);
-      return;
-    }
-
     setCreatingDmPending(true);
     try {
+      const existingRoom = findDirectRoom(client, selectedDmUserId);
+      if (existingRoom) {
+        if (existingRoom.getMyMembership() === "invite") {
+          await client.joinRoom(existingRoom.roomId);
+          await ensureDirectRoomAccountData(client, selectedDmUserId, existingRoom.roomId);
+        }
+        closeCreateDm();
+        onOpenRoom(existingRoom.roomId);
+        return;
+      }
+
       const result = await client.createRoom({
         is_direct: true,
         invite: [selectedDmUserId],
@@ -537,24 +541,25 @@ async function createSubspaceRoom(
   return subspaceId;
 }
 
-function findDirectRoomId(client: MatrixClient, targetUserId: string): string | null {
+function findDirectRoom(client: MatrixClient, targetUserId: string) {
   const direct = (client.getAccountData("m.direct" as never)?.getContent() ?? {}) as Record<string, string[]>;
   const explicit = Array.isArray(direct[targetUserId]) ? direct[targetUserId] : [];
 
   for (const roomId of explicit) {
     const room = client.getRoom(roomId);
-    if (room && room.getMyMembership() === "join") return roomId;
+    if (room && (room.getMyMembership() === "join" || room.getMyMembership() === "invite")) return room;
   }
 
   const me = client.getUserId();
   for (const room of client.getRooms()) {
     if (room.isSpaceRoom()) continue;
+    if (room.getMyMembership() === "invite" && room.getDMInviter() === targetUserId) return room;
     if (room.getMyMembership() !== "join") continue;
     const members = room.getJoinedMembers();
     if (members.length !== 2) continue;
     const hasTarget = members.some((member) => member.userId === targetUserId);
     const hasMe = members.some((member) => member.userId === me);
-    if (hasTarget && hasMe) return room.roomId;
+    if (hasTarget && hasMe) return room;
   }
 
   return null;
