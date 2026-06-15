@@ -129,15 +129,22 @@ export function Timeline({
     setAtStart(false);
   }, [atStart, hasOlder]);
 
-  const runLoad = useCallback((options: { pages?: number; silent?: boolean } = {}) => {
+  const runLoad = useCallback((options: { pages?: number; silent?: boolean; keepBottom?: boolean } = {}) => {
     const el = scrollRef.current;
     if (!el || !onLoadOlder || atStart || loadingRef.current) return;
 
     const pages = options.pages ?? 1;
     const silent = options.silent ?? true;
+    const keepBottom = options.keepBottom ?? false;
     loadingRef.current = true;
     if (!silent) setLoading(true);
-    prependAnchor.current = captureViewportAnchor(el);
+    // When filling the viewport on entry we stay pinned to the bottom and let the
+    // layout effect keep us there; capturing a prepend anchor would unstick us.
+    if (keepBottom) {
+      stick.current = true;
+    } else {
+      prependAnchor.current = captureViewportAnchor(el);
+    }
 
     void (async () => {
       for (let page = 0; page < pages; page += 1) {
@@ -159,6 +166,18 @@ export function Timeline({
     if (!el || stick.current || firstVirtualIndex > SCROLLBACK_PREFETCH_INDEX) return;
     runLoad();
   }, [firstVirtualIndex, runLoad, room.id]);
+
+  // Telegram-style entry: Matrix's initial sync only delivers a small window of
+  // recent events, so a fresh room often has fewer messages than fit on screen.
+  // While pinned to the bottom, eagerly paginate until the timeline is scrollable
+  // (or we reach the room start) so the chat opens already full of history.
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el || atStart || loadingRef.current || !stick.current) return;
+    const fillsViewport = el.scrollHeight > el.clientHeight + BOTTOM_THRESHOLD;
+    if (fillsViewport) return;
+    runLoad({ keepBottom: true });
+  }, [messages.length, atStart, runLoad, room.id]);
 
   // Position the view after each render — instantly, never smooth. On scrollback,
   // keep the same message anchored in the same viewport position; this is what
