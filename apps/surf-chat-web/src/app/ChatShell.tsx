@@ -12,6 +12,7 @@ import {
   PanelRight,
   Pin,
   Phone,
+  Settings,
   Users,
   Video,
   X,
@@ -768,6 +769,14 @@ export function ChatShell() {
                 >
                   <MessagesSquare size={18} />
                 </button>
+                <button
+                  type="button"
+                  className="icon-button"
+                  title="Настройки комнаты"
+                  onClick={() => roomSettings.openSettings(activeRoom.id)}
+                >
+                  <Settings size={18} />
+                </button>
                 <button type="button" className="icon-button" title="Звонок">
                   <Phone size={18} />
                 </button>
@@ -895,6 +904,15 @@ export function ChatShell() {
 
                   {rightPanelSection === "overview" ? (
                     <div className="right-panel__rows">
+                      <button
+                        type="button"
+                        className="right-panel__row"
+                        onClick={() => roomSettings.openSettings(activeRoom.id)}
+                      >
+                        <Settings size={18} />
+                        <span>Настройки</span>
+                        <ChevronRight size={16} />
+                      </button>
                       <button type="button" className="right-panel__row" onClick={() => setRightPanelSection("members")}>
                         <Users size={18} />
                         <span>Участники</span>
