@@ -59,6 +59,8 @@ import {
   useTimelineMessages,
 } from "../features/timeline/useTimelineMessages";
 import { formatTypingLabel, useTyping } from "../features/timeline/useTyping";
+import { AccountSettingsModal } from "../features/account/AccountSettingsModal";
+import { useAccountSettings } from "../features/account/useAccountSettings";
 import "./chat-shell.css";
 
 const ROOM_LIST_WIDTH = 304;
@@ -149,6 +151,7 @@ export function ChatShell() {
     onOpenSpace: setActiveSpaceId,
   });
   const roomSettings = useRoomSettings({ client });
+  const accountSettings = useAccountSettings({ client });
   const activeSpaceChildSet = useMemo(
     () => (activeSpace ? new Set(activeSpace.childIds) : null),
     [activeSpace],
@@ -700,7 +703,8 @@ export function ChatShell() {
         onSelectSpace={setActiveSpaceId}
         onCreateSpace={creation.openCreateSpace}
         onOpenAllThreads={() => setShowAllThreads(true)}
-        onLogout={() => void logout()}
+        onOpenAccount={accountSettings.openSettings}
+        account={accountSettings.profile}
       />
 
       <motion.div
@@ -1112,6 +1116,7 @@ export function ChatShell() {
         activeSpaceName={activeSpace?.name ?? null}
       />
       <RoomSettingsModal settings={roomSettings} />
+      <AccountSettingsModal settings={accountSettings} onLogout={() => void logout()} />
     </div>
   );
 }

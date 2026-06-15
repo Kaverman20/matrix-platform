@@ -11,7 +11,7 @@
 
 .space-rail__home,
 .space-rail__item,
-.space-rail__logout {
+.space-rail__account {
   position: relative;
   width: 44px;
   height: 44px;
@@ -94,7 +94,7 @@
 
 .space-rail__home:focus-visible,
 .space-rail__item:focus-visible,
-.space-rail__logout:focus-visible {
+.space-rail__account:focus-visible {
   box-shadow: 0 0 0 2px var(--color-bg), 0 0 0 4px var(--color-accent-ring);
 }
 
@@ -109,11 +109,14 @@
   transform: translateY(-50%);
 }
 
-.space-rail__logout {
-  color: var(--color-rail-text);
-  background: transparent;
+.space-rail__account {
+  color: var(--color-text-onAccent);
+  background: var(--color-rail-item-hover);
+  font-size: var(--text-sm);
+  font-weight: 800;
+  overflow: hidden;
 }
 
-.space-rail__logout:hover {
-  background: var(--color-rail-item-hover);
+.space-rail__account:hover {
+  transform: translateY(-1px);
 }
