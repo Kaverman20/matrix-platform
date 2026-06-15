@@ -12,15 +12,28 @@
 }
 
 .timeline__content {
-  display: flex;
-  flex-direction: column;
+  position: relative;
+  width: 100%;
 }
 
 .timeline__item {
   --enter-index: 0;
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+}
+
+.timeline__item-inner {
+  display: flow-root;
   animation: timeline-item-enter 180ms ease-out both;
   animation-delay: min(calc(var(--enter-index) * 12ms), 120ms);
   will-change: opacity, transform;
+}
+
+.timeline__virtual {
+  position: relative;
+  width: 100%;
 }
 
 .timeline__empty {
@@ -465,6 +478,6 @@
   }
 }
 
-.reduce-motion .timeline__item {
+.reduce-motion .timeline__item-inner {
   animation: none;
 }

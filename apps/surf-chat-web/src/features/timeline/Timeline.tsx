@@ -7,6 +7,7 @@ import {
   type SyntheticEvent,
   type UIEvent,
 } from "react";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import { AnimatePresence, motion } from "framer-motion";
 import { CheckCheck, Forward, Hash, MessagesSquare } from "lucide-react";
 import type { MatrixMessage, MatrixRoomSummary } from "@matrix-platform/matrix-core";
@@ -58,6 +59,16 @@ export function Timeline({
   const didInit = useRef(false);
   // Whether the view is pinned to the bottom (true until the user scrolls up).
   const stick = useRef(true);
+  // TanStack Virtual manages scroll measurement internally; this hook is expected here.
+  // eslint-disable-next-line react-hooks/incompatible-library
+  const rowVirtualizer = useVirtualizer({
+    count: messages.length,
+    getScrollElement: () => scrollRef.current,
+    estimateSize: () => (view === "bubbles" ? 78 : 70),
+    getItemKey: (index) => messages[index]?.id ?? index,
+    overscan: 18,
+  });
+  const virtualItems = rowVirtualizer.getVirtualItems();
 
   const runLoad = (options: { pages?: number; silent?: boolean } = {}) => {
     const el = scrollRef.current;
@@ -98,7 +109,7 @@ export function Timeline({
       el.scrollTop = el.scrollHeight;
     }
     didInit.current = true;
-  }, [messages.length]);
+  }, [messages.length, rowVirtualizer]);
 
   // Late layout (images decoding, reactions) grows the content after the initial
   // scroll — keep the view glued to the bottom while the user is at the bottom.
@@ -148,7 +159,15 @@ export function Timeline({
       <div className="timeline__content" ref={contentRef}>
       {loading && <div className="timeline__loading">Загрузка истории…</div>}
       {atStart && showIntro && <RoomIntro room={room} />}
-      {messages.map((message, index) => {
+      <div
+        className="timeline__virtual"
+        style={{ height: `${rowVirtualizer.getTotalSize()}px` }}
+      >
+      {virtualItems.map((virtualItem) => {
+        const index = virtualItem.index;
+        const message = messages[index];
+        if (!message) return null;
+
         const previous = messages[index - 1];
         const next = messages[index + 1];
         const startsNewDay = !previous || !isSameDay(previous.timestamp, message.timestamp);
@@ -168,9 +187,15 @@ export function Timeline({
         return (
           <div
             key={message.id}
+            ref={rowVirtualizer.measureElement}
+            data-index={virtualItem.index}
             className="timeline__item"
-            style={{ "--enter-index": enterIndex } as CSSProperties}
+            style={{
+              "--enter-index": enterIndex,
+              transform: `translateY(${virtualItem.start}px)`,
+            } as CSSProperties}
           >
+            <div className="timeline__item-inner">
             {startsNewDay && <DayDivider timestamp={message.timestamp} />}
             {view === "bubbles" ? (
               <BubbleMessage
@@ -194,9 +219,11 @@ export function Timeline({
                 onOpenThread={onOpenThread}
               />
             )}
+            </div>
           </div>
         );
       })}
+      </div>
       {messages.length === 0 && <div className="timeline__empty">Сообщений пока нет.</div>}
       </div>
     </section>
