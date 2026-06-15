@@ -118,6 +118,10 @@ export function Timeline({
   const [atStart, setAtStart] = useState(!hasOlder);
   const prependAnchor = useRef<ViewportAnchor | null>(null);
   const didInit = useRef(false);
+  // One-shot guard for the "open at first unread" scroll. Lets us retry across a
+  // render or two — the unread node may not exist on the very first paint if the
+  // timeline is still settling. Resets per room (the component is keyed by room).
+  const didUnreadScroll = useRef(false);
   // Set once a pagination attempt returns no new messages — i.e. we've genuinely
   // reached the room start. Locks `atStart` so the sync-tick effect below can't
   // flip it back: some homeservers keep handing out a backwards token even at the
@@ -197,32 +201,40 @@ export function Timeline({
       }
       prependAnchor.current = null;
       stick.current = false;
-    } else if (!didInit.current) {
-      const unreadNode = firstUnreadId
-        ? el.querySelector<HTMLElement>(
-            `.timeline__item[data-message-id="${CSS.escape(firstUnreadId)}"]`,
-          )
-        : null;
+      didInit.current = true;
+      return;
+    }
+
+    // Open the room at the first unread message (Telegram-style). This may need a
+    // render or two until the node exists, so it's a one-shot retry independent of
+    // didInit rather than only on the first pass.
+    if (firstUnreadId && !didUnreadScroll.current) {
+      const unreadNode = el.querySelector<HTMLElement>(
+        `.timeline__item[data-message-id="${CSS.escape(firstUnreadId)}"]`,
+      );
       if (unreadNode) {
-        // Open the room at the first unread message (Telegram-style), with the
-        // "new messages" divider a little below the top edge.
         stick.current = false;
         const offset = unreadNode.getBoundingClientRect().top - el.getBoundingClientRect().top;
         el.scrollTop = Math.max(0, el.scrollTop + offset - UNREAD_SCROLL_OFFSET);
+        didUnreadScroll.current = true;
+        didInit.current = true;
+        return;
+      }
+    }
+
+    if (!didInit.current) {
+      const savedDistance = getStoredDistanceFromBottom(room.id);
+      if (savedDistance === null || savedDistance < BOTTOM_THRESHOLD) {
+        stick.current = true;
+        pinToBottom(room.id, el);
       } else {
-        const savedDistance = getStoredDistanceFromBottom(room.id);
-        if (savedDistance === null || savedDistance < BOTTOM_THRESHOLD) {
-          stick.current = true;
-          pinToBottom(room.id, el);
-        } else {
-          el.scrollTop = Math.max(0, el.scrollHeight - el.clientHeight - savedDistance);
-        }
+        el.scrollTop = Math.max(0, el.scrollHeight - el.clientHeight - savedDistance);
       }
     } else if (stick.current) {
       pinToBottom(room.id, el);
     }
     didInit.current = true;
-  }, [messages.length, room.id]);
+  }, [messages.length, room.id, firstUnreadId]);
 
   // Late layout (images decoding, reactions) grows the content after the initial
   // scroll — keep the view glued to the bottom while the user is at the bottom.
