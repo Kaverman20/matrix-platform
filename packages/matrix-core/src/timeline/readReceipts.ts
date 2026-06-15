@@ -27,3 +27,43 @@ export async function markRoomRead(
     return;
   }
 }
+
+/**
+ * The id of the last event the user has read in this room (their persisted read
+ * receipt), or null if none. Ignores the synthetic local receipt so callers can
+ * tell what was read *before* the room was opened — used to place the "new
+ * messages" divider and to open the room at the first unread message.
+ */
+export function getReadUpToEventId(
+  client: MatrixClient,
+  roomId: string,
+): string | null {
+  const room = client.getRoom(roomId);
+  const userId = client.getUserId();
+  if (!room || !userId) return null;
+  return room.getEventReadUpTo(userId, true);
+}
+
+/**
+ * Send a read receipt + read marker up to a specific event (must be a real,
+ * persisted event id). Used by read-on-visible: we only advance the receipt to
+ * messages that actually scrolled into view. The SDK no-ops when this wouldn't
+ * move the receipt forward, so it's safe to call as the user reads.
+ */
+export async function markReadUpToEvent(
+  client: MatrixClient,
+  roomId: string,
+  eventId: string,
+): Promise<void> {
+  const room = client.getRoom(roomId);
+  if (!room || !eventId || eventId.startsWith("~")) return;
+  const event = room.findEventById(eventId);
+  if (!event) return;
+
+  try {
+    await client.sendReadReceipt(event);
+    await client.setRoomReadMarkers(roomId, eventId);
+  } catch (error) {
+    console.error("[matrix-core] markReadUpToEvent failed", error);
+  }
+}

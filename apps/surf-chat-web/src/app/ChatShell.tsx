@@ -22,7 +22,7 @@ import {
   buildForwardData,
   canPaginateBackwards,
   loadRoomThreads,
-  markRoomRead,
+  markReadUpToEvent,
   paginateBackwards,
   removeReaction,
   sendReaction,
@@ -51,6 +51,7 @@ import { GlobalThreadsPanel } from "../features/threads/GlobalThreadsPanel";
 import { ThreadPanel } from "../features/threads/ThreadPanel";
 import { ThreadsListPanel } from "../features/threads/ThreadsListPanel";
 import { Timeline } from "../features/timeline/Timeline";
+import { useFirstUnread } from "../features/timeline/useFirstUnread";
 import { usePinnedMessages } from "../features/timeline/usePinnedMessages";
 import {
   usePreloadTimelineMessages,
@@ -599,15 +600,21 @@ export function ChatShell() {
     };
   }, [client, activeRoomId]);
 
-  // Send a read receipt when the open room receives (or already has) messages
-  // and the tab is visible, so unread counts clear server-side and across
-  // devices. Re-runs as new messages arrive in the active room.
-  const lastMessageId = messages.length ? messages[messages.length - 1].id : null;
-  useEffect(() => {
-    if (!client || !activeRoomId || !lastMessageId) return;
-    if (document.visibilityState !== "visible") return;
-    void markRoomRead(client, activeRoomId);
-  }, [client, activeRoomId, lastMessageId]);
+  // First unread message for the open room — drives the "new messages" divider
+  // and opening the room scrolled to it. Frozen while the room stays open.
+  const firstUnreadId = useFirstUnread(client, activeRoomId, messages);
+
+  // Read-on-visible: the Timeline reports the latest message that actually
+  // scrolled into view (after a short dwell), and we advance the read receipt to
+  // it. Opening a room no longer marks it read by itself.
+  const handleReadUpTo = useCallback(
+    (messageId: string) => {
+      if (!client || !activeRoomId) return;
+      if (document.visibilityState !== "visible") return;
+      void markReadUpToEvent(client, activeRoomId, messageId);
+    },
+    [client, activeRoomId],
+  );
 
   // Load historical threads when a room opens so thread chips populate in the
   // timeline (threads outside the initial sync window aren't known otherwise).
@@ -826,6 +833,8 @@ export function ChatShell() {
               hasOlder={hasOlder}
               room={activeRoom}
               view={chatView}
+              firstUnreadId={firstUnreadId}
+              onReadUpTo={handleReadUpTo}
             />
             <Composer
               ref={composerRef}

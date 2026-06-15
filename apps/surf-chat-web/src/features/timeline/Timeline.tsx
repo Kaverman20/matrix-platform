@@ -27,11 +27,21 @@ type Props = {
   showIntro?: boolean;
   room: MatrixRoomSummary;
   view: "flat" | "bubbles";
+  /** First unread message id — renders the "new messages" divider and opens the
+   * room scrolled to it. Null/undefined opens at the bottom. */
+  firstUnreadId?: string | null;
+  /** Called (debounced) with the latest message that has actually scrolled into
+   * view, so the read receipt only advances over messages the user has seen. */
+  onReadUpTo?: (messageId: string) => void;
 };
 
 const TOP_THRESHOLD = 160;
 const SCROLL_STORAGE_PREFIX = "surf-chat:room-scroll:";
 const BOTTOM_THRESHOLD = 160;
+// How long a message must stay in view before it counts as read.
+const READ_VISIBLE_DELAY = 1000;
+// Leave the unread divider a little below the top when opening at first unread.
+const UNREAD_SCROLL_OFFSET = 64;
 
 type ViewportAnchor = {
   id: string;
@@ -95,6 +105,8 @@ export function Timeline({
   showIntro = true,
   room,
   view,
+  firstUnreadId,
+  onReadUpTo,
 }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -186,12 +198,25 @@ export function Timeline({
       prependAnchor.current = null;
       stick.current = false;
     } else if (!didInit.current) {
-      const savedDistance = getStoredDistanceFromBottom(room.id);
-      if (savedDistance === null || savedDistance < BOTTOM_THRESHOLD) {
-        stick.current = true;
-        pinToBottom(room.id, el);
+      const unreadNode = firstUnreadId
+        ? el.querySelector<HTMLElement>(
+            `.timeline__item[data-message-id="${CSS.escape(firstUnreadId)}"]`,
+          )
+        : null;
+      if (unreadNode) {
+        // Open the room at the first unread message (Telegram-style), with the
+        // "new messages" divider a little below the top edge.
+        stick.current = false;
+        const offset = unreadNode.getBoundingClientRect().top - el.getBoundingClientRect().top;
+        el.scrollTop = Math.max(0, el.scrollTop + offset - UNREAD_SCROLL_OFFSET);
       } else {
-        el.scrollTop = Math.max(0, el.scrollHeight - el.clientHeight - savedDistance);
+        const savedDistance = getStoredDistanceFromBottom(room.id);
+        if (savedDistance === null || savedDistance < BOTTOM_THRESHOLD) {
+          stick.current = true;
+          pinToBottom(room.id, el);
+        } else {
+          el.scrollTop = Math.max(0, el.scrollHeight - el.clientHeight - savedDistance);
+        }
       }
     } else if (stick.current) {
       pinToBottom(room.id, el);
@@ -224,6 +249,58 @@ export function Timeline({
     window.addEventListener("beforeunload", saveBeforeUnload);
     return () => window.removeEventListener("beforeunload", saveBeforeUnload);
   }, [room.id]);
+
+  // Read-on-visible: advance the read receipt only over messages that actually
+  // scrolled into view and stayed there briefly — not just because the room was
+  // opened. Reports the latest currently-visible message; the caller (and the
+  // SDK) ignore anything that wouldn't move the receipt forward.
+  const onReadUpToRef = useRef(onReadUpTo);
+  onReadUpToRef.current = onReadUpTo;
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el || !onReadUpToRef.current) return;
+
+    const order = new Map(messages.map((message, index) => [message.id, index]));
+    const visible = new Set<string>();
+    let timer: number | undefined;
+
+    const flush = () => {
+      if (document.visibilityState !== "visible") return;
+      let bestIndex = -1;
+      let bestId: string | null = null;
+      for (const id of visible) {
+        const index = order.get(id) ?? -1;
+        if (index > bestIndex) {
+          bestIndex = index;
+          bestId = id;
+        }
+      }
+      if (bestId) onReadUpToRef.current?.(bestId);
+    };
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          const id = (entry.target as HTMLElement).dataset.messageId;
+          if (!id) continue;
+          if (entry.isIntersecting) visible.add(id);
+          else visible.delete(id);
+        }
+        window.clearTimeout(timer);
+        timer = window.setTimeout(flush, READ_VISIBLE_DELAY);
+      },
+      { root: el, threshold: 0.6 },
+    );
+
+    el.querySelectorAll<HTMLElement>(".timeline__item[data-message-id]").forEach((node) =>
+      observer.observe(node),
+    );
+
+    return () => {
+      window.clearTimeout(timer);
+      observer.disconnect();
+    };
+  }, [messages, room.id]);
 
   const handleScroll = (event: UIEvent<HTMLDivElement>) => {
     const el = event.currentTarget;
@@ -272,6 +349,7 @@ export function Timeline({
             className="timeline__item"
           >
             <div className="timeline__item-inner">
+            {message.id === firstUnreadId && <UnreadDivider />}
             {startsNewDay && <DayDivider timestamp={message.timestamp} />}
             {view === "bubbles" ? (
               <BubbleMessage
@@ -557,6 +635,14 @@ function DayDivider({ timestamp }: { timestamp: number }) {
   return (
     <div className="day-divider">
       <span>{dayLabel(timestamp)}</span>
+    </div>
+  );
+}
+
+function UnreadDivider() {
+  return (
+    <div className="unread-divider">
+      <span>Новые сообщения</span>
     </div>
   );
 }
