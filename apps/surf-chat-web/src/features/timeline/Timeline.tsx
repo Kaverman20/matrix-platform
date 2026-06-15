@@ -32,7 +32,6 @@ type Props = {
 const TOP_THRESHOLD = 160;
 const SCROLL_STORAGE_PREFIX = "surf-chat:room-scroll:";
 const BOTTOM_THRESHOLD = 160;
-const INITIAL_BOTTOM_LOCK_MS = 1800;
 
 const scrollStorageKey = (roomId: string) => `${SCROLL_STORAGE_PREFIX}${roomId}`;
 
@@ -89,10 +88,6 @@ export function Timeline({
   const didInit = useRef(false);
   // Whether the view is pinned to the bottom (true until the user scrolls up).
   const stick = useRef(true);
-  // During first paint, virtual rows and media can change measured heights for a
-  // moment. If the saved position was the bottom, keep it pinned while that
-  // settles instead of restoring a stale offset a few messages above.
-  const bottomLockUntil = useRef(0);
   // TanStack Virtual manages scroll measurement internally; this hook is expected here.
   // eslint-disable-next-line react-hooks/incompatible-library
   const rowVirtualizer = useVirtualizer({
@@ -143,7 +138,6 @@ export function Timeline({
       const savedDistance = getStoredDistanceFromBottom(room.id);
       if (savedDistance === null || savedDistance < BOTTOM_THRESHOLD) {
         stick.current = true;
-        bottomLockUntil.current = Date.now() + INITIAL_BOTTOM_LOCK_MS;
         pinToBottom(room.id, el);
       } else {
         el.scrollTop = Math.max(0, el.scrollHeight - el.clientHeight - savedDistance);
@@ -153,21 +147,6 @@ export function Timeline({
     }
     didInit.current = true;
   }, [messages.length, room.id, rowVirtualizer]);
-
-  useEffect(() => {
-    if (bottomLockUntil.current <= Date.now()) return;
-
-    let frame = 0;
-    const keepPinned = () => {
-      const el = scrollRef.current;
-      if (!el || Date.now() > bottomLockUntil.current) return;
-      pinToBottom(room.id, el);
-      frame = window.requestAnimationFrame(keepPinned);
-    };
-
-    frame = window.requestAnimationFrame(keepPinned);
-    return () => window.cancelAnimationFrame(frame);
-  }, [messages.length, room.id]);
 
   // Late layout (images decoding, reactions) grows the content after the initial
   // scroll — keep the view glued to the bottom while the user is at the bottom.
@@ -197,12 +176,6 @@ export function Timeline({
 
   const handleScroll = (event: UIEvent<HTMLDivElement>) => {
     const el = event.currentTarget;
-    if (bottomLockUntil.current > Date.now()) {
-      stick.current = true;
-      storeDistanceFromBottom(room.id, el, true);
-      return;
-    }
-
     stick.current = isNearBottom(el);
     storeDistanceFromBottom(room.id, el, stick.current);
     if (el.scrollTop <= TOP_THRESHOLD) runLoad();
