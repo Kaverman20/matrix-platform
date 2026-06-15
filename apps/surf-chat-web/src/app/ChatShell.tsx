@@ -52,7 +52,10 @@ import { ThreadPanel } from "../features/threads/ThreadPanel";
 import { ThreadsListPanel } from "../features/threads/ThreadsListPanel";
 import { Timeline } from "../features/timeline/Timeline";
 import { usePinnedMessages } from "../features/timeline/usePinnedMessages";
-import { useTimelineMessages } from "../features/timeline/useTimelineMessages";
+import {
+  usePreloadTimelineMessages,
+  useTimelineMessages,
+} from "../features/timeline/useTimelineMessages";
 import { formatTypingLabel, useTyping } from "../features/timeline/useTyping";
 import "./chat-shell.css";
 
@@ -116,6 +119,8 @@ export function ChatShell() {
     ],
     [roomGroups.channels, roomGroups.dms, roomGroups.favourites],
   );
+  const allRoomIds = useMemo(() => allRooms.map((room) => room.id), [allRooms]);
+  usePreloadTimelineMessages(client, allRoomIds);
   const effectiveActiveSpaceId = useMemo(
     () => (activeSpaceId && roomGroups.spaces.some((space) => space.id === activeSpaceId) ? activeSpaceId : null),
     [activeSpaceId, roomGroups.spaces],
@@ -595,9 +600,13 @@ export function ChatShell() {
 
   // Load historical threads when a room opens so thread chips populate in the
   // timeline (threads outside the initial sync window aren't known otherwise).
+  // Defer it so the first room paint wins over the background network request.
   useEffect(() => {
     if (!client || !activeRoomId) return;
-    void loadRoomThreads(client, activeRoomId);
+    const timer = window.setTimeout(() => {
+      void loadRoomThreads(client, activeRoomId);
+    }, 450);
+    return () => window.clearTimeout(timer);
   }, [client, activeRoomId]);
 
   useEffect(() => {
