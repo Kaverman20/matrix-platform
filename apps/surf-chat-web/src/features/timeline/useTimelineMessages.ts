@@ -2,21 +2,10 @@ import { useEffect, useMemo, useState } from "react";
 import { RoomEvent, RoomStateEvent, ThreadEvent, type MatrixClient } from "matrix-js-sdk";
 import {
   buildTimelineMessages,
-  canPaginateBackwards,
-  paginateBackwards,
   type MatrixMessage,
 } from "@matrix-platform/matrix-core";
 
 const timelineCache = new Map<string, MatrixMessage[]>();
-const warmedRooms = new Set<string>();
-const activeWarmedRooms = new Set<string>();
-
-const BACKGROUND_ROOM_LIMIT = 8;
-const BACKGROUND_PAGE_LIMIT = 60;
-const ACTIVE_PAGE_LIMIT = 120;
-const ACTIVE_WARM_PAGES = 2;
-
-const wait = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms));
 
 export function useTimelineMessages(
   client: MatrixClient | null,
@@ -68,7 +57,6 @@ export function useTimelineMessages(
 export function usePreloadTimelineMessages(
   client: MatrixClient | null,
   roomIds: string[],
-  activeRoomId?: string | null,
 ): void {
   useEffect(() => {
     if (!client || roomIds.length === 0) return;
@@ -102,47 +90,4 @@ export function usePreloadTimelineMessages(
       }
     };
   }, [client, roomIds]);
-
-  useEffect(() => {
-    if (!client || roomIds.length === 0) return;
-
-    let cancelled = false;
-
-    const warmRoom = async (roomId: string, pages: number, limit: number) => {
-      for (let page = 0; page < pages; page += 1) {
-        if (cancelled || !canPaginateBackwards(client, roomId)) return;
-        const added = await paginateBackwards(client, roomId, limit);
-        timelineCache.set(roomId, buildTimelineMessages(client, roomId));
-        if (!added) return;
-        await wait(80);
-      }
-    };
-
-    const run = async () => {
-      if (activeRoomId && !activeWarmedRooms.has(activeRoomId)) {
-        activeWarmedRooms.add(activeRoomId);
-        await warmRoom(activeRoomId, ACTIVE_WARM_PAGES, ACTIVE_PAGE_LIMIT);
-      }
-
-      const backgroundRooms = roomIds
-        .filter((roomId) => roomId !== activeRoomId && !warmedRooms.has(roomId))
-        .slice(0, BACKGROUND_ROOM_LIMIT);
-
-      for (const roomId of backgroundRooms) {
-        if (cancelled) return;
-        warmedRooms.add(roomId);
-        await warmRoom(roomId, 1, BACKGROUND_PAGE_LIMIT);
-        await wait(120);
-      }
-    };
-
-    const timer = window.setTimeout(() => {
-      void run();
-    }, activeRoomId ? 250 : 800);
-
-    return () => {
-      cancelled = true;
-      window.clearTimeout(timer);
-    };
-  }, [client, roomIds, activeRoomId]);
 }

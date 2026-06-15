@@ -30,7 +30,6 @@ type Props = {
 };
 
 const TOP_THRESHOLD = 160;
-const HISTORY_PREFETCH_PAGES = 2;
 const SCROLL_STORAGE_PREFIX = "surf-chat:room-scroll:";
 const BOTTOM_THRESHOLD = 160;
 const INITIAL_BOTTOM_LOCK_MS = 1800;
@@ -194,22 +193,6 @@ export function Timeline({
 
     window.addEventListener("beforeunload", saveBeforeUnload);
     return () => window.removeEventListener("beforeunload", saveBeforeUnload);
-  }, [room.id]);
-
-  // Prepare a little older history after the latest messages are visible. This
-  // keeps first paint fast while reducing "hit loading" moments during the
-  // first upward scroll. It only runs while the user is still at the bottom.
-  useEffect(() => {
-    const el = scrollRef.current;
-    if (!el || atStart || loadingRef.current || !onLoadOlder || messages.length === 0) return;
-
-    const timer = window.setTimeout(() => {
-      if (!stick.current) return;
-      runLoad({ pages: HISTORY_PREFETCH_PAGES, silent: true });
-    }, 450);
-
-    return () => window.clearTimeout(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [room.id]);
 
   const handleScroll = (event: UIEvent<HTMLDivElement>) => {
