@@ -204,7 +204,7 @@ export function Timeline({
     stick.current = true;
     scrollToBottom(room.id, el, "smooth");
     setNewMessagesCount(0);
-    const latestMessageId = messages.at(-1)?.id;
+    const latestMessageId = findLatestReadableMessage(messages)?.id;
     if (latestMessageId) onReadUpTo?.(latestMessageId);
   }, [messages, onReadUpTo, room.id]);
 
@@ -313,7 +313,8 @@ export function Timeline({
     const el = scrollRef.current;
     if (!el || !onReadUpToRef.current) return;
 
-    const order = new Map(messages.map((message, index) => [message.id, index]));
+    const readableMessages = messages.filter((message) => message.kind !== "system");
+    const order = new Map(readableMessages.map((message, index) => [message.id, index]));
     const visible = new Set<string>();
     let timer: number | undefined;
 
@@ -334,7 +335,7 @@ export function Timeline({
     const observer = new IntersectionObserver(
       (entries) => {
         for (const entry of entries) {
-          const id = (entry.target as HTMLElement).dataset.messageId;
+          const id = (entry.target as HTMLElement).dataset.readableId;
           if (!id) continue;
           if (entry.isIntersecting) visible.add(id);
           else visible.delete(id);
@@ -345,7 +346,7 @@ export function Timeline({
       { root: el, threshold: 0.6 },
     );
 
-    el.querySelectorAll<HTMLElement>(".timeline__item[data-message-id]").forEach((node) =>
+    el.querySelectorAll<HTMLElement>(".timeline__item[data-readable-id]").forEach((node) =>
       observer.observe(node),
     );
 
@@ -385,13 +386,18 @@ export function Timeline({
         const previous = messages[index - 1];
         const next = messages[index + 1];
         const startsNewDay = !previous || !isSameDay(previous.timestamp, message.timestamp);
+        const isSystem = message.kind === "system";
         const compact =
+          !isSystem &&
           Boolean(previous) &&
+          previous.kind !== "system" &&
           !startsNewDay &&
           previous.sender === message.sender &&
           message.timestamp - previous.timestamp < 5 * 60 * 1000;
         const groupEnd =
+          isSystem ||
           !next ||
+          next.kind === "system" ||
           !isSameDay(next.timestamp, message.timestamp) ||
           next.sender !== message.sender ||
           next.timestamp - message.timestamp >= 5 * 60 * 1000;
@@ -400,12 +406,15 @@ export function Timeline({
           <div
             key={message.id}
             data-message-id={message.id}
+            data-readable-id={isSystem ? undefined : message.id}
             className="timeline__item"
           >
             <div className="timeline__item-inner">
             {message.id === firstUnreadId && <UnreadDivider />}
             {startsNewDay && <DayDivider timestamp={message.timestamp} />}
-            {view === "bubbles" ? (
+            {isSystem ? (
+              <SystemMessage message={message} />
+            ) : view === "bubbles" ? (
               <BubbleMessage
                 compact={compact}
                 groupEnd={groupEnd}
@@ -450,6 +459,23 @@ export function Timeline({
       </AnimatePresence>
     </section>
   );
+}
+
+function SystemMessage({ message }: { message: MatrixMessage }) {
+  return (
+    <div className="system-message" data-mid={message.id}>
+      <span>{message.text}</span>
+      <time>{message.time}</time>
+    </div>
+  );
+}
+
+function findLatestReadableMessage(messages: MatrixMessage[]): MatrixMessage | undefined {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index];
+    if (message.kind !== "system") return message;
+  }
+  return undefined;
 }
 
 function FlatMessage({

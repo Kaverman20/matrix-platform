@@ -61,17 +61,36 @@ function buildMessagesFromEvents(
   );
 
   return events
-    .filter((event) => isRealMessageEvent(event))
-    .map((event, index) => {
+    .map((event, index): MatrixMessage | null => {
       const sender = event.getSender() ?? "";
       const member = room.getMember(sender);
       const eventId = event.getId() ?? event.getTxnId() ?? `${sender}:${event.getTs()}:${index}`;
+      const systemText = getSystemEventText(room, event);
+      if (systemText) {
+        return {
+          id: eventId,
+          kind: "system",
+          sender,
+          author: member?.name || sender,
+          time: formatTime(event.getTs()),
+          timestamp: event.getTs(),
+          text: systemText,
+          color: colorForId(sender),
+          own: false,
+          edited: false,
+          reactions: [],
+        };
+      }
+
+      if (!isRealMessageEvent(event)) return null;
+
       const own = sender === me;
       const text = getEffectiveText(event);
       const content = event.getContent();
 
       return {
         id: eventId,
+        kind: "message",
         sender,
         author: member?.name || sender,
         time: formatTime(event.getTs()),
@@ -89,7 +108,8 @@ function buildMessagesFromEvents(
         pinned: pinnedIds.has(eventId),
         thread: getThreadSummary(room, eventId),
       };
-    });
+    })
+    .filter((message): message is MatrixMessage => Boolean(message));
 }
 
 function getDeliveryStatus(
@@ -211,6 +231,96 @@ function isRealMessageEvent(event: MatrixEvent): boolean {
   const content = event.getContent();
   const relation = content["m.relates_to"] as { rel_type?: string } | undefined;
   return relation?.rel_type !== "m.replace";
+}
+
+function getSystemEventText(room: Room, event: MatrixEvent): string | null {
+  if (event.isRedacted()) return null;
+
+  const type = event.getType();
+  const sender = event.getSender() ?? "";
+  const actor = room.getMember(sender)?.name || sender;
+  const content = event.getContent();
+
+  switch (type) {
+    case "m.room.create":
+      return "Комната создана";
+    case "m.room.name": {
+      const name = typeof content.name === "string" ? content.name.trim() : "";
+      return name ? `${actor} изменил название на «${name}»` : `${actor} удалил название комнаты`;
+    }
+    case "m.room.topic": {
+      const topic = typeof content.topic === "string" ? content.topic.trim() : "";
+      return topic ? `${actor} изменил тему комнаты` : `${actor} удалил тему комнаты`;
+    }
+    case "m.room.avatar":
+      return typeof content.url === "string" && content.url
+        ? `${actor} обновил аватар комнаты`
+        : `${actor} удалил аватар комнаты`;
+    case "m.room.encryption":
+      return "В комнате включено шифрование";
+    case "m.room.pinned_events":
+      return getPinnedSystemText(event, actor);
+    case "m.room.member":
+      return getMemberSystemText(room, event, actor, sender);
+    default:
+      return null;
+  }
+}
+
+function getMemberSystemText(
+  room: Room,
+  event: MatrixEvent,
+  actor: string,
+  sender: string,
+): string | null {
+  const targetId = event.getStateKey();
+  if (!targetId) return null;
+
+  const content = event.getContent();
+  const prev = event.getPrevContent();
+  const membership = typeof content.membership === "string" ? content.membership : "";
+  const prevMembership = typeof prev.membership === "string" ? prev.membership : "";
+  const target = room.getMember(targetId)?.name
+    || (typeof content.displayname === "string" ? content.displayname : "")
+    || targetId;
+  const changedProfile =
+    membership === "join" &&
+    prevMembership === "join" &&
+    (content.displayname !== prev.displayname || content.avatar_url !== prev.avatar_url);
+
+  if (changedProfile) return null;
+
+  if (membership === "invite") {
+    return sender === targetId ? `${target} получил приглашение` : `${actor} пригласил ${target}`;
+  }
+
+  if (membership === "join") {
+    if (prevMembership === "invite") return `${target} принял приглашение`;
+    return `${target} присоединился`;
+  }
+
+  if (membership === "leave") {
+    if (prevMembership === "invite") {
+      return sender === targetId ? `${target} отклонил приглашение` : `${actor} отменил приглашение для ${target}`;
+    }
+    return sender === targetId ? `${target} вышел` : `${actor} удалил ${target}`;
+  }
+
+  if (membership === "ban") return `${actor} заблокировал ${target}`;
+  if (membership === "knock") return `${target} запросил доступ`;
+
+  return null;
+}
+
+function getPinnedSystemText(event: MatrixEvent, actor: string): string | null {
+  const current = event.getContent().pinned;
+  const previous = event.getPrevContent().pinned;
+  const currentCount = Array.isArray(current) ? current.length : 0;
+  const previousCount = Array.isArray(previous) ? previous.length : 0;
+
+  if (currentCount > previousCount) return `${actor} закрепил сообщение`;
+  if (currentCount < previousCount) return `${actor} открепил сообщение`;
+  return null;
 }
 
 function getEffectiveText(event: MatrixEvent): { value: string; edited: boolean } {

@@ -1,5 +1,6 @@
 export type MatrixMessage = {
   id: string;
+  kind?: "message" | "system";
   sender: string;
   author: string;
   time: string;
