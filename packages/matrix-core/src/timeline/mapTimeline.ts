@@ -1,7 +1,8 @@
-import { EventTimeline, type MatrixClient, type MatrixEvent, type Room } from "matrix-js-sdk";
+import { EventStatus, EventTimeline, type MatrixClient, type MatrixEvent, type Room } from "matrix-js-sdk";
 import { colorForId } from "../rooms/colors";
 import type {
   MatrixMessage,
+  MatrixDeliveryStatus,
   MatrixMedia,
   MatrixMessageReference,
   MatrixReaction,
@@ -65,6 +66,7 @@ function buildMessagesFromEvents(
       const sender = event.getSender() ?? "";
       const member = room.getMember(sender);
       const eventId = event.getId() ?? event.getTxnId() ?? `${sender}:${event.getTs()}:${index}`;
+      const own = sender === me;
       const text = getEffectiveText(event);
       const content = event.getContent();
 
@@ -78,7 +80,8 @@ function buildMessagesFromEvents(
         color: colorForId(sender),
         avatarUrl: getMemberAvatarUrl(client, member),
         media: resolveMedia(client, content),
-        own: sender === me,
+        own,
+        deliveryStatus: own ? getDeliveryStatus(room, event, eventId, me) : undefined,
         edited: text.edited,
         forwardedFrom: getForwardedFrom(event),
         reactions: reactionsByTarget.get(eventId) ?? [],
@@ -87,6 +90,38 @@ function buildMessagesFromEvents(
         thread: getThreadSummary(room, eventId),
       };
     });
+}
+
+function getDeliveryStatus(
+  room: Room,
+  event: MatrixEvent,
+  eventId: string,
+  me: string | null,
+): MatrixDeliveryStatus {
+  if (event.status === EventStatus.NOT_SENT || event.status === EventStatus.CANCELLED) {
+    return "error";
+  }
+
+  if (
+    event.status === EventStatus.SENDING ||
+    event.status === EventStatus.QUEUED ||
+    event.status === EventStatus.ENCRYPTING ||
+    eventId.startsWith("~")
+  ) {
+    return "sending";
+  }
+
+  if (eventId && me && hasOtherUserReadEvent(room, eventId, me)) {
+    return "read";
+  }
+
+  return "sent";
+}
+
+function hasOtherUserReadEvent(room: Room, eventId: string, me: string): boolean {
+  return room
+    .getJoinedMembers()
+    .some((member) => member.userId !== me && room.hasUserReadEvent(member.userId, eventId));
 }
 
 function getThreadSummary(room: Room, rootId: string): MatrixThreadSummary | undefined {

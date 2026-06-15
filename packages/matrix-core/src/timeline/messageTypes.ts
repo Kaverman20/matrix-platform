@@ -9,6 +9,7 @@ export type MatrixMessage = {
   avatarUrl?: string;
   media?: MatrixMedia;
   own: boolean;
+  deliveryStatus?: MatrixDeliveryStatus;
   edited: boolean;
   forwardedFrom?: string;
   reactions: MatrixReaction[];
@@ -16,6 +17,8 @@ export type MatrixMessage = {
   pinned?: boolean;
   thread?: MatrixThreadSummary;
 };
+
+export type MatrixDeliveryStatus = "sending" | "sent" | "read" | "error";
 
 export type MatrixThreadSummary = {
   /** Number of replies in the thread (excludes the root message). */

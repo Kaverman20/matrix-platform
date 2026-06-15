@@ -24,6 +24,8 @@ export function useTimelineMessages(
     };
 
     room.on(RoomEvent.Timeline, bump);
+    room.on(RoomEvent.LocalEchoUpdated, bump);
+    room.on(RoomEvent.Receipt, bump);
     room.on(RoomEvent.Redaction, bump);
     room.on(ThreadEvent.New, bump);
     room.on(ThreadEvent.Update, bump);
@@ -34,6 +36,8 @@ export function useTimelineMessages(
 
     return () => {
       room.off(RoomEvent.Timeline, bump);
+      room.off(RoomEvent.LocalEchoUpdated, bump);
+      room.off(RoomEvent.Receipt, bump);
       room.off(RoomEvent.Redaction, bump);
       room.off(ThreadEvent.New, bump);
       room.off(ThreadEvent.Update, bump);

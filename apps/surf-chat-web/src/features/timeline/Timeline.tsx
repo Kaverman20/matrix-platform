@@ -9,7 +9,7 @@ import {
   type WheelEvent,
 } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { CheckCheck, Forward, Hash, MessagesSquare } from "lucide-react";
+import { AlertCircle, Check, CheckCheck, Clock3, Forward, Hash, MessagesSquare } from "lucide-react";
 import type { MatrixMessage, MatrixRoomSummary } from "@matrix-platform/matrix-core";
 import { MessageMedia } from "../media/MessageMedia";
 import { ReactionPill } from "../reactions/ReactionPill";
@@ -510,7 +510,7 @@ function FlatMessage({
       </div>
       <div className="message__aside">
         <time>{message.time}</time>
-        {message.own && <CheckCheck size={14} className="message__check" />}
+        {message.own && <DeliveryStatus status={message.deliveryStatus} />}
       </div>
     </article>
   );
@@ -582,11 +582,34 @@ function BubbleMessage({
         <div className="bubble__time">
           {message.edited && <span className="message__edited">изменено</span>}
           {message.time}
-          {message.own && <CheckCheck size={13} />}
+          {message.own && <DeliveryStatus status={message.deliveryStatus} compact />}
         </div>
       </div>
     </article>
   );
+}
+
+function DeliveryStatus({
+  status = "sent",
+  compact = false,
+}: {
+  status?: MatrixMessage["deliveryStatus"];
+  compact?: boolean;
+}) {
+  const size = compact ? 13 : 14;
+  const className = `message__delivery message__delivery--${status}`;
+
+  switch (status) {
+    case "sending":
+      return <Clock3 size={size} className={className} aria-label="Отправляется" />;
+    case "read":
+      return <CheckCheck size={size} className={className} aria-label="Прочитано" />;
+    case "error":
+      return <AlertCircle size={size} className={className} aria-label="Ошибка отправки" />;
+    case "sent":
+    default:
+      return <Check size={size} className={className} aria-label="Отправлено" />;
+  }
 }
 
 function MessageContent({

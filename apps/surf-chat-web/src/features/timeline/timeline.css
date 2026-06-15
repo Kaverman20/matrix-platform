@@ -264,9 +264,21 @@
   font-variant-numeric: tabular-nums;
 }
 
-.message__check {
+.message__delivery {
   flex: 0 0 auto;
+}
+
+.message__delivery--sent,
+.message__delivery--read {
   color: #4fae6e;
+}
+
+.message__delivery--sending {
+  color: var(--color-text-faint);
+}
+
+.message__delivery--error {
+  color: #d94d4d;
 }
 
 .message__reply-preview {
