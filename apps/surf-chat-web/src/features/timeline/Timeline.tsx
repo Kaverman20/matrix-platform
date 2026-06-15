@@ -112,6 +112,7 @@ export function Timeline({
   const contentRef = useRef<HTMLDivElement>(null);
   const loadingRef = useRef(false);
   const [loading, setLoading] = useState(false);
+  const [newMessagesCount, setNewMessagesCount] = useState(0);
   // Becomes true once paginating returns no more messages — i.e. we've reached
   // the very start of the room. The component is keyed by room id and remounts
   // on room switch, so this resets automatically per room.
@@ -130,6 +131,7 @@ export function Timeline({
   const reachedStart = useRef(false);
   // Whether the view is pinned to the bottom (true until the user scrolls up).
   const stick = useRef(true);
+  const tailMessageId = useRef<string | null>(null);
 
   useEffect(() => {
     if (!hasOlder || !atStart || reachedStart.current) return;
@@ -169,6 +171,37 @@ export function Timeline({
       if (!silent) setLoading(false);
     });
   }, [atStart, onLoadOlder]);
+
+  useEffect(() => {
+    const currentTail = messages.at(-1)?.id ?? null;
+    const previousTail = tailMessageId.current;
+    tailMessageId.current = currentTail;
+
+    if (!currentTail || !previousTail || currentTail === previousTail) return;
+
+    const previousTailIndex = messages.findIndex((message) => message.id === previousTail);
+    if (previousTailIndex === -1) return;
+
+    const appendedCount = messages.length - previousTailIndex - 1;
+    if (appendedCount <= 0) return;
+
+    if (stick.current) {
+      setNewMessagesCount(0);
+      return;
+    }
+
+    setNewMessagesCount((count) => count + appendedCount);
+  }, [messages]);
+
+  const scrollToLatest = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    stick.current = true;
+    pinToBottom(room.id, el);
+    setNewMessagesCount(0);
+    const latestMessageId = messages.at(-1)?.id;
+    if (latestMessageId) onReadUpTo?.(latestMessageId);
+  }, [messages, onReadUpTo, room.id]);
 
   // Telegram-style entry: Matrix's initial sync only delivers a small window of
   // recent events, so a fresh room often has fewer messages than fit on screen.
@@ -267,7 +300,10 @@ export function Timeline({
   // opened. Reports the latest currently-visible message; the caller (and the
   // SDK) ignore anything that wouldn't move the receipt forward.
   const onReadUpToRef = useRef(onReadUpTo);
-  onReadUpToRef.current = onReadUpTo;
+  useEffect(() => {
+    onReadUpToRef.current = onReadUpTo;
+  }, [onReadUpTo]);
+
   useEffect(() => {
     const el = scrollRef.current;
     if (!el || !onReadUpToRef.current) return;
@@ -317,6 +353,7 @@ export function Timeline({
   const handleScroll = (event: UIEvent<HTMLDivElement>) => {
     const el = event.currentTarget;
     stick.current = isNearBottom(el);
+    if (stick.current) setNewMessagesCount(0);
     storeDistanceFromBottom(room.id, el, stick.current);
     if (el.scrollTop <= TOP_THRESHOLD) runLoad();
   };
@@ -391,6 +428,21 @@ export function Timeline({
       })}
       {messages.length === 0 && <div className="timeline__empty">Сообщений пока нет.</div>}
       </div>
+      <AnimatePresence initial={false}>
+        {newMessagesCount > 0 && (
+          <motion.button
+            type="button"
+            className="timeline__new-messages"
+            onClick={scrollToLatest}
+            initial={{ opacity: 0, y: 12, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 12, scale: 0.98 }}
+            transition={{ duration: 0.16 }}
+          >
+            {newMessagesLabel(newMessagesCount)}
+          </motion.button>
+        )}
+      </AnimatePresence>
     </section>
   );
 }
@@ -657,6 +709,16 @@ function UnreadDivider() {
       <span>Новые сообщения</span>
     </div>
   );
+}
+
+function newMessagesLabel(count: number): string {
+  if (count === 1) return "1 новое сообщение";
+  const mod10 = count % 10;
+  const mod100 = count % 100;
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) {
+    return `${count} новых сообщения`;
+  }
+  return `${count} новых сообщений`;
 }
 
 function isSameDay(a: number, b: number): boolean {

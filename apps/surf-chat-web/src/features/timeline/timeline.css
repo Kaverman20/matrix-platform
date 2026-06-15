@@ -77,6 +77,28 @@
   text-align: center;
 }
 
+.timeline__new-messages {
+  position: sticky;
+  bottom: var(--space-3);
+  z-index: 5;
+  align-self: center;
+  margin: var(--space-3) auto 0;
+  border: 1px solid color-mix(in srgb, var(--color-accent, #6b5bd6) 34%, transparent);
+  border-radius: var(--radius-pill);
+  padding: 8px 14px;
+  color: var(--color-text-onAccent);
+  background: var(--color-accent, #6b5bd6);
+  box-shadow: var(--shadow-lg);
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.timeline__new-messages:hover {
+  filter: brightness(1.04);
+}
+
 .timeline__intro {
   display: flex;
   flex-direction: column;

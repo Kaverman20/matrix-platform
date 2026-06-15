@@ -1,6 +1,12 @@
-import { useRef } from "react";
 import type { MatrixClient } from "matrix-js-sdk";
 import { getReadUpToEventId, type MatrixMessage } from "@matrix-platform/matrix-core";
+
+type FirstUnreadCacheEntry = {
+  firstUnreadId: string | null;
+  resolved: boolean;
+};
+
+const firstUnreadByRoom = new Map<string, FirstUnreadCacheEntry>();
 
 /**
  * The id of the first unread message in the active room, frozen for as long as
@@ -20,45 +26,44 @@ export function useFirstUnread(
   roomId: string | null,
   messages: MatrixMessage[],
 ): string | null {
-  const cache = useRef<{ roomId: string | null; firstUnreadId: string | null; resolved: boolean }>(
-    { roomId: null, firstUnreadId: null, resolved: false },
-  );
+  if (!roomId) return null;
 
-  if (cache.current.roomId !== roomId) {
-    cache.current = { roomId, firstUnreadId: null, resolved: false };
+  const cached = firstUnreadByRoom.get(roomId);
+  if (cached?.resolved) return cached.firstUnreadId;
+  if (!client || messages.length === 0) return cached?.firstUnreadId ?? null;
+
+  const room = client.getRoom(roomId);
+  const me = client.getUserId();
+  const readUpToId = getReadUpToEventId(client, roomId);
+
+  if (!room || !readUpToId) {
+    // No room or no read receipt — nothing to anchor a divider to.
+    firstUnreadByRoom.set(roomId, { firstUnreadId: null, resolved: true });
+    return null;
   }
 
-  if (!cache.current.resolved && client && roomId && messages.length > 0) {
-    const room = client.getRoom(roomId);
-    const me = client.getUserId();
-    const readUpToId = getReadUpToEventId(client, roomId);
-
-    if (!room || !readUpToId) {
-      // No room or no read receipt — nothing to anchor a divider to.
-      cache.current.resolved = true;
-    } else {
-      const events = room.getLiveTimeline().getEvents();
-      const readIndex = events.findIndex((event) => event.getId() === readUpToId);
-      if (readIndex >= 0) {
-        // First message from someone else after the read marker (a divider before
-        // our own message would look odd).
-        const firstUnread = events.slice(readIndex + 1).find((event) => {
-          const id = event.getId();
-          return (
-            event.getType() === "m.room.message" &&
-            !event.isRedacted() &&
-            event.getSender() !== me &&
-            Boolean(id) &&
-            !id!.startsWith("~")
-          );
-        });
-        cache.current.firstUnreadId = firstUnread?.getId() ?? null;
-        cache.current.resolved = true;
-      }
-      // readIndex < 0: the read marker isn't in the loaded window yet — leave it
-      // unresolved and retry on the next render once the timeline settles.
-    }
+  const events = room.getLiveTimeline().getEvents();
+  const readIndex = events.findIndex((event) => event.getId() === readUpToId);
+  if (readIndex < 0) {
+    // The read marker isn't in the loaded window yet — leave it unresolved and
+    // retry on the next render once the timeline settles.
+    return cached?.firstUnreadId ?? null;
   }
 
-  return cache.current.firstUnreadId;
+  // First message from someone else after the read marker (a divider before our
+  // own message would look odd).
+  const firstUnread = events.slice(readIndex + 1).find((event) => {
+    const id = event.getId();
+    return (
+      event.getType() === "m.room.message" &&
+      !event.isRedacted() &&
+      event.getSender() !== me &&
+      Boolean(id) &&
+      !id!.startsWith("~")
+    );
+  });
+
+  const firstUnreadId = firstUnread?.getId() ?? null;
+  firstUnreadByRoom.set(roomId, { firstUnreadId, resolved: true });
+  return firstUnreadId;
 }
