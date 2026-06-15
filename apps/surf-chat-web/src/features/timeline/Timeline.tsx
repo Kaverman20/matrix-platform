@@ -6,6 +6,7 @@ import {
   type CSSProperties,
   type SyntheticEvent,
   type UIEvent,
+  type WheelEvent,
 } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { AnimatePresence, motion } from "framer-motion";
@@ -99,6 +100,12 @@ export function Timeline({
   });
   const virtualItems = rowVirtualizer.getVirtualItems();
 
+  useEffect(() => {
+    if (!hasOlder || !atStart) return;
+    // hasOlder can become known after the first Matrix sync tick.
+    setAtStart(false);
+  }, [atStart, hasOlder]);
+
   const runLoad = (options: { pages?: number; silent?: boolean } = {}) => {
     const el = scrollRef.current;
     if (!el || !onLoadOlder || atStart || loadingRef.current) return;
@@ -181,11 +188,18 @@ export function Timeline({
     if (el.scrollTop <= TOP_THRESHOLD) runLoad();
   };
 
+  const handleWheel = (event: WheelEvent<HTMLDivElement>) => {
+    if (event.deltaY >= 0) return;
+    const el = event.currentTarget;
+    if (el.scrollTop <= TOP_THRESHOLD) runLoad();
+  };
+
   return (
     <section
       key={room.id}
       ref={scrollRef}
       onScroll={handleScroll}
+      onWheel={handleWheel}
       className={`timeline${view === "bubbles" ? " timeline--bubbles" : ""}`}
     >
       <div className="timeline__spacer" />
