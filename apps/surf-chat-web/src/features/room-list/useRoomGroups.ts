@@ -30,6 +30,7 @@ export function useRoomGroups(client: MatrixClient | null): MatrixRoomGroups {
     };
 
     client.on(ClientEvent.Sync, bump);
+    client.on(ClientEvent.Room, bump);
     client.on(ClientEvent.AccountData, bump);
     client.on(RoomEvent.Timeline, bump);
     client.on(RoomEvent.Name, bump);
@@ -50,6 +51,7 @@ export function useRoomGroups(client: MatrixClient | null): MatrixRoomGroups {
     return () => {
       if (timer) window.clearTimeout(timer);
       client.off(ClientEvent.Sync, bump);
+      client.off(ClientEvent.Room, bump);
       client.off(ClientEvent.AccountData, bump);
       client.off(RoomEvent.Timeline, bump);
       client.off(RoomEvent.Name, bump);
