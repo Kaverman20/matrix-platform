@@ -42,7 +42,12 @@ function getStoredDistanceFromBottom(roomId: string): number | null {
   return Number.isFinite(value) && value >= 0 ? value : null;
 }
 
-function storeDistanceFromBottom(roomId: string, el: HTMLElement): void {
+function storeDistanceFromBottom(roomId: string, el: HTMLElement, pinnedToBottom = false): void {
+  if (pinnedToBottom) {
+    window.localStorage.setItem(scrollStorageKey(roomId), "0");
+    return;
+  }
+
   const distance = Math.max(0, el.scrollHeight - el.scrollTop - el.clientHeight);
   window.localStorage.setItem(scrollStorageKey(roomId), String(Math.round(distance)));
 }
@@ -125,8 +130,12 @@ export function Timeline({
       el.scrollTop = savedDistance === null
         ? el.scrollHeight
         : Math.max(0, el.scrollHeight - el.clientHeight - savedDistance);
+      if (savedDistance === null || savedDistance < 80) {
+        storeDistanceFromBottom(room.id, el, true);
+      }
     } else if (stick.current) {
       el.scrollTop = el.scrollHeight;
+      storeDistanceFromBottom(room.id, el, true);
     }
     didInit.current = true;
   }, [messages.length, room.id, rowVirtualizer]);
@@ -140,11 +149,12 @@ export function Timeline({
     const observer = new ResizeObserver(() => {
       if (restoreFromBottom.current === null && stick.current) {
         el.scrollTop = el.scrollHeight;
+        storeDistanceFromBottom(room.id, el, true);
       }
     });
     observer.observe(content);
     return () => observer.disconnect();
-  }, []);
+  }, [room.id]);
 
   // Prepare a little older history after the latest messages are visible. This
   // keeps first paint fast while reducing "hit loading" moments during the
@@ -165,7 +175,7 @@ export function Timeline({
   const handleScroll = (event: UIEvent<HTMLDivElement>) => {
     const el = event.currentTarget;
     stick.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
-    storeDistanceFromBottom(room.id, el);
+    storeDistanceFromBottom(room.id, el, stick.current);
     if (el.scrollTop <= TOP_THRESHOLD) runLoad();
   };
 
