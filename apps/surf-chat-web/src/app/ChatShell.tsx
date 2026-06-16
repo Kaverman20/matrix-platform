@@ -18,6 +18,7 @@ import {
 } from "@matrix-platform/matrix-core";
 import { useMatrix } from "./providers/MatrixContext";
 import { Composer, type ComposerHandle } from "../features/composer/Composer";
+import { useComposerMode } from "../features/composer/useComposerMode";
 import { ForwardModal } from "../features/forward/ForwardModal";
 import { Lightbox } from "../features/media/Lightbox";
 import {
@@ -62,9 +63,6 @@ export function ChatShell() {
   const [activeRoomId, setActiveRoomId] = useState<string | null>(
     () => window.localStorage.getItem(ACTIVE_ROOM_STORAGE_KEY),
   );
-  const [replyTo, setReplyTo] = useState<MatrixMessageReference | null>(null);
-  const [editingMessage, setEditingMessage] = useState<MatrixMessageReference | null>(null);
-  const [pendingForward, setPendingForward] = useState<MatrixForwardData[] | null>(null);
   const [forwarding, setForwarding] = useState<MatrixForwardData[] | null>(null);
   const [lightbox, setLightbox] = useState<string | null>(null);
   const [chatView, setChatView] = useState<ChatView>(
@@ -183,6 +181,8 @@ export function ChatShell() {
   const activeRoom = useMemo(() => {
     return allRooms.find((room) => room.id === activeRoomId) ?? null;
   }, [activeRoomId, allRooms]);
+  const composerMode = useComposerMode(activeRoom?.id);
+  const clearComposerMode = composerMode.clearComposerMode;
   const messages = useTimelineMessages(client, activeRoomId);
   const pinnedMessages = usePinnedMessages(client, activeRoomId, optimisticPinnedIds);
   const typingLabel = formatTypingLabel(useTyping(client, activeRoomId));
@@ -251,31 +251,6 @@ export function ChatShell() {
     return myLevel >= requiredLevel;
   }, [activeMatrixRoom, client]);
 
-  const messageReference = (message: MatrixMessage): MatrixMessageReference => ({
-    id: message.id,
-    sender: message.sender,
-    author: message.own ? "Вы" : message.author,
-    text: message.text,
-  });
-
-  const startReply = (message: MatrixMessage) => {
-    setEditingMessage(null);
-    setPendingForward(null);
-    setReplyTo(messageReference(message));
-  };
-
-  const startEdit = (message: MatrixMessage) => {
-    setReplyTo(null);
-    setPendingForward(null);
-    setEditingMessage(messageReference(message));
-  };
-
-  const clearComposerMode = () => {
-    setReplyTo(null);
-    setEditingMessage(null);
-    setPendingForward(null);
-  };
-
   const selectRoom = (roomId: string) => {
     setActiveRoomId(roomId);
     setRightPanelSection("overview");
@@ -332,17 +307,6 @@ export function ChatShell() {
     }
   };
 
-  const composerKey = [
-    activeRoom?.id ?? "none",
-    editingMessage
-      ? `edit:${editingMessage.id}`
-      : pendingForward
-        ? `forward:${pendingForward.map((item) => item.sender + item.preview).join("|")}`
-        : replyTo
-          ? `reply:${replyTo.id}`
-          : "plain",
-  ].join(":");
-
   const openMessageMenu = (
     message: MatrixMessage,
     x: number,
@@ -358,13 +322,13 @@ export function ChatShell() {
 
     // Reply / edit inside the thread stay in the thread composer.
     if (action === "reply") {
-      if (inThread) setThreadReplyTo(messageReference(message));
-      else startReply(message);
+      if (inThread) setThreadReplyTo(composerMode.messageReference(message));
+      else composerMode.startReply(message);
     }
     if (action === "thread") openThread(message.id);
     if (action === "edit") {
-      if (inThread) setThreadEditing(messageReference(message));
-      else startEdit(message);
+      if (inThread) setThreadEditing(composerMode.messageReference(message));
+      else composerMode.startEdit(message);
     }
     if (action === "copy" && message.text) void navigator.clipboard.writeText(message.text);
     if (action === "forward") {
@@ -459,9 +423,7 @@ export function ChatShell() {
     setPinnedIndex(0);
     setHighlightMessageId(null);
     setOptimisticPinnedIds(null);
-    setPendingForward(forwarding);
-    setReplyTo(null);
-    setEditingMessage(null);
+    composerMode.startForward(forwarding);
     setForwarding(null);
   };
 
@@ -623,7 +585,7 @@ export function ChatShell() {
 
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, []);
+  }, [clearComposerMode]);
 
   return (
     <div className="chat-shell">
@@ -727,14 +689,14 @@ export function ChatShell() {
             />
             <Composer
               ref={composerRef}
-              key={composerKey}
+              key={composerMode.composerKey}
               roomId={activeRoom.id}
-              editingMessage={editingMessage}
-              pendingForward={pendingForward}
-              replyTo={replyTo}
-              onCancelEdit={() => setEditingMessage(null)}
-              onCancelForward={() => setPendingForward(null)}
-              onCancelReply={() => setReplyTo(null)}
+              editingMessage={composerMode.editingMessage}
+              pendingForward={composerMode.pendingForward}
+              replyTo={composerMode.replyTo}
+              onCancelEdit={composerMode.cancelEdit}
+              onCancelForward={composerMode.cancelForward}
+              onCancelReply={composerMode.cancelReply}
               onSent={clearComposerMode}
             />
           </>
