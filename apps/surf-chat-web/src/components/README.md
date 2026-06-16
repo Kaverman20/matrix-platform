@@ -1,8 +1,7 @@
-# Components (planned)
+# Components
 
-Shared app-level UI components. These components should not depend on Matrix SDK
-details.
+Shared app-level UI components. These components must not depend on Matrix SDK
+details (that boundary lives in `@matrix-platform/matrix-core`).
 
-**Status:** placeholder, not used yet. Reusable UI currently lives in the
-`@matrix-platform/ui` package and in `features/*`. Intentionally empty — kept as
-a marker, not dead/forgotten code.
+- `EmojiPicker` — lazily-loaded emoji-mart wrapper (keeps the ~510 kB emoji set
+  off the initial bundle; loaded only when a picker opens).

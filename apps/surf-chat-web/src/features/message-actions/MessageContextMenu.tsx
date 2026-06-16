@@ -1,8 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { ArrowLeft, ChevronRight, Copy, Forward, MessagesSquare, Pencil, Pin, Reply, Trash2 } from "lucide-react";
-import data from "@emoji-mart/data";
-import Picker from "@emoji-mart/react";
 import type { MatrixMessage } from "@matrix-platform/matrix-core";
+import { EmojiPicker } from "../../components/EmojiPicker";
 import "./message-context-menu.css";
 
 export type MessageAction = "reply" | "thread" | "edit" | "copy" | "forward" | "pin" | "delete";
@@ -110,18 +109,11 @@ export function MessageContextMenu({ canPin, message, x, y, onAction, onClose, o
         <div className="message-menu__body">
           {pickerOpen ? (
             <div className="message-menu__picker message-menu__fade">
-              <Picker
-                data={data}
-                onEmojiSelect={(event: { native: string }) => {
-                  onReact(message, event.native);
+              <EmojiPicker
+                onSelect={(native) => {
+                  onReact(message, native);
                   onClose();
                 }}
-                theme="light"
-                locale="ru"
-                navPosition="bottom"
-                previewPosition="none"
-                skinTonePosition="none"
-                maxFrequentRows={2}
               />
             </div>
           ) : (

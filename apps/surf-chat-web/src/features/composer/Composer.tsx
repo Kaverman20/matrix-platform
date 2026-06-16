@@ -1,9 +1,8 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { ArrowUp, FileText, Forward, Image as ImageIcon, Mic, Paperclip, Pencil, Reply, Smile, X } from "lucide-react";
-import data from "@emoji-mart/data";
-import Picker from "@emoji-mart/react";
 import { spring, transition } from "@matrix-platform/ui";
+import { EmojiPicker } from "../../components/EmojiPicker";
 import {
   sendEditMessage,
   sendForwardedMessage,
@@ -396,16 +395,7 @@ export const Composer = forwardRef<ComposerHandle, Props>(function Composer({
                 exit={{ opacity: 0, scale: 0.96, y: 8 }}
                 transition={transition.fast}
               >
-                <Picker
-                  data={data}
-                  onEmojiSelect={(event: { native: string }) => insertEmoji(event.native)}
-                  theme="light"
-                  locale="ru"
-                  navPosition="bottom"
-                  previewPosition="none"
-                  skinTonePosition="none"
-                  maxFrequentRows={2}
-                />
+                <EmojiPicker onSelect={(native) => insertEmoji(native)} />
               </motion.div>
             )}
           </AnimatePresence>
