@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
-import { ThreadEvent, type MatrixClient } from "matrix-js-sdk";
+import type { MatrixClient } from "matrix-js-sdk";
 import {
   getRoomThreadSummaries,
-  loadRoomThreads,
+  subscribeRoomThreads,
   type MatrixThreadListItem,
 } from "@matrix-platform/matrix-core";
 
@@ -15,21 +15,9 @@ export function useRoomThreads(
 
   useEffect(() => {
     if (!client || !roomId) return;
-    const room = client.getRoom(roomId);
-    if (!room) return;
-
-    void loadRoomThreads(client, roomId);
 
     const bump = () => setVersion((value) => value + 1);
-    room.on(ThreadEvent.New, bump);
-    room.on(ThreadEvent.Update, bump);
-    room.on(ThreadEvent.NewReply, bump);
-
-    return () => {
-      room.off(ThreadEvent.New, bump);
-      room.off(ThreadEvent.Update, bump);
-      room.off(ThreadEvent.NewReply, bump);
-    };
+    return subscribeRoomThreads(client, roomId, bump);
   }, [client, roomId]);
 
   return useMemo(() => {
