@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { RoomMemberEvent, type MatrixClient } from "matrix-js-sdk";
-import { getTypingNames } from "@matrix-platform/matrix-core";
+import type { MatrixClient } from "matrix-js-sdk";
+import { getTypingNames, subscribeTyping } from "@matrix-platform/matrix-core";
 
 /** Live list of other members currently typing in the active room. */
 export function useTyping(
@@ -12,10 +12,7 @@ export function useTyping(
   useEffect(() => {
     if (!client || !roomId) return;
     const bump = () => setVersion((value) => value + 1);
-    client.on(RoomMemberEvent.Typing, bump);
-    return () => {
-      client.off(RoomMemberEvent.Typing, bump);
-    };
+    return subscribeTyping(client, bump);
   }, [client, roomId]);
 
   return useMemo(() => {

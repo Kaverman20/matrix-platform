@@ -1,6 +1,21 @@
-import type { MatrixClient } from "matrix-js-sdk";
+import { RoomMemberEvent, type MatrixClient } from "matrix-js-sdk";
 
 const TYPING_TIMEOUT_MS = 4000;
+
+/**
+ * Calls onChange whenever any member's typing state changes. The event is
+ * client-level (room-agnostic); pair with getTypingNames to read the current
+ * typists for a specific room. Returns an unsubscribe.
+ */
+export function subscribeTyping(
+  client: MatrixClient,
+  onChange: () => void,
+): () => void {
+  client.on(RoomMemberEvent.Typing, onChange);
+  return () => {
+    client.off(RoomMemberEvent.Typing, onChange);
+  };
+}
 
 /** Tell the server whether the local user is currently typing in a room. */
 export function setTyping(
