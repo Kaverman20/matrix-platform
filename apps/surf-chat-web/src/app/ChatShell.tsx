@@ -15,7 +15,6 @@ import {
   Settings,
   Users,
   Video,
-  X,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { transition } from "@matrix-platform/ui";
@@ -36,6 +35,7 @@ import {
 import { useMatrix } from "./providers/MatrixContext";
 import { Composer, type ComposerHandle } from "../features/composer/Composer";
 import { ForwardModal } from "../features/forward/ForwardModal";
+import { Lightbox } from "../features/media/Lightbox";
 import {
   MessageContextMenu,
   type MessageAction,
@@ -1087,24 +1087,7 @@ export function ChatShell() {
           />
         )}
       </AnimatePresence>
-      {lightbox && (
-          <div className="lightbox" onMouseDown={() => setLightbox(null)}>
-            <img
-              className="lightbox__image"
-              src={lightbox}
-              alt=""
-              onMouseDown={(event) => event.stopPropagation()}
-            />
-            <button
-              type="button"
-              className="lightbox__close"
-              title="Закрыть"
-              onClick={() => setLightbox(null)}
-            >
-              <X size={20} />
-            </button>
-          </div>
-        )}
+      <Lightbox src={lightbox} onClose={() => setLightbox(null)} />
       <GlobalThreadsPanel
         open={showAllThreads}
         onSelect={openThreadFromGlobal}
