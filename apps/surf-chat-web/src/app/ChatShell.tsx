@@ -26,6 +26,7 @@ import {
 } from "../features/message-actions/MessageContextMenu";
 import { RoomList } from "../features/room-list/RoomList";
 import { useRoomGroups } from "../features/room-list/useRoomGroups";
+import { useRoomListLayout } from "../features/room-list/useRoomListLayout";
 import { RoomRightPanel, type RightPanelSection } from "../features/room-settings/RoomRightPanel";
 import { RoomSettingsModal } from "../features/room-settings/RoomSettingsModal";
 import { useRoomSettings } from "../features/room-settings/useRoomSettings";
@@ -50,11 +51,6 @@ import { AccountSettingsModal } from "../features/account/AccountSettingsModal";
 import { useAccountSettings } from "../features/account/useAccountSettings";
 import "./chat-shell.css";
 
-const ROOM_LIST_WIDTH = 304;
-const ROOM_LIST_MAX = 440;
-const ROOM_LIST_COLLAPSED_WIDTH = 84;
-const ROOM_LIST_COLLAPSE_THRESHOLD = 200;
-const RAIL_WIDTH = 72;
 const RIGHT_PANEL_WIDTH = 320;
 const ACTIVE_ROOM_STORAGE_KEY = "surf-chat:active-room";
 
@@ -82,11 +78,7 @@ export function ChatShell() {
   const [showAllThreads, setShowAllThreads] = useState(false);
   const [threadEditing, setThreadEditing] = useState<MatrixMessageReference | null>(null);
   const [threadReplyTo, setThreadReplyTo] = useState<MatrixMessageReference | null>(null);
-  const [roomListCollapsed, setRoomListCollapsed] = useState(false);
-  const [roomListWidth, setRoomListWidth] = useState(ROOM_LIST_WIDTH);
-  const [roomListResizing, setRoomListResizing] = useState(false);
-  const roomListWidthRef = useRef(roomListWidth);
-  const roomListLastWidth = useRef(ROOM_LIST_WIDTH);
+  const roomListLayout = useRoomListLayout();
   const [messageMenu, setMessageMenu] = useState<{
     message: MatrixMessage;
     x: number;
@@ -473,53 +465,6 @@ export function ChatShell() {
     setForwarding(null);
   };
 
-  const toggleRoomListCollapse = () => {
-    if (roomListCollapsed) {
-      setRoomListCollapsed(false);
-      setRoomListWidth(roomListLastWidth.current);
-      roomListWidthRef.current = roomListLastWidth.current;
-    } else {
-      roomListLastWidth.current = roomListWidth;
-      setRoomListCollapsed(true);
-      setRoomListWidth(ROOM_LIST_COLLAPSED_WIDTH);
-      roomListWidthRef.current = ROOM_LIST_COLLAPSED_WIDTH;
-    }
-  };
-
-  const startRoomListResize = (event: React.PointerEvent) => {
-    event.preventDefault();
-    setRoomListResizing(true);
-
-    const onMove = (moveEvent: PointerEvent) => {
-      const nextWidth = Math.min(
-        ROOM_LIST_MAX,
-        Math.max(ROOM_LIST_COLLAPSED_WIDTH, moveEvent.clientX - RAIL_WIDTH),
-      );
-      roomListWidthRef.current = nextWidth;
-      setRoomListWidth(nextWidth);
-      setRoomListCollapsed(nextWidth < ROOM_LIST_COLLAPSE_THRESHOLD);
-    };
-
-    const onUp = () => {
-      window.removeEventListener("pointermove", onMove);
-      window.removeEventListener("pointerup", onUp);
-      setRoomListResizing(false);
-
-      const nextWidth = roomListWidthRef.current;
-      if (nextWidth < ROOM_LIST_COLLAPSE_THRESHOLD) {
-        setRoomListWidth(ROOM_LIST_COLLAPSED_WIDTH);
-        roomListWidthRef.current = ROOM_LIST_COLLAPSED_WIDTH;
-        setRoomListCollapsed(true);
-      } else {
-        roomListLastWidth.current = nextWidth;
-        setRoomListCollapsed(false);
-      }
-    };
-
-    window.addEventListener("pointermove", onMove);
-    window.addEventListener("pointerup", onUp);
-  };
-
   const toggleFavouriteRoom = (roomId: string) => {
     if (!client) return;
     const room = allRooms.find((item) => item.id === roomId);
@@ -696,25 +641,25 @@ export function ChatShell() {
       <motion.div
         className="chat-shell__room-list"
         animate={{
-          width: roomListWidth,
-          minWidth: roomListWidth,
-          flexBasis: roomListWidth,
+          width: roomListLayout.width,
+          minWidth: roomListLayout.width,
+          flexBasis: roomListLayout.width,
         }}
-        transition={roomListResizing ? { duration: 0 } : transition.slow}
+        transition={roomListLayout.resizing ? { duration: 0 } : transition.slow}
       >
         <RoomList
           favourites={visibleRoomGroups.favourites}
           channels={visibleRoomGroups.channels}
           dms={visibleRoomGroups.dms}
           activeRoomId={activeRoomId}
-          collapsed={roomListCollapsed}
+          collapsed={roomListLayout.collapsed}
           activeSpaceId={effectiveActiveSpaceId}
           activeSpace={activeSpace}
           subspaces={subspaces}
           parentSpaceName={parentSpace?.name ?? null}
           onBack={() => parentSpace && setActiveSpaceId(parentSpace.id)}
           onSelectSpace={setActiveSpaceId}
-          onToggleCollapsed={toggleRoomListCollapse}
+          onToggleCollapsed={roomListLayout.toggleCollapse}
           onSelectRoom={selectRoom}
           onToggleFavourite={toggleFavouriteRoom}
           onReorderFavourites={reorderFavouriteRooms}
@@ -726,8 +671,8 @@ export function ChatShell() {
           onLeaveRoom={(roomId) => void leaveRoom(roomId)}
         />
         <div
-          className={`chat-shell__room-list-resizer${roomListResizing ? " is-active" : ""}`}
-          onPointerDown={startRoomListResize}
+          className={`chat-shell__room-list-resizer${roomListLayout.resizing ? " is-active" : ""}`}
+          onPointerDown={roomListLayout.startResize}
         />
       </motion.div>
 
