@@ -205,6 +205,15 @@ export async function removeReaction(
   await client.redactEvent(roomId, reactionEventId);
 }
 
+/** Redacts (deletes) a message event from the room. */
+export async function deleteMessage(
+  client: MatrixClient,
+  roomId: string,
+  eventId: string,
+): Promise<void> {
+  await client.redactEvent(roomId, eventId);
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }

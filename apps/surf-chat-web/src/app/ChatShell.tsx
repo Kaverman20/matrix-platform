@@ -5,13 +5,17 @@ import {
   buildForwardData,
   canPinMessages as canPinMessagesInRoom,
   canPaginateBackwards,
+  deleteMessage,
   getPinnedEventIds,
   loadRoomThreads,
   markReadUpToEvent,
+  mxcThumbnailUrl,
   paginateBackwards,
   removeReaction,
+  reorderFavourites,
   sendReaction,
   setPinnedEventIds,
+  setRoomFavourite,
   subscribePinnedEvents,
   togglePinnedEventId,
   type MatrixForwardData,
@@ -248,7 +252,7 @@ export function ChatShell() {
       void togglePinnedMessage(message);
     }
     if (action === "delete" && window.confirm("Удалить сообщение?")) {
-      void client.redactEvent(activeRoomId, message.id);
+      void deleteMessage(client, activeRoomId, message.id);
     }
   };
 
@@ -303,11 +307,7 @@ export function ChatShell() {
     const room = allRooms.find((item) => item.id === roomId);
     if (!room) return;
 
-    if (room.favourite) {
-      void client.deleteRoomTag(roomId, "m.favourite");
-    } else {
-      void client.setRoomTag(roomId, "m.favourite", { order: 0.5 });
-    }
+    void setRoomFavourite(client, roomId, !room.favourite);
   };
 
   const reorderFavouriteRooms = (rooms: typeof roomGroups.favourites) => {
@@ -316,10 +316,7 @@ export function ChatShell() {
       window.clearTimeout(favouritePersistTimer.current);
     }
     favouritePersistTimer.current = window.setTimeout(() => {
-      rooms.forEach((room, index) => {
-        const order = rooms.length > 1 ? index / (rooms.length - 1) : 0;
-        void client.setRoomTag(room.id, "m.favourite", { order });
-      });
+      void reorderFavourites(client, rooms.map((room) => room.id));
     }, 180);
   };
 
@@ -675,6 +672,5 @@ function memberAvatarUrl(
     : never,
 ): string | undefined {
   const mxc = member?.getMxcAvatarUrl?.();
-  if (!mxc) return undefined;
-  return client.mxcUrlToHttp(mxc, 48, 48, "crop", false, true, true) ?? undefined;
+  return mxcThumbnailUrl(client, mxc, 48);
 }

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { MatrixClient } from "matrix-js-sdk";
 import {
   buildReplyFallback,
+  deleteMessage,
   removeReaction,
   sendEditMessage,
   sendReaction,
@@ -98,6 +99,14 @@ describe("sendReaction / removeReaction", () => {
     const { client, redactions } = fakeClient();
     await removeReaction(client, "!r", "$reaction");
     expect(redactions).toEqual(["$reaction"]);
+  });
+});
+
+describe("deleteMessage", () => {
+  it("redacts the message event", async () => {
+    const { client, redactions } = fakeClient();
+    await deleteMessage(client, "!r", "$msg");
+    expect(redactions).toEqual(["$msg"]);
   });
 });
 
