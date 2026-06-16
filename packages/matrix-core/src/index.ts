@@ -9,6 +9,7 @@ export * from "./rooms/colors";
 export * from "./rooms/mapRooms";
 export * from "./rooms/pinned";
 export * from "./rooms/roomTypes";
+export * from "./rooms/subscribeRoomGroups";
 export * from "./session/sessionStorage";
 export * from "./session/types";
 export * from "./timeline/mapTimeline";
