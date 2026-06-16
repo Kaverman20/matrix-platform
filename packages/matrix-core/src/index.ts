@@ -3,6 +3,7 @@ export * from "./auth/sso";
 export * from "./auth/tokenLogin";
 export * from "./auth/types";
 export * from "./account/profile";
+export * from "./client/lifecycle";
 export * from "./client/startClient";
 export * from "./constants";
 export * from "./discovery/resolveBaseUrl";

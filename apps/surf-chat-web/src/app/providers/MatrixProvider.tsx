@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { ClientEvent, HttpApiEvent, SyncState, type MatrixClient, type Room } from "matrix-js-sdk";
+import { type MatrixClient } from "matrix-js-sdk";
 import {
   DEFAULT_SSO_HOMESERVER_STORAGE_KEY,
   buildSsoRedirectUrl,
@@ -9,7 +9,10 @@ import {
   loginWithLoginToken,
   loginWithPassword,
   saveMatrixSession,
+  setupDirectInviteAutoJoin,
   startMatrixClient,
+  subscribeSessionLogout,
+  subscribeSyncState,
   type MatrixSession,
 } from "@matrix-platform/matrix-core";
 import { DEFAULT_HOMESERVER } from "../config";
@@ -43,32 +46,19 @@ export function MatrixProvider({ children }: Props) {
       try {
         const nextClient = await startMatrixClient(session);
 
-        const onSync = (state: SyncState) => {
-          if (state === SyncState.Prepared || state === SyncState.Syncing) {
-            setStatus("ready");
-            // Once we're ready we no longer need to track sync for the initial
-            // boot — drop the listener so it doesn't pile up across re-logins.
-            nextClient.off(ClientEvent.Sync, onSync);
-          } else if (state === SyncState.Error) {
-            // First sync failed (bad network / invalid token without a logout
-            // signal) — surface it instead of hanging on the boot screen.
+        subscribeSyncState(nextClient, {
+          onReady: () => setStatus("ready"),
+          // First sync failed (bad network / invalid token without a logout
+          // signal) — surface it instead of hanging on the boot screen.
+          onError: () => {
             setError("Не удалось синхронизироваться с сервером");
             setStatus("error");
-            nextClient.off(ClientEvent.Sync, onSync);
-          }
-        };
-
-        nextClient.on(ClientEvent.Sync, onSync);
-        nextClient.on(HttpApiEvent.SessionLoggedOut, () => {
+          },
+        });
+        subscribeSessionLogout(nextClient, () => {
           resetToLogin("Сессия истекла - войдите заново");
         });
         setupDirectInviteAutoJoin(nextClient);
-
-        const syncState = nextClient.getSyncState();
-        if (syncState === SyncState.Prepared || syncState === SyncState.Syncing) {
-          setStatus("ready");
-          nextClient.off(ClientEvent.Sync, onSync);
-        }
 
         setClient(nextClient);
       } catch (e) {
@@ -178,41 +168,4 @@ export function MatrixProvider({ children }: Props) {
   );
 
   return <MatrixContext.Provider value={value}>{children}</MatrixContext.Provider>;
-}
-
-function setupDirectInviteAutoJoin(client: MatrixClient): void {
-  const joining = new Set<string>();
-
-  const tryJoin = (room: Room) => {
-    const inviter = room.getDMInviter();
-    if (room.getMyMembership() !== "invite" || !inviter || joining.has(room.roomId)) return;
-
-    joining.add(room.roomId);
-    void client
-      .joinRoom(room.roomId)
-      .then(() => ensureDirectRoomAccountData(client, inviter, room.roomId))
-      .catch((error) => {
-        console.error("[dm-auto-join]", error);
-      })
-      .finally(() => {
-        joining.delete(room.roomId);
-      });
-  };
-
-  client.getRooms().forEach(tryJoin);
-  client.on(ClientEvent.Room, tryJoin);
-}
-
-async function ensureDirectRoomAccountData(
-  client: MatrixClient,
-  targetUserId: string,
-  roomId: string,
-): Promise<void> {
-  const content = {
-    ...((client.getAccountData("m.direct" as never)?.getContent() ?? {}) as Record<string, string[]>),
-  };
-  const roomIds = new Set(content[targetUserId] ?? []);
-  roomIds.add(roomId);
-  content[targetUserId] = Array.from(roomIds);
-  await client.setAccountData("m.direct" as never, content as never);
 }
