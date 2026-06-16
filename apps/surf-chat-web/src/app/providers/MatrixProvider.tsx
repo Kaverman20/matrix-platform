@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { type MatrixClient } from "matrix-js-sdk";
+import type { MatrixClient } from "matrix-js-sdk";
 import {
   DEFAULT_SSO_HOMESERVER_STORAGE_KEY,
   buildSsoRedirectUrl,
