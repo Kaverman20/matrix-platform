@@ -17,5 +17,6 @@ export * from "./timeline/messageTypes";
 export * from "./timeline/pagination";
 export * from "./timeline/readReceipts";
 export * from "./timeline/sendMessage";
+export * from "./timeline/subscribeTimeline";
 export * from "./timeline/threads";
 export * from "./timeline/typing";
