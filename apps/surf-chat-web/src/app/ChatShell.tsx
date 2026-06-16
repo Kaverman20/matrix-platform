@@ -16,6 +16,7 @@ import {
   type MatrixMessageReference,
 } from "@matrix-platform/matrix-core";
 import { useMatrix } from "./providers/MatrixContext";
+import { useChatNavigation } from "./useChatNavigation";
 import { Composer, type ComposerHandle } from "../features/composer/Composer";
 import { useComposerMode } from "../features/composer/useComposerMode";
 import { ForwardModal } from "../features/forward/ForwardModal";
@@ -113,12 +114,6 @@ export function ChatShell() {
   const allRoomIds = useMemo(() => allRooms.map((room) => room.id), [allRooms]);
   usePreloadTimelineMessages(client, allRoomIds);
   const spaceNavigation = useSpaceNavigation(roomGroups, activeSpaceId, setActiveSpaceId);
-  const creation = useRoomCreation({
-    client,
-    activeSpaceId: spaceNavigation.effectiveActiveSpaceId,
-    onOpenRoom: setActiveRoomId,
-    onOpenSpace: setActiveSpaceId,
-  });
   const roomSettings = useRoomSettings({ client });
   const accountSettings = useAccountSettings({ client });
 
@@ -127,6 +122,49 @@ export function ChatShell() {
   }, [activeRoomId, allRooms]);
   const composerMode = useComposerMode(activeRoom?.id);
   const clearComposerMode = composerMode.clearComposerMode;
+  const focusPinnedMessage = useCallback((messageId: string) => {
+    // Scope to the main chat so we don't grab the same message rendered inside
+    // the thread panel.
+    const node = document.querySelector<HTMLElement>(
+      `.chat-main [data-mid="${CSS.escape(messageId)}"]`,
+    );
+    if (!node) return;
+
+    node.scrollIntoView({ block: "center", behavior: "smooth" });
+    setHighlightMessageId(messageId);
+    if (highlightTimer.current) {
+      window.clearTimeout(highlightTimer.current);
+    }
+    highlightTimer.current = window.setTimeout(() => setHighlightMessageId(null), 1700);
+  }, []);
+  const clearMessageMenu = useCallback(() => setMessageMenu(null), []);
+  const chatNavigation = useChatNavigation({
+    client,
+    activeRoomId,
+    forwarding,
+    spaceNavigation,
+    setActiveRoomId,
+    setActiveSpaceId,
+    setRightPanelSection,
+    setPinnedIndex,
+    setHighlightMessageId,
+    setOptimisticPinnedIds,
+    setActiveThreadRootId,
+    setShowThreadsList,
+    setShowAllThreads,
+    setShowRightPanel,
+    setForwarding,
+    clearMessageMenu,
+    clearComposerMode,
+    startForward: composerMode.startForward,
+    focusPinnedMessage,
+  });
+  const creation = useRoomCreation({
+    client,
+    activeSpaceId: spaceNavigation.effectiveActiveSpaceId,
+    onOpenRoom: chatNavigation.selectRoom,
+    onOpenSpace: setActiveSpaceId,
+  });
   const messages = useTimelineMessages(client, activeRoomId);
   const pinnedMessages = usePinnedMessages(client, activeRoomId, optimisticPinnedIds);
   const typingLabel = formatTypingLabel(useTyping(client, activeRoomId));
@@ -195,62 +233,6 @@ export function ChatShell() {
     return myLevel >= requiredLevel;
   }, [activeMatrixRoom, client]);
 
-  const selectRoom = (roomId: string) => {
-    setActiveRoomId(roomId);
-    setRightPanelSection("overview");
-    setPinnedIndex(0);
-    setHighlightMessageId(null);
-    setOptimisticPinnedIds(null);
-    setActiveThreadRootId(null);
-    setShowThreadsList(false);
-    clearComposerMode();
-  };
-
-  const openThreadFromGlobal = (roomId: string, rootId: string) => {
-    setActiveRoomId(roomId);
-    setRightPanelSection("overview");
-    setPinnedIndex(0);
-    setHighlightMessageId(null);
-    setOptimisticPinnedIds(null);
-    setShowThreadsList(false);
-    setShowAllThreads(false);
-    clearComposerMode();
-    setActiveThreadRootId(rootId);
-    // Wait for the new room's timeline to render, then highlight the root.
-    window.setTimeout(() => focusPinnedMessage(rootId), 220);
-  };
-
-  const leaveRoom = async (roomId: string) => {
-    if (!client) return;
-    const room = client.getRoom(roomId);
-    const isSpace = room?.isSpaceRoom() ?? false;
-    const label = room?.name || (isSpace ? "это пространство" : "этот чат");
-    if (!window.confirm(`Покинуть «${label}»?`)) return;
-    try {
-      await client.leave(roomId);
-      if (activeRoomId === roomId) setActiveRoomId(null);
-      if (spaceNavigation.effectiveActiveSpaceId === roomId) {
-        setActiveSpaceId(spaceNavigation.spaceParentId.get(roomId) ?? null);
-      }
-    } catch (error) {
-      console.error("[leave-room]", error);
-      window.alert(isSpace ? "Не удалось покинуть пространство." : "Не удалось покинуть чат.");
-    }
-  };
-
-  const leaveActiveSpace = async () => {
-    if (!client || !spaceNavigation.effectiveActiveSpaceId) return;
-    if (!window.confirm(`Выйти из пространства «${spaceNavigation.activeSpace?.name ?? ""}»?`)) return;
-    const parentId = spaceNavigation.spaceParentId.get(spaceNavigation.effectiveActiveSpaceId) ?? null;
-    try {
-      await client.leave(spaceNavigation.effectiveActiveSpaceId);
-      setActiveSpaceId(parentId);
-    } catch (error) {
-      console.error("[leave-space]", error);
-      window.alert("Не удалось выйти из пространства.");
-    }
-  };
-
   const openMessageMenu = (
     message: MatrixMessage,
     x: number,
@@ -316,22 +298,6 @@ export function ChatShell() {
     }
   };
 
-  const focusPinnedMessage = (messageId: string) => {
-    // Scope to the main chat so we don't grab the same message rendered inside
-    // the thread panel.
-    const node = document.querySelector<HTMLElement>(
-      `.chat-main [data-mid="${CSS.escape(messageId)}"]`,
-    );
-    if (!node) return;
-
-    node.scrollIntoView({ block: "center", behavior: "smooth" });
-    setHighlightMessageId(messageId);
-    if (highlightTimer.current) {
-      window.clearTimeout(highlightTimer.current);
-    }
-    highlightTimer.current = window.setTimeout(() => setHighlightMessageId(null), 1700);
-  };
-
   const openThread = (rootId: string) => {
     setThreadEditing(null);
     setThreadReplyTo(null);
@@ -359,16 +325,6 @@ export function ChatShell() {
     } else {
       void sendReaction(client, activeRoomId, message.id, key);
     }
-  };
-
-  const selectForwardRoom = (roomId: string) => {
-    if (!forwarding?.length) return;
-    setActiveRoomId(roomId);
-    setPinnedIndex(0);
-    setHighlightMessageId(null);
-    setOptimisticPinnedIds(null);
-    composerMode.startForward(forwarding);
-    setForwarding(null);
   };
 
   const toggleFavouriteRoom = (roomId: string) => {
@@ -514,22 +470,13 @@ export function ChatShell() {
       }
       if (activeRoomRef.current) {
         event.preventDefault();
-        setActiveRoomId(null);
-        setPinnedIndex(0);
-        setHighlightMessageId(null);
-        setOptimisticPinnedIds(null);
-        setRightPanelSection("overview");
-        setActiveThreadRootId(null);
-        setShowThreadsList(false);
-        setShowRightPanel(false);
-        setMessageMenu(null);
-        clearComposerMode();
+        chatNavigation.closeActiveRoom();
       }
     };
 
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [clearComposerMode]);
+  }, [chatNavigation]);
 
   return (
     <div className="chat-shell">
@@ -566,15 +513,15 @@ export function ChatShell() {
           onBack={() => spaceNavigation.parentSpace && setActiveSpaceId(spaceNavigation.parentSpace.id)}
           onSelectSpace={setActiveSpaceId}
           onToggleCollapsed={roomListLayout.toggleCollapse}
-          onSelectRoom={selectRoom}
+          onSelectRoom={chatNavigation.selectRoom}
           onToggleFavourite={toggleFavouriteRoom}
           onReorderFavourites={reorderFavouriteRooms}
           onCreateChannel={creation.openCreateChannel}
           onCreateDm={creation.openCreateDm}
           onCreateSubspace={creation.openCreateSubspace}
-          onLeaveSpace={() => void leaveActiveSpace()}
+          onLeaveSpace={() => void chatNavigation.leaveActiveSpace()}
           onOpenSettings={roomSettings.openSettings}
-          onLeaveRoom={(roomId) => void leaveRoom(roomId)}
+          onLeaveRoom={(roomId) => void chatNavigation.leaveRoom(roomId)}
         />
         <div
           className={`chat-shell__room-list-resizer${roomListLayout.resizing ? " is-active" : ""}`}
@@ -736,14 +683,14 @@ export function ChatShell() {
             rooms={allRooms}
             title={forwarding.length > 1 ? `Переслать (${forwarding.length}) в...` : "Переслать в..."}
             onClose={() => setForwarding(null)}
-            onSelectRoom={selectForwardRoom}
+            onSelectRoom={chatNavigation.selectForwardRoom}
           />
         )}
       </AnimatePresence>
       <Lightbox src={lightbox} onClose={() => setLightbox(null)} />
       <GlobalThreadsPanel
         open={showAllThreads}
-        onSelect={openThreadFromGlobal}
+        onSelect={chatNavigation.openThreadFromGlobal}
         onClose={() => setShowAllThreads(false)}
       />
       <CreateModals
