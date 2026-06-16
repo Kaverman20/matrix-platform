@@ -5,6 +5,7 @@ import {
   type MatrixClient,
   type Room,
 } from "matrix-js-sdk";
+import { ensureDirectRoomAccountData } from "../rooms/createRoom";
 
 /** Drop a listener; calling more than once is a no-op. */
 export type Unsubscribe = () => void;
@@ -91,18 +92,4 @@ export function setupDirectInviteAutoJoin(client: MatrixClient): Unsubscribe {
   client.on(ClientEvent.Room, tryJoin);
 
   return () => client.off(ClientEvent.Room, tryJoin);
-}
-
-async function ensureDirectRoomAccountData(
-  client: MatrixClient,
-  targetUserId: string,
-  roomId: string,
-): Promise<void> {
-  const content = {
-    ...((client.getAccountData("m.direct" as never)?.getContent() ?? {}) as Record<string, string[]>),
-  };
-  const roomIds = new Set(content[targetUserId] ?? []);
-  roomIds.add(roomId);
-  content[targetUserId] = Array.from(roomIds);
-  await client.setAccountData("m.direct" as never, content as never);
 }

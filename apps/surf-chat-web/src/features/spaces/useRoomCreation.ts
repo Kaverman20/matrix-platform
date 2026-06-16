@@ -1,15 +1,19 @@
 import { useEffect, useState } from "react";
 import type { MatrixClient } from "matrix-js-sdk";
+import {
+  createChannelRoom,
+  createOrFindDirectRoom,
+  createSpaceRoom,
+  createSubspaceRoom,
+  searchUserDirectory,
+  type UserDirectoryEntry,
+} from "@matrix-platform/matrix-core";
 
 export type CreateRoomType = "private" | "public";
 
 export type WizardItem = { id: string; name: string; kind: "channel" | "space"; parentId: string };
 
-export type UserDirectoryEntry = {
-  user_id: string;
-  display_name?: string;
-  avatar_url?: string;
-};
+export type { UserDirectoryEntry };
 
 type Options = {
   client: MatrixClient | null;
@@ -142,30 +146,13 @@ export function useRoomCreation({ client, activeSpaceId, onOpenRoom, onOpenSpace
     if (!client || !name || creatingSpacePending) return;
 
     setCreatingSpacePending(true);
-    const isPublic = newSpaceType === "public";
 
     try {
-      let avatarMxc: string | undefined;
-      if (spaceAvatarFile) {
-        try {
-          const upload = await client.uploadContent(spaceAvatarFile, { type: spaceAvatarFile.type });
-          avatarMxc = (upload as { content_uri?: string }).content_uri;
-        } catch (error) {
-          console.error("[space-avatar-upload]", error);
-        }
-      }
-
-      const spaceResult = await client.createRoom({
+      const spaceId = await createSpaceRoom(client, {
         name,
-        creation_content: { type: "m.space" },
-        preset: (isPublic ? "public_chat" : "private_chat") as never,
-        ...(isPublic ? { visibility: "public" as never } : {}),
-        ...(avatarMxc
-          ? { initial_state: [{ type: "m.room.avatar", state_key: "", content: { url: avatarMxc } }] }
-          : {}),
-      } as never);
-
-      const spaceId = (spaceResult as { room_id: string }).room_id;
+        isPublic: newSpaceType === "public",
+        avatarFile: spaceAvatarFile,
+      });
 
       // No default #general — advance to the wizard so the user adds the
       // channels they actually want.
@@ -271,26 +258,7 @@ export function useRoomCreation({ client, activeSpaceId, onOpenRoom, onOpenSpace
 
     setCreatingDmPending(true);
     try {
-      const existingRoom = findDirectRoom(client, selectedDmUserId);
-      if (existingRoom) {
-        if (existingRoom.getMyMembership() === "invite") {
-          await client.joinRoom(existingRoom.roomId);
-          await ensureDirectRoomAccountData(client, selectedDmUserId, existingRoom.roomId);
-        }
-        closeCreateDm();
-        onOpenRoom(existingRoom.roomId);
-        return;
-      }
-
-      const result = await client.createRoom({
-        is_direct: true,
-        invite: [selectedDmUserId],
-        preset: "trusted_private_chat" as never,
-      } as never);
-
-      const roomId = (result as { room_id: string }).room_id;
-      await ensureDirectRoomAccountData(client, selectedDmUserId, roomId);
-
+      const roomId = await createOrFindDirectRoom(client, selectedDmUserId);
       closeCreateDm();
       onOpenRoom(roomId);
     } catch (error) {
@@ -317,7 +285,6 @@ export function useRoomCreation({ client, activeSpaceId, onOpenRoom, onOpenSpace
     if (!client || !creatingDm) return;
 
     const term = dmQuery.trim();
-    const myUserId = client.getUserId();
 
     if (term.length < 2) return;
 
@@ -325,17 +292,9 @@ export function useRoomCreation({ client, activeSpaceId, onOpenRoom, onOpenSpace
 
     const timer = window.setTimeout(() => {
       setDmSearching(true);
-      void client.searchUserDirectory({ term, limit: 8 })
-        .then((response) => {
+      void searchUserDirectory(client, term, 8)
+        .then((results) => {
           if (!alive) return;
-
-          const results = (response.results ?? [])
-            .filter((entry) => entry.user_id !== myUserId)
-            .map((entry) => ({
-              user_id: entry.user_id,
-              display_name: entry.display_name,
-              avatar_url: entry.avatar_url,
-            }));
 
           setDmResults(results);
           setSelectedDmUserId((current) => (
@@ -441,136 +400,3 @@ export function useRoomCreation({ client, activeSpaceId, onOpenRoom, onOpenSpace
 }
 
 export type RoomCreation = ReturnType<typeof useRoomCreation>;
-
-/**
- * Creates a channel room, optionally parenting it to a space via
- * m.space.parent / m.space.child. Returns the new room id.
- */
-async function createChannelRoom(
-  client: MatrixClient,
-  spaceId: string | null,
-  name: string,
-  isPublic: boolean,
-): Promise<string> {
-  const server = client.getDomain() ?? "";
-  const initialState: Array<{ type: string; state_key: string; content: Record<string, unknown> }> = [];
-
-  if (spaceId) {
-    if (isPublic) {
-      initialState.push({
-        type: "m.space.parent",
-        state_key: spaceId,
-        content: { canonical: true, via: [server] },
-      });
-    } else {
-      initialState.push(
-        {
-          type: "m.room.join_rules",
-          state_key: "",
-          content: {
-            join_rule: "restricted",
-            allow: [{ type: "m.room_membership", room_id: spaceId }],
-          },
-        },
-        {
-          type: "m.space.parent",
-          state_key: spaceId,
-          content: { canonical: true, via: [server] },
-        },
-      );
-    }
-  }
-
-  const result = await client.createRoom({
-    name,
-    preset: (isPublic ? "public_chat" : "private_chat") as never,
-    ...(isPublic ? { visibility: "public" as never } : {}),
-    ...(initialState.length > 0 ? { initial_state: initialState as never } : {}),
-  } as never);
-
-  const roomId = (result as { room_id: string }).room_id;
-
-  if (spaceId) {
-    await client.sendStateEvent(spaceId, "m.space.child" as never, { via: [server] } as never, roomId);
-  }
-
-  return roomId;
-}
-
-/**
- * Creates a sub-space (a space room) parented to parentSpaceId via
- * m.space.parent / m.space.child. Returns the new space's room id.
- */
-async function createSubspaceRoom(
-  client: MatrixClient,
-  parentSpaceId: string,
-  name: string,
-  isPublic: boolean,
-): Promise<string> {
-  const server = client.getDomain() ?? "";
-  const initialState: Array<{ type: string; state_key: string; content: Record<string, unknown> }> = [
-    {
-      type: "m.space.parent",
-      state_key: parentSpaceId,
-      content: { canonical: true, via: [server] },
-    },
-  ];
-
-  if (!isPublic) {
-    initialState.unshift({
-      type: "m.room.join_rules",
-      state_key: "",
-      content: {
-        join_rule: "restricted",
-        allow: [{ type: "m.room_membership", room_id: parentSpaceId }],
-      },
-    });
-  }
-
-  const result = await client.createRoom({
-    name,
-    creation_content: { type: "m.space" },
-    preset: (isPublic ? "public_chat" : "private_chat") as never,
-    ...(isPublic ? { visibility: "public" as never } : {}),
-    initial_state: initialState as never,
-  } as never);
-
-  const subspaceId = (result as { room_id: string }).room_id;
-  await client.sendStateEvent(parentSpaceId, "m.space.child" as never, { via: [server] } as never, subspaceId);
-
-  return subspaceId;
-}
-
-function findDirectRoom(client: MatrixClient, targetUserId: string) {
-  const direct = (client.getAccountData("m.direct" as never)?.getContent() ?? {}) as Record<string, string[]>;
-  const explicit = Array.isArray(direct[targetUserId]) ? direct[targetUserId] : [];
-
-  for (const roomId of explicit) {
-    const room = client.getRoom(roomId);
-    if (room && (room.getMyMembership() === "join" || room.getMyMembership() === "invite")) return room;
-  }
-
-  const me = client.getUserId();
-  for (const room of client.getRooms()) {
-    if (room.isSpaceRoom()) continue;
-    if (room.getMyMembership() === "invite" && room.getDMInviter() === targetUserId) return room;
-    if (room.getMyMembership() !== "join") continue;
-    const members = room.getJoinedMembers();
-    if (members.length !== 2) continue;
-    const hasTarget = members.some((member) => member.userId === targetUserId);
-    const hasMe = members.some((member) => member.userId === me);
-    if (hasTarget && hasMe) return room;
-  }
-
-  return null;
-}
-
-async function ensureDirectRoomAccountData(client: MatrixClient, targetUserId: string, roomId: string): Promise<void> {
-  const content = {
-    ...((client.getAccountData("m.direct" as never)?.getContent() ?? {}) as Record<string, string[]>),
-  };
-  const roomIds = new Set(content[targetUserId] ?? []);
-  roomIds.add(roomId);
-  content[targetUserId] = Array.from(roomIds);
-  await client.setAccountData("m.direct" as never, content as never);
-}

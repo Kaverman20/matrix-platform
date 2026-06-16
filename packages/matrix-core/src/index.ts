@@ -8,6 +8,7 @@ export * from "./client/startClient";
 export * from "./constants";
 export * from "./discovery/resolveBaseUrl";
 export * from "./rooms/colors";
+export * from "./rooms/createRoom";
 export * from "./rooms/mapRooms";
 export * from "./rooms/pinned";
 export * from "./rooms/roomTypes";
