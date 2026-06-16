@@ -2,10 +2,11 @@ import { describe, expect, it, vi } from "vitest";
 import type { MatrixClient } from "matrix-js-sdk";
 import { encodeRecoveryKey } from "matrix-js-sdk/lib/crypto-api";
 import {
+  commitEncryptionRecovery,
   enableEncryption,
+  generateRecoveryKey,
   getEncryptionStatus,
   restoreEncryptionWithRecoveryKey,
-  setupEncryptionRecovery,
 } from "./encryption";
 import { clearSecretStorageKeys } from "./secretStorage";
 
@@ -90,20 +91,45 @@ describe("getEncryptionStatus", () => {
   });
 });
 
-describe("setupEncryptionRecovery", () => {
+describe("generateRecoveryKey", () => {
   it("throws when crypto is not enabled", async () => {
-    await expect(setupEncryptionRecovery(clientWith(undefined))).rejects.toThrow(/enable encryption/);
+    await expect(generateRecoveryKey(clientWith(undefined))).rejects.toThrow(/enable encryption/);
   });
 
-  it("bootstraps cross-signing then secret storage and returns the recovery key", async () => {
+  it("returns the freshly generated key without touching the server", async () => {
+    const crypto = fakeCrypto();
+    const key = await generateRecoveryKey(clientWith(crypto));
+    expect(key.encodedPrivateKey).toBe("EsT? key");
+    // Generation is purely local — nothing is bootstrapped yet.
+    expect(crypto.bootstrapCrossSigning).not.toHaveBeenCalled();
+    expect(crypto.bootstrapSecretStorage).not.toHaveBeenCalled();
+  });
+
+  it("throws when no recovery key was produced", async () => {
+    const crypto = fakeCrypto({
+      createRecoveryKeyFromPassphrase: vi.fn().mockResolvedValue({ encodedPrivateKey: undefined }),
+    });
+    await expect(generateRecoveryKey(clientWith(crypto))).rejects.toThrow(/not generated/);
+  });
+});
+
+describe("commitEncryptionRecovery", () => {
+  const recoveryKey = { encodedPrivateKey: "EsT? key", privateKey: new Uint8Array(32) };
+
+  it("throws when crypto is not enabled", async () => {
+    await expect(
+      commitEncryptionRecovery(clientWith(undefined), recoveryKey),
+    ).rejects.toThrow(/enable encryption/);
+  });
+
+  it("bootstraps cross-signing then secret storage with the supplied key", async () => {
     const crypto = fakeCrypto();
     const auth = vi.fn();
 
-    const encoded = await setupEncryptionRecovery(clientWith(crypto), {
+    await commitEncryptionRecovery(clientWith(crypto), recoveryKey, {
       authUploadDeviceSigningKeys: auth,
     });
 
-    expect(encoded).toBe("EsT? key");
     expect(crypto.bootstrapCrossSigning).toHaveBeenCalledWith({
       setupNewCrossSigning: true,
       authUploadDeviceSigningKeys: auth,
@@ -115,20 +141,9 @@ describe("setupEncryptionRecovery", () => {
     expect(crypto.bootstrapCrossSigning.mock.invocationCallOrder[0]).toBeLessThan(
       crypto.bootstrapSecretStorage.mock.invocationCallOrder[0],
     );
-  });
 
-  it("passes the generated key to createSecretStorageKey", async () => {
-    const crypto = fakeCrypto();
-    await setupEncryptionRecovery(clientWith(crypto));
     const opts = crypto.bootstrapSecretStorage.mock.calls[0][0];
-    await expect(opts.createSecretStorageKey()).resolves.toMatchObject({ encodedPrivateKey: "EsT? key" });
-  });
-
-  it("throws when no recovery key was produced", async () => {
-    const crypto = fakeCrypto({
-      createRecoveryKeyFromPassphrase: vi.fn().mockResolvedValue({ encodedPrivateKey: undefined }),
-    });
-    await expect(setupEncryptionRecovery(clientWith(crypto))).rejects.toThrow(/not generated/);
+    await expect(opts.createSecretStorageKey()).resolves.toBe(recoveryKey);
   });
 });
 

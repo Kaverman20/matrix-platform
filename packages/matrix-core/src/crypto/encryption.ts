@@ -1,6 +1,8 @@
 import type { MatrixClient, UIAuthCallback } from "matrix-js-sdk";
-import { decodeRecoveryKey } from "matrix-js-sdk/lib/crypto-api";
+import { decodeRecoveryKey, type GeneratedSecretStorageKey } from "matrix-js-sdk/lib/crypto-api";
 import { primeRecoveryKey } from "./secretStorage";
+
+export type { GeneratedSecretStorageKey };
 
 // Per-client in-flight guard. Module-global state would break a second account
 // logging in within the same tab (the flag would stay set and skip init for the
@@ -93,20 +95,37 @@ export type RecoverySetupOptions = {
 };
 
 /**
- * First-time encryption setup, Element-style: generate a fresh recovery key,
- * bootstrap cross-signing, secret storage and a server-side key backup. The
- * returned encoded recovery key MUST be shown to the user exactly once (and, in
- * the escrow variant, also stored in OpenBao) — it is the only way back in.
+ * Step 1 of first-time setup, Element-style: generate a fresh random recovery
+ * key locally. No network, no auth — so it can be shown to the user *before*
+ * anything is committed to the server. Keep the returned object and pass it to
+ * {@link commitEncryptionRecovery}; `encodedPrivateKey` is what the user saves.
  */
-export async function setupEncryptionRecovery(
-  client: MatrixClient,
-  options: RecoverySetupOptions = {},
-): Promise<string> {
+export async function generateRecoveryKey(client: MatrixClient): Promise<GeneratedSecretStorageKey> {
   const crypto = client.getCrypto();
   if (!crypto) throw new Error("[matrix-core] enable encryption before setting up recovery");
 
   // Random key (not passphrase-derived) — the spec-recommended approach.
   const recoveryKey = await crypto.createRecoveryKeyFromPassphrase();
+  if (!recoveryKey.encodedPrivateKey) {
+    throw new Error("[matrix-core] recovery key was not generated");
+  }
+  return recoveryKey;
+}
+
+/**
+ * Step 2 of first-time setup: bootstrap cross-signing, secret storage and a
+ * server-side key backup using the key from {@link generateRecoveryKey}. This
+ * is where the server is touched — cross-signing key upload may trigger UIA,
+ * which is why the password is collected here (via `authUploadDeviceSigningKeys`)
+ * and not before. Mirrors Element's "show the key first, verify last" order.
+ */
+export async function commitEncryptionRecovery(
+  client: MatrixClient,
+  recoveryKey: GeneratedSecretStorageKey,
+  options: RecoverySetupOptions = {},
+): Promise<void> {
+  const crypto = client.getCrypto();
+  if (!crypto) throw new Error("[matrix-core] enable encryption before setting up recovery");
 
   await crypto.bootstrapCrossSigning({
     setupNewCrossSigning: true,
@@ -118,10 +137,6 @@ export async function setupEncryptionRecovery(
     setupNewKeyBackup: true,
     createSecretStorageKey: async () => recoveryKey,
   });
-
-  const encoded = recoveryKey.encodedPrivateKey;
-  if (!encoded) throw new Error("[matrix-core] recovery key was not generated");
-  return encoded;
 }
 
 /**

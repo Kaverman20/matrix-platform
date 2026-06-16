@@ -2,14 +2,21 @@ import { AuthType, type AuthDict, type MatrixError, type UIAuthCallback } from "
 
 /**
  * Build a User-Interactive Auth callback that authenticates with the account
- * password — used by {@link setupEncryptionRecovery} to upload cross-signing
- * keys (most homeservers require UIA for that endpoint).
+ * password — used when uploading cross-signing keys (most homeservers require
+ * UIA for that endpoint).
+ *
+ * `getPassword` is called **lazily**, only if the server actually challenges
+ * for auth. This mirrors Element: the recovery key is generated and shown
+ * first, and the password is requested last, as the final verification step.
  *
  * It first probes the endpoint with no auth to obtain the UIA `session`, then
  * submits the password against that session. This covers password-based UIA;
  * OIDC/next-gen auth will need a different callback (the OpenBao rework).
  */
-export function makePasswordAuthCallback(userId: string, password: string): UIAuthCallback<void> {
+export function makePasswordAuthCallback(
+  userId: string,
+  getPassword: () => Promise<string>,
+): UIAuthCallback<void> {
   return async (makeRequest) => {
     let session: string | undefined;
     try {
@@ -20,6 +27,7 @@ export function makePasswordAuthCallback(userId: string, password: string): UIAu
       session = (error as MatrixError | undefined)?.data?.session as string | undefined;
     }
 
+    const password = await getPassword();
     await makeRequest({
       type: AuthType.Password,
       identifier: { type: "m.id.user", user: userId },

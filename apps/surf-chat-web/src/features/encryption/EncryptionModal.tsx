@@ -49,9 +49,10 @@ export function EncryptionModal({ encryption: e }: Props) {
             </div>
             <div className="spacemodal__heading">Шифрование</div>
 
-            {e.phase === "loading" && (
+            {(e.phase === "loading" || e.phase === "working") && (
               <p className="encryption__text encryption__text--muted">
-                <Loader2 className="encryption__spin" size={16} /> Проверяем состояние…
+                <Loader2 className="encryption__spin" size={16} />{" "}
+                {e.phase === "working" ? "Включаем шифрование…" : "Проверяем состояние…"}
               </p>
             )}
 
@@ -65,8 +66,47 @@ export function EncryptionModal({ encryption: e }: Props) {
             {e.phase === "needs-setup" && (
               <>
                 <p className="encryption__text">
-                  Создайте ключ восстановления — он понадобится для доступа к зашифрованной
-                  переписке на других устройствах. Подтвердите паролем аккаунта.
+                  Сейчас будет создан ключ восстановления — он понадобится для доступа к
+                  зашифрованной переписке на других устройствах. Ключ генерируется
+                  автоматически, его нужно будет только сохранить.
+                </p>
+                <button
+                  type="button"
+                  className="spacemodal__create"
+                  disabled={e.busy}
+                  onClick={() => void e.startSetup()}
+                >
+                  {e.busy ? "Создаём ключ…" : "Включить шифрование"}
+                </button>
+              </>
+            )}
+
+            {e.phase === "show-key" && e.recoveryKey && (
+              <>
+                <p className="encryption__text">
+                  Сохраните этот ключ восстановления в надёжном месте. Без него доступ к
+                  истории на новом устройстве не вернуть.
+                </p>
+                <button type="button" className="encryption__key" onClick={() => void copyKey()}>
+                  <code>{e.recoveryKey}</code>
+                  {copied ? <Check size={16} /> : <Copy size={16} />}
+                </button>
+                <button
+                  type="button"
+                  className="spacemodal__create"
+                  disabled={e.busy}
+                  onClick={() => void e.confirmKeySaved()}
+                >
+                  Я сохранил ключ
+                </button>
+              </>
+            )}
+
+            {e.phase === "password" && (
+              <>
+                <p className="encryption__text">
+                  Последний шаг: подтвердите паролем аккаунта, чтобы сервер принял ключи
+                  шифрования.
                 </p>
                 <input
                   className="encryption__input"
@@ -75,30 +115,17 @@ export function EncryptionModal({ encryption: e }: Props) {
                   autoComplete="current-password"
                   value={e.password}
                   onChange={(event) => e.setPassword(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") e.submitPassword();
+                  }}
                 />
                 <button
                   type="button"
                   className="spacemodal__create"
                   disabled={!e.password || e.busy}
-                  onClick={() => void e.runSetup()}
+                  onClick={e.submitPassword}
                 >
-                  {e.busy ? "Включаем…" : "Включить шифрование"}
-                </button>
-              </>
-            )}
-
-            {e.phase === "show-key" && e.recoveryKey && (
-              <>
-                <p className="encryption__text">
-                  Сохраните этот ключ восстановления в надёжном месте. Он показывается
-                  один раз — без него доступ к истории на новом устройстве не вернуть.
-                </p>
-                <button type="button" className="encryption__key" onClick={() => void copyKey()}>
-                  <code>{e.recoveryKey}</code>
-                  {copied ? <Check size={16} /> : <Copy size={16} />}
-                </button>
-                <button type="button" className="spacemodal__create" onClick={e.finishShowKey}>
-                  Я сохранил ключ
+                  Подтвердить
                 </button>
               </>
             )}
