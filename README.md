@@ -14,28 +14,49 @@ This repository is the clean v2 workspace for:
 
 ```txt
 apps/
-  surf-chat-web/          User-facing Matrix web client
-services/
-  mapping-api/            API for Keycloak group to Matrix target rules
-  matrix-keycloak-sync/   Sync service applying access rules to Matrix
+  surf-chat-web/          User-facing Matrix web client (React + Vite)
 packages/
   matrix-core/            Matrix SDK wrapper and domain operations
   ui/                     Shared UI primitives
-  shared/                 Shared types and utilities
-  config/                 Shared tooling config
-infra/
-  docker/
-  k8s/
-  synapse/
+services/                 Access-mapping services (Keycloak ↔ Matrix) — planned, stubs only
+  mapping-api/            API for Keycloak group to Matrix target rules
+  matrix-keycloak-sync/   Sync service applying access rules to Matrix
+infra/                    Deployment infrastructure — mostly planned; foxhound/ mirrors the live VPS
+  docker/  k8s/  synapse/  foxhound/
 docs/
-  decisions/
+  architecture.md         Architecture overview
+  migration-plan.md       Rebuild-from-donor plan
+  DECISIONS.md            Engineering decision log (problem → cause → fix)
+  decisions/              Architecture Decision Records (ADRs)
 scripts/
+  verify.sh               lint + typecheck + test + build
 ```
 
-## First Milestones
+## Getting started
 
-1. Scaffold `apps/surf-chat-web`.
-2. Move stable Matrix auth/session logic into `packages/matrix-core`.
-3. Rebuild the chat shell feature by feature.
-4. Keep CI green from the first commit.
+Requires Node 20+ and pnpm.
+
+```sh
+pnpm install
+
+# Run the web client (point it at a homeserver via env var)
+VITE_DEFAULT_HOMESERVER=https://matrix.foxhound.run pnpm --filter surf-chat-web dev
+
+# Build the web client for production
+VITE_DEFAULT_HOMESERVER=https://matrix.foxhound.run pnpm --filter surf-chat-web build
+```
+
+`VITE_DEFAULT_HOMESERVER` sets the default Matrix homeserver shown on the login
+screen; users can still override it.
+
+## Verifying
+
+Run the full check (lint, typecheck, tests, build) before pushing:
+
+```sh
+pnpm verify    # or: scripts/verify.sh
+```
+
+Deployment of the web client to staging (chat.foxhound.run) is documented in
+[docs/foxhound-infrastructure.md](docs/foxhound-infrastructure.md).
 
