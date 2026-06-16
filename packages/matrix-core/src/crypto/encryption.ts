@@ -2,20 +2,40 @@ import type { MatrixClient, UIAuthCallback } from "matrix-js-sdk";
 import { decodeRecoveryKey } from "matrix-js-sdk/lib/crypto-api";
 import { primeRecoveryKey } from "./secretStorage";
 
-let encryptionStarted = false;
+// Per-client in-flight guard. Module-global state would break a second account
+// logging in within the same tab (the flag would stay set and skip init for the
+// new client), so we key on the client instance instead.
+const initInFlight = new WeakMap<MatrixClient, Promise<void>>();
 
 /**
  * Initialise E2EE (Rust crypto) so encrypted rooms can be decrypted. Loads a
  * multi-MB wasm module and does CPU work, so keep it OFF the login critical
- * path — call it lazily/in the background once the UI is interactive. Idempotent.
+ * path — call it lazily/in the background once the UI is interactive. Idempotent
+ * per client.
+ *
+ * The rust crypto store is namespaced per `userId|deviceId`. Without this all
+ * accounts on the same origin would share one IndexedDB, and logging in as a
+ * different user than last time throws "the account in the store doesn't match".
  */
 export async function enableEncryption(client: MatrixClient): Promise<void> {
-  if (encryptionStarted || client.getCrypto()) return;
-  encryptionStarted = true;
+  if (client.getCrypto()) return;
+
+  const existing = initInFlight.get(client);
+  if (existing) return existing;
+
+  const userId = client.getUserId() ?? undefined;
+  const deviceId = client.getDeviceId() ?? undefined;
+
+  const promise = client.initRustCrypto({
+    useIndexedDB: true,
+    cryptoDatabasePrefix: userId && deviceId ? `${userId}|${deviceId}` : undefined,
+  });
+  initInFlight.set(client, promise);
+
   try {
-    await client.initRustCrypto({ useIndexedDB: true });
+    await promise;
   } catch (error) {
-    encryptionStarted = false;
+    initInFlight.delete(client);
     console.error("[matrix-core] enableEncryption failed", error);
     throw error;
   }

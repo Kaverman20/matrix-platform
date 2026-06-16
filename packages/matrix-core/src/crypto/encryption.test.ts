@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { MatrixClient } from "matrix-js-sdk";
 import { encodeRecoveryKey } from "matrix-js-sdk/lib/crypto-api";
 import {
+  enableEncryption,
   getEncryptionStatus,
   restoreEncryptionWithRecoveryKey,
   setupEncryptionRecovery,
@@ -30,6 +31,30 @@ function clientWith(crypto: unknown, defaultKeyId: string | null = null): Matrix
     secretStorage: { getDefaultKeyId: () => Promise.resolve(defaultKeyId) },
   } as unknown as MatrixClient;
 }
+
+describe("enableEncryption", () => {
+  it("namespaces the rust crypto store per user+device and skips when already enabled", async () => {
+    const initRustCrypto = vi.fn().mockResolvedValue(undefined);
+    let crypto: unknown = undefined;
+    const client = {
+      getCrypto: () => crypto,
+      getUserId: () => "@f.foxhound:matrix.foxhound.run",
+      getDeviceId: () => "ABCD",
+      initRustCrypto,
+    } as unknown as MatrixClient;
+
+    await enableEncryption(client);
+    expect(initRustCrypto).toHaveBeenCalledWith({
+      useIndexedDB: true,
+      cryptoDatabasePrefix: "@f.foxhound:matrix.foxhound.run|ABCD",
+    });
+
+    // Once crypto exists, a second call must be a no-op (no re-init).
+    crypto = {};
+    await enableEncryption(client);
+    expect(initRustCrypto).toHaveBeenCalledTimes(1);
+  });
+});
 
 describe("getEncryptionStatus", () => {
   it("reports disabled when crypto is not initialised", async () => {
