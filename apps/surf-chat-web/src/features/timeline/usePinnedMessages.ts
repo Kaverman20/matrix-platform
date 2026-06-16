@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { EventTimeline, RoomStateEvent, type MatrixClient } from "matrix-js-sdk";
 import { colorForId, type MatrixMessageReference } from "@matrix-platform/matrix-core";
 
-type PinnedMessage = MatrixMessageReference & {
+export type PinnedMessage = MatrixMessageReference & {
   color?: string;
 };
 

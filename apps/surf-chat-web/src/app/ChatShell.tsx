@@ -1,15 +1,5 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { EventTimeline, RoomStateEvent, type MatrixEvent } from "matrix-js-sdk";
-import {
-  AlignLeft,
-  Hash,
-  MessageSquare,
-  MessagesSquare,
-  PanelRight,
-  Pin,
-  Phone,
-  Video,
-} from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { transition } from "@matrix-platform/ui";
 import {
@@ -46,6 +36,8 @@ import { EmptyState } from "../features/timeline/EmptyState";
 import { GlobalThreadsPanel } from "../features/threads/GlobalThreadsPanel";
 import { ThreadPanel } from "../features/threads/ThreadPanel";
 import { ThreadsListPanel } from "../features/threads/ThreadsListPanel";
+import { ChatMainHeader } from "../features/timeline/ChatMainHeader";
+import { PinnedBar } from "../features/timeline/PinnedBar";
 import { Timeline } from "../features/timeline/Timeline";
 import { useFirstUnread } from "../features/timeline/useFirstUnread";
 import { usePinnedMessages } from "../features/timeline/usePinnedMessages";
@@ -742,47 +734,16 @@ export function ChatShell() {
       <main className={`chat-main${activeRoom ? "" : " is-empty"}`}>
         {activeRoom ? (
           <>
-            <header className="chat-main__header">
-              <div className="chat-main__title">
-                {activeRoom.kind === "channel" && <Hash size={18} strokeWidth={2.5} />}
-                <div className="chat-main__title-text">
-                  <h1>{activeRoom.name}</h1>
-                  {typingLabel && <span className="chat-main__typing">{typingLabel}</span>}
-                </div>
-              </div>
-              <div className="chat-main__actions">
-                <button
-                  type="button"
-                  className="icon-button"
-                  title={chatView === "bubbles" ? "Вид: пузыри -> плоский" : "Вид: плоский -> пузыри"}
-                  onClick={() => setChatView((value) => (value === "bubbles" ? "flat" : "bubbles"))}
-                >
-                  {chatView === "bubbles" ? <AlignLeft size={18} /> : <MessageSquare size={18} />}
-                </button>
-                <button
-                  type="button"
-                  className={`icon-button${showThreadsList ? " is-active" : ""}`}
-                  title="Треды"
-                  onClick={() => setShowThreadsList((value) => !value)}
-                >
-                  <MessagesSquare size={18} />
-                </button>
-                <button type="button" className="icon-button" title="Звонок">
-                  <Phone size={18} />
-                </button>
-                <button type="button" className="icon-button" title="Видео">
-                  <Video size={18} />
-                </button>
-                <button
-                  type="button"
-                  className={`icon-button${showRightPanel ? " is-active" : ""}`}
-                  title="Информация"
-                  onClick={() => setShowRightPanel((value) => !value)}
-                >
-                  <PanelRight size={18} />
-                </button>
-              </div>
-            </header>
+            <ChatMainHeader
+              room={activeRoom}
+              typingLabel={typingLabel}
+              view={chatView}
+              onToggleView={() => setChatView((value) => (value === "bubbles" ? "flat" : "bubbles"))}
+              threadsActive={showThreadsList}
+              onToggleThreads={() => setShowThreadsList((value) => !value)}
+              infoActive={showRightPanel}
+              onToggleInfo={() => setShowRightPanel((value) => !value)}
+            />
             <AnimatePresence initial={false}>
               {pinnedMessages.length > 0 && (() => {
                 const currentIndex = pinnedMessages.length > 0 ? pinnedIndex % pinnedMessages.length : 0;
@@ -799,23 +760,7 @@ export function ChatShell() {
                     exit={{ height: 0, opacity: 0 }}
                     transition={transition.fast}
                   >
-                    {pinnedMessages.length > 1 && (
-                      <div className="pinned-bar__segments">
-                        {pinnedMessages.map((message, index) => (
-                          <span
-                            key={message.id}
-                            className={`pinned-bar__segment${index === currentIndex ? " is-active" : ""}`}
-                          />
-                        ))}
-                      </div>
-                    )}
-                    <Pin size={15} className="pinned-bar__icon" />
-                    <div className="pinned-bar__body">
-                      <span className="pinned-bar__label">
-                        Закреплённое{pinnedMessages.length > 1 ? ` · ${currentIndex + 1}/${pinnedMessages.length}` : ""}
-                      </span>
-                      <span className="pinned-bar__text">{current.text ?? "Сообщение"}</span>
-                    </div>
+                    <PinnedBar pinned={pinnedMessages} currentIndex={currentIndex} current={current} />
                   </motion.button>
                 );
               })()}
