@@ -2,18 +2,12 @@ import { AnimatePresence, motion } from "framer-motion";
 import { EventTimeline, RoomStateEvent, type MatrixEvent } from "matrix-js-sdk";
 import {
   AlignLeft,
-  ArrowLeft,
-  Bell,
-  ChevronRight,
-  FileText,
   Hash,
   MessageSquare,
   MessagesSquare,
   PanelRight,
   Pin,
   Phone,
-  Settings,
-  Users,
   Video,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -42,6 +36,7 @@ import {
 } from "../features/message-actions/MessageContextMenu";
 import { RoomList } from "../features/room-list/RoomList";
 import { useRoomGroups } from "../features/room-list/useRoomGroups";
+import { RoomRightPanel, type RightPanelSection } from "../features/room-settings/RoomRightPanel";
 import { RoomSettingsModal } from "../features/room-settings/RoomSettingsModal";
 import { useRoomSettings } from "../features/room-settings/useRoomSettings";
 import { CreateModals } from "../features/spaces/CreateModals";
@@ -71,7 +66,6 @@ const RAIL_WIDTH = 72;
 const RIGHT_PANEL_WIDTH = 320;
 const ACTIVE_ROOM_STORAGE_KEY = "surf-chat:active-room";
 
-type RightPanelSection = "overview" | "members" | "media" | "notifications";
 type ChatView = "flat" | "bubbles";
 
 export function ChatShell() {
@@ -879,152 +873,15 @@ export function ChatShell() {
                   exit={{ opacity: 0, x: -12 }}
                   transition={transition.fast}
                 >
-                  <div className="right-panel__avatar" style={{ background: activeRoom.color }}>
-                    {activeRoom.avatarUrl ? (
-                      <img
-                        className="right-panel__avatar-img"
-                        src={activeRoom.avatarUrl}
-                        alt=""
-                        onError={hideImage}
-                      />
-                    ) : null}
-                    <span className="right-panel__avatar-fallback">
-                      {activeRoom.kind === "channel" ? <Hash size={34} /> : activeRoom.name.slice(0, 1).toUpperCase()}
-                    </span>
-                  </div>
-                  <strong className="right-panel__name">{activeRoom.name}</strong>
-                  <span className="right-panel__sub">
-                    {activeRoom.kind === "channel" ? "Канал" : "Личный чат"} · {membersLabel(activeRoom.memberCount)}
-                  </span>
-                  {activeRoom.topic && <div className="right-panel__topic">{activeRoom.topic}</div>}
-
-                  {rightPanelSection === "overview" ? (
-                    <div className="right-panel__rows">
-                      <button
-                        type="button"
-                        className="right-panel__row"
-                        onClick={() => roomSettings.openSettings(activeRoom.id)}
-                      >
-                        <Settings size={18} />
-                        <span>Настройки</span>
-                        <ChevronRight size={16} />
-                      </button>
-                      <button type="button" className="right-panel__row" onClick={() => setRightPanelSection("members")}>
-                        <Users size={18} />
-                        <span>Участники</span>
-                        <em>{roomMembers.length}</em>
-                        <ChevronRight size={16} />
-                      </button>
-                      <button type="button" className="right-panel__row" onClick={() => setRightPanelSection("media")}>
-                        <FileText size={18} />
-                        <span>Файлы и медиа</span>
-                        <em>{roomMedia.length}</em>
-                        <ChevronRight size={16} />
-                      </button>
-                      <button
-                        type="button"
-                        className="right-panel__row"
-                        onClick={() => setRightPanelSection("notifications")}
-                      >
-                        <Bell size={18} />
-                        <span>Уведомления</span>
-                        <em>{activeRoom.unread > 0 ? activeRoom.unread : "По умолчанию"}</em>
-                        <ChevronRight size={16} />
-                      </button>
-                    </div>
-                  ) : (
-                    <>
-                      <div className="right-panel__section-head">
-                        <button
-                          type="button"
-                          className="right-panel__back"
-                          onClick={() => setRightPanelSection("overview")}
-                        >
-                          <ArrowLeft size={16} />
-                        </button>
-                        <strong className="right-panel__section-title">
-                          {rightPanelSection === "members"
-                            ? "Участники"
-                            : rightPanelSection === "media"
-                              ? "Файлы и медиа"
-                              : "Уведомления"}
-                        </strong>
-                      </div>
-
-                      {rightPanelSection === "members" ? (
-                        <div className="right-panel__list">
-                          {roomMembers.map((member) => (
-                            <div key={member.id} className="right-panel__member">
-                              <div className="right-panel__member-avatar" style={{ background: member.color }}>
-                                {member.avatarUrl ? (
-                                  <img
-                                    className="right-panel__member-avatar-img"
-                                    src={member.avatarUrl}
-                                    alt=""
-                                    onError={hideImage}
-                                  />
-                                ) : null}
-                                <span className="right-panel__member-avatar-fallback">
-                                  {(member.name[0] || "?").toUpperCase()}
-                                </span>
-                              </div>
-                              <div className="right-panel__member-body">
-                                <strong>{member.name}</strong>
-                                <span>{member.me ? "Вы" : member.userId}</span>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      ) : rightPanelSection === "media" ? (
-                        roomMedia.length > 0 ? (
-                          <div className="right-panel__list">
-                            {roomMedia.map((item) => (
-                              <button
-                                key={item.id}
-                                type="button"
-                                className="right-panel__media"
-                                onClick={() => item.media.kind === "image" && setLightbox(item.media.url)}
-                              >
-                                <div className="right-panel__media-preview">
-                                  {item.media.kind === "image" && item.media.thumbUrl ? (
-                                    <img src={item.media.thumbUrl} alt="" />
-                                  ) : (
-                                    <span>{mediaKindLabel(item.media.kind)}</span>
-                                  )}
-                                </div>
-                                <div className="right-panel__media-body">
-                                  <strong>{item.media.name}</strong>
-                                  <span>
-                                    {item.author} · {item.time}
-                                  </span>
-                                </div>
-                              </button>
-                            ))}
-                          </div>
-                        ) : (
-                          <div className="right-panel__empty">
-                            <FileText size={18} />
-                            <span>В этой комнате пока нет файлов и медиа.</span>
-                          </div>
-                        )
-                      ) : (
-                        <div className="right-panel__cards">
-                          <div className="right-panel__card">
-                            <span>Режим комнаты</span>
-                            <strong>По умолчанию</strong>
-                          </div>
-                          <div className="right-panel__card">
-                            <span>Непрочитанные</span>
-                            <strong>{activeRoom.unread}</strong>
-                          </div>
-                          <div className="right-panel__card">
-                            <span>Избранное</span>
-                            <strong>{activeRoom.favourite ? "Да" : "Нет"}</strong>
-                          </div>
-                        </div>
-                      )}
-                    </>
-                  )}
+                  <RoomRightPanel
+                    room={activeRoom}
+                    section={rightPanelSection}
+                    onSectionChange={setRightPanelSection}
+                    members={roomMembers}
+                    media={roomMedia}
+                    onOpenSettings={() => roomSettings.openSettings(activeRoom.id)}
+                    onOpenImage={setLightbox}
+                  />
                 </motion.div>
               </AnimatePresence>
             </div>
@@ -1102,31 +959,6 @@ export function ChatShell() {
       <AccountSettingsModal settings={accountSettings} onLogout={() => void logout()} />
     </div>
   );
-}
-
-function membersLabel(count: number): string {
-  const mod10 = count % 10;
-  const mod100 = count % 100;
-  if (mod10 === 1 && mod100 !== 11) return `${count} участник`;
-  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return `${count} участника`;
-  return `${count} участников`;
-}
-
-function mediaKindLabel(kind: MatrixMedia["kind"]): string {
-  switch (kind) {
-    case "image":
-      return "IMG";
-    case "video":
-      return "VID";
-    case "audio":
-      return "AUD";
-    default:
-      return "FILE";
-  }
-}
-
-function hideImage(event: React.SyntheticEvent<HTMLImageElement>): void {
-  event.currentTarget.style.display = "none";
 }
 
 function memberAvatarUrl(
