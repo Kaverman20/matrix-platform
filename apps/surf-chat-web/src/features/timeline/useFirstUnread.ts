@@ -8,6 +8,11 @@ type FirstUnreadCacheEntry = {
 
 const firstUnreadByRoom = new Map<string, FirstUnreadCacheEntry>();
 
+// The room currently open. When it changes we drop the room we just left so its
+// "new messages" divider is recomputed fresh on the next visit (by then those
+// messages are read, so the divider is gone) instead of staying frozen forever.
+let openRoomId: string | null = null;
+
 /**
  * The id of the first unread message in the active room, frozen for as long as
  * the room stays open. Freezing keeps the "new messages" divider in place while
@@ -26,6 +31,11 @@ export function useFirstUnread(
   roomId: string | null,
   messages: MatrixMessage[],
 ): string | null {
+  if (roomId !== openRoomId) {
+    if (openRoomId) firstUnreadByRoom.delete(openRoomId);
+    openRoomId = roomId;
+  }
+
   if (!roomId) return null;
 
   const cached = firstUnreadByRoom.get(roomId);
