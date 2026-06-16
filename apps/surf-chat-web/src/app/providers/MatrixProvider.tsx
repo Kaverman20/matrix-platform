@@ -4,6 +4,7 @@ import {
   DEFAULT_SSO_HOMESERVER_STORAGE_KEY,
   buildSsoRedirectUrl,
   clearMatrixSession,
+  enableEncryption,
   loadMatrixSession,
   loginWithAccessToken,
   loginWithLoginToken,
@@ -45,6 +46,13 @@ export function MatrixProvider({ children }: Props) {
 
       try {
         const nextClient = await startMatrixClient(session);
+
+        // Initialise E2EE in the background so encrypted rooms decrypt. Off the
+        // critical path: it loads a multi-MB wasm module. Failures are logged,
+        // not fatal — the app still works for unencrypted rooms.
+        void enableEncryption(nextClient).catch((e) => {
+          console.error("[matrix] enableEncryption failed", e);
+        });
 
         subscribeSyncState(nextClient, {
           onReady: () => setStatus("ready"),

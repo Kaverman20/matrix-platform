@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from "framer-motion";
-import { Camera, Copy, LogOut, X } from "lucide-react";
+import { Camera, Copy, LogOut, ShieldCheck, X } from "lucide-react";
 import { useRef, useState } from "react";
 import { colorForId } from "@matrix-platform/matrix-core";
 import { transition } from "@matrix-platform/ui";
@@ -11,9 +11,10 @@ type AccountSettings = ReturnType<typeof useAccountSettings>;
 type Props = {
   settings: AccountSettings;
   onLogout: () => void;
+  onOpenEncryption: () => void;
 };
 
-export function AccountSettingsModal({ settings: s, onLogout }: Props) {
+export function AccountSettingsModal({ settings: s, onLogout, onOpenEncryption }: Props) {
   const avatarInputRef = useRef<HTMLInputElement | null>(null);
   const [copied, setCopied] = useState(false);
   const profile = s.profile;
@@ -95,6 +96,19 @@ export function AccountSettingsModal({ settings: s, onLogout }: Props) {
             </button>
 
             {s.error && <p className="spacemodal__hint">{s.error}</p>}
+
+            <button
+              type="button"
+              className="account-settings__id"
+              onClick={() => {
+                s.close();
+                onOpenEncryption();
+              }}
+            >
+              <span>Шифрование</span>
+              <ShieldCheck size={16} />
+              <em>Настроить</em>
+            </button>
 
             <div className="account-settings__actions">
               <button

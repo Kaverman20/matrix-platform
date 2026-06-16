@@ -59,6 +59,8 @@ import {
 import { formatTypingLabel, useTyping } from "../features/timeline/useTyping";
 import { AccountSettingsModal } from "../features/account/AccountSettingsModal";
 import { useAccountSettings } from "../features/account/useAccountSettings";
+import { EncryptionModal } from "../features/encryption/EncryptionModal";
+import { useEncryption } from "../features/encryption/useEncryption";
 import "./chat-shell.css";
 
 const RIGHT_PANEL_WIDTH = 320;
@@ -124,6 +126,7 @@ export function ChatShell() {
   const spaceNavigation = useSpaceNavigation(roomGroups, activeSpaceId, setActiveSpaceId);
   const roomSettings = useRoomSettings({ client });
   const accountSettings = useAccountSettings({ client });
+  const encryption = useEncryption({ client });
 
   const activeRoom = useMemo(() => {
     return allRooms.find((room) => room.id === activeRoomId) ?? null;
@@ -658,7 +661,12 @@ export function ChatShell() {
         activeSpaceName={spaceNavigation.activeSpace?.name ?? null}
       />
       <RoomSettingsModal settings={roomSettings} />
-      <AccountSettingsModal settings={accountSettings} onLogout={() => void logout()} />
+      <AccountSettingsModal
+        settings={accountSettings}
+        onLogout={() => void logout()}
+        onOpenEncryption={encryption.openModal}
+      />
+      <EncryptionModal encryption={encryption} />
     </div>
   );
 }
