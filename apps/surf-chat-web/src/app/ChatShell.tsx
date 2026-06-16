@@ -1,15 +1,19 @@
 import { AnimatePresence, motion } from "framer-motion";
-import { EventTimeline, RoomStateEvent, type MatrixEvent } from "matrix-js-sdk";
+import { RoomStateEvent, type MatrixEvent } from "matrix-js-sdk";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { transition } from "@matrix-platform/ui";
 import {
   buildForwardData,
+  canPinMessages as canPinMessagesInRoom,
   canPaginateBackwards,
+  getPinnedEventIds,
   loadRoomThreads,
   markReadUpToEvent,
   paginateBackwards,
   removeReaction,
   sendReaction,
+  setPinnedEventIds,
+  togglePinnedEventId,
   type MatrixForwardData,
   type MatrixMedia,
   type MatrixMessage,
@@ -211,27 +215,10 @@ export function ChatShell() {
         })),
     [messages],
   );
-  const canPinMessages = useMemo(() => {
-    if (!client || !activeMatrixRoom) return false;
-
-    const powerLevels = activeMatrixRoom
-      .getLiveTimeline()
-      .getState(EventTimeline.FORWARDS)
-      ?.getStateEvents("m.room.power_levels", "")
-      ?.getContent() as
-        | {
-            users?: Record<string, number>;
-            users_default?: number;
-            events?: Record<string, number>;
-            state_default?: number;
-          }
-        | undefined;
-
-    const me = client.getUserId();
-    const myLevel = Number((me && powerLevels?.users?.[me]) ?? powerLevels?.users_default ?? 0);
-    const requiredLevel = Number(powerLevels?.events?.["m.room.pinned_events"] ?? powerLevels?.state_default ?? 50);
-    return myLevel >= requiredLevel;
-  }, [activeMatrixRoom, client]);
+  const canPinMessages = useMemo(
+    () => canPinMessagesInRoom(client, activeRoomId),
+    [activeRoomId, client],
+  );
 
   const openMessageMenu = (
     message: MatrixMessage,
@@ -271,26 +258,13 @@ export function ChatShell() {
   const togglePinnedMessage = async (message: MatrixMessage) => {
     if (!client || !activeRoomId) return;
 
-    const room = client.getRoom(activeRoomId);
-    if (!room) return;
-
-    const currentPinned = optimisticPinnedIds
-      ?? (room.currentState.getStateEvents("m.room.pinned_events", "")?.getContent().pinned as string[] | undefined)
-      ?? (room
-        .getLiveTimeline()
-        .getState(EventTimeline.FORWARDS)
-        ?.getStateEvents("m.room.pinned_events", "")
-        ?.getContent().pinned as string[] | undefined)
-      ?? [];
-
-    const nextPinned = currentPinned.includes(message.id)
-      ? currentPinned.filter((id) => id !== message.id)
-      : [...currentPinned, message.id];
+    const currentPinned = getPinnedEventIds(client, activeRoomId, optimisticPinnedIds);
+    const nextPinned = togglePinnedEventId(currentPinned, message.id);
 
     setOptimisticPinnedIds(nextPinned);
 
     try {
-      await client.sendStateEvent(activeRoomId, "m.room.pinned_events" as never, { pinned: nextPinned } as never, "");
+      await setPinnedEventIds(client, activeRoomId, nextPinned);
     } catch (error) {
       setOptimisticPinnedIds(currentPinned);
       console.error("[pin-message]", error);
