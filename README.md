@@ -34,20 +34,21 @@ scripts/
 
 ## Getting started
 
-Requires Node 20+ and pnpm.
+Requires pnpm and Node 24 (the version CI runs; 20+ should also work).
 
 ```sh
 pnpm install
+cp .env.example .env    # Vite reads env from the repo root (vite envDir: "../..")
 
-# Run the web client (point it at a homeserver via env var)
-VITE_DEFAULT_HOMESERVER=https://matrix.foxhound.run pnpm --filter surf-chat-web dev
+# Run the web client
+pnpm --filter surf-chat-web dev
 
 # Build the web client for production
-VITE_DEFAULT_HOMESERVER=https://matrix.foxhound.run pnpm --filter surf-chat-web build
+pnpm --filter surf-chat-web build
 ```
 
-`VITE_DEFAULT_HOMESERVER` sets the default Matrix homeserver shown on the login
-screen; users can still override it.
+`.env` sets `VITE_DEFAULT_HOMESERVER` (default Matrix homeserver shown on the
+login screen; users can still override it) and `VITE_APP_NAME`.
 
 ## Verifying
 
