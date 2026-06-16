@@ -6,6 +6,44 @@
 
 ---
 
+## 2026-06-16 — P2 завершён: тесты web, code splitting, выкинули wasm, один CI
+
+**Контекст.** Остаточные пункты исходного аудита (не входили в P1). Репозиторий
+полностью синхронизирован с GitHub (`github/main`), 134 коммита P1 на месте.
+
+**P2.1 — тесты web-слоя.** `apps/surf-chat-web` был без тестов. Подняли
+Vitest + Testing Library + jsdom (`vitest.config.ts`, окружение `jsdom`,
+`test: vitest run`). Покрыли логику, а не пиксели: `useRoomListLayout` (collapse,
+drag-resize, снэп к свёрнутому, снятие window-листенеров), `useFirstUnread`
+(разделитель непрочитанного: пропуск своих/redacted/не-сообщений, заморозка при
+открытой комнате), `useChatNavigation` (выбор/закрытие/выход из комнаты, confirm).
+Итого web: 19 тестов; всего по репозиторию 90 (71 core + 19 web).
+
+**P2.2 — code splitting.** Был один монолит `index.js` ~1.9 MB. Проект уже на
+**Vite 8 (rolldown)**. Ввели `build.rollupOptions.output.manualChunks` только для
+крупных *статически* импортируемых вендоров (`react`, `matrix-js-sdk`,
+`framer-motion`) — остальное возвращает `undefined`, чтобы rolldown сам решал.
+Emoji-mart (~510 kB) вынесли в ленивый `components/EmojiPicker.tsx`
+(`React.lazy` + динамический `import()` данных и пикера) — теперь его чанк
+(`native`/`module`) грузится только при открытии пикера и **не попадает в
+`modulepreload`**. Важный нюанс rolldown: catch-all `vendor`-ветка в `manualChunks`
+затягивала бы emoji-mart в статический чанк и убивала ленивость — поэтому её убрали.
+App-чанк: 1.9 MB → ~147 kB.
+
+**P2.3 — wasm из dist.** crypto-wasm (~5.5 MB) лежал в `dist`, но в рантайм не
+исполняется (`enableEncryption` не вызывается, см. запись ниже). Добавили
+build-only Vite-плагин `dropUnusedCryptoWasm` (`generateBundle` удаляет
+`matrix_sdk_crypto_wasm*.wasm` из бандла). Выбрали именно это, а не стаб-алиас
+пакета: rust-crypto статически импортирует именованные экспорты crypto-wasm, и
+стаб сломал бы сборку. Ссылка на wasm остаётся в неисполняемом коде rust-crypto —
+безопасно. Обратимо: убрать плагин, когда понадобится E2EE. `dist`: ~7.4 MB → 2.2 MB.
+
+**P2.4 — один CI.** `.gitlab-ci.yml` был осиротевшим (нет GitLab-remote, нет ссылок
+в infra/docs — только `github`). Удалили; источник правды — GitHub Actions
+(`.github/workflows/ci.yml`, `pnpm verify`). Восстановить — одна строка из истории.
+
+---
+
 ## 2026-06-16 — P1.4/P1.5 завершены: SDK только в matrix-core + зачистка заглушек
 
 **Контекст.** Завершена изоляция Matrix SDK: вся рантайм-логика вынесена в
