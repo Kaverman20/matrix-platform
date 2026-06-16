@@ -1,5 +1,9 @@
 import { useEffect, useState } from "react";
-import { EventTimeline, type MatrixClient } from "matrix-js-sdk";
+import type { MatrixClient } from "matrix-js-sdk";
+import {
+  getRoomSettingsSnapshot,
+  saveRoomSettings,
+} from "@matrix-platform/matrix-core";
 
 type Options = {
   client: MatrixClient | null;
@@ -29,25 +33,18 @@ export function useRoomSettings({ client }: Options) {
 
   const openSettings = (targetRoomId: string) => {
     if (!client) return;
-    const room = client.getRoom(targetRoomId);
-    if (!room) return;
-
-    const topicContent = room.currentState.getStateEvents("m.room.topic", "")?.getContent()?.topic;
-    const avatarMxc = room.currentState.getStateEvents("m.room.avatar", "")?.getContent()?.url;
+    const settings = getRoomSettingsSnapshot(client, targetRoomId);
+    if (!settings) return;
 
     if (avatarPreview) URL.revokeObjectURL(avatarPreview);
     setRoomId(targetRoomId);
-    setIsSpace(room.isSpaceRoom());
-    setName(room.name || "");
-    setTopic(typeof topicContent === "string" ? topicContent : "");
-    setCurrentAvatarUrl(
-      typeof avatarMxc === "string"
-        ? client.mxcUrlToHttp(avatarMxc, 96, 96, "crop", false, true, true) ?? undefined
-        : undefined,
-    );
+    setIsSpace(settings.isSpace);
+    setName(settings.name);
+    setTopic(settings.topic);
+    setCurrentAvatarUrl(settings.currentAvatarUrl);
     setAvatarFile(null);
     setAvatarPreview(null);
-    setCanManage(canManageRoom(client, targetRoomId));
+    setCanManage(settings.canManage);
     setOpen(true);
   };
 
@@ -68,24 +65,7 @@ export function useRoomSettings({ client }: Options) {
 
     setPending(true);
     try {
-      const room = client.getRoom(roomId);
-      const currentName = room?.name ?? "";
-      const currentTopic =
-        (room?.currentState.getStateEvents("m.room.topic", "")?.getContent()?.topic as string | undefined) ?? "";
-
-      if (currentName !== trimmed) {
-        await client.setRoomName(roomId, trimmed);
-      }
-      if (currentTopic !== topic.trim()) {
-        await client.setRoomTopic(roomId, topic.trim());
-      }
-      if (avatarFile) {
-        const upload = await client.uploadContent(avatarFile, { type: avatarFile.type });
-        const uri = (upload as { content_uri?: string }).content_uri;
-        if (uri) {
-          await client.sendStateEvent(roomId, "m.room.avatar" as never, { url: uri } as never, "");
-        }
-      }
+      await saveRoomSettings(client, roomId, { name: trimmed, topic, avatarFile });
       close();
     } catch (error) {
       console.error("[room-settings]", error);
@@ -114,22 +94,3 @@ export function useRoomSettings({ client }: Options) {
 }
 
 export type RoomSettings = ReturnType<typeof useRoomSettings>;
-
-/** True when the user may edit room name/topic/avatar (power level check). */
-export function canManageRoom(client: MatrixClient, roomId: string): boolean {
-  const room = client.getRoom(roomId);
-  if (!room) return false;
-
-  const powerLevels = room
-    .getLiveTimeline()
-    .getState(EventTimeline.FORWARDS)
-    ?.getStateEvents("m.room.power_levels", "")
-    ?.getContent() as
-      | { users?: Record<string, number>; users_default?: number; events?: Record<string, number>; state_default?: number }
-      | undefined;
-
-  const me = client.getUserId();
-  const myLevel = Number((me && powerLevels?.users?.[me]) ?? powerLevels?.users_default ?? 0);
-  const required = Number(powerLevels?.events?.["m.room.name"] ?? powerLevels?.state_default ?? 50);
-  return myLevel >= required;
-}

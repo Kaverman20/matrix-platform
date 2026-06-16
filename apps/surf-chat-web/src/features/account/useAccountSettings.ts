@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useState } from "react";
 import type { MatrixClient } from "matrix-js-sdk";
+import {
+  getAccountProfile,
+  saveAccountProfile,
+  type AccountProfile,
+} from "@matrix-platform/matrix-core";
 
-export type AccountProfile = {
-  userId: string;
-  displayName: string;
-  avatarUrl?: string;
-  avatarMxc?: string;
-};
+export type { AccountProfile };
 
 type Options = {
   client: MatrixClient | null;
@@ -29,11 +29,8 @@ export function useAccountSettings({ client }: Options) {
 
   const loadProfile = useCallback(async () => {
     if (!client) return;
-    const userId = client.getUserId();
-    if (!userId) return;
-
-    const info = await client.getProfileInfo(userId);
-    const nextProfile = profileFromInfo(client, userId, info);
+    const nextProfile = await getAccountProfile(client);
+    if (!nextProfile) return;
     setProfile(nextProfile);
     setDisplayName(nextProfile.displayName);
   }, [client]);
@@ -69,15 +66,11 @@ export function useAccountSettings({ client }: Options) {
     setPending(true);
     setError(null);
     try {
-      if (avatarFile) {
-        const upload = await client.uploadContent(avatarFile, { type: avatarFile.type });
-        const uri = typeof upload === "string" ? upload : (upload as { content_uri?: string }).content_uri;
-        if (uri) await client.setAvatarUrl(uri);
+      const nextProfile = await saveAccountProfile(client, profile, { displayName: name, avatarFile });
+      if (nextProfile) {
+        setProfile(nextProfile);
+        setDisplayName(nextProfile.displayName);
       }
-      if (name !== profile.displayName) {
-        await client.setDisplayName(name);
-      }
-      await loadProfile();
       setAvatar(null);
       setOpen(false);
     } catch (e) {
@@ -85,7 +78,7 @@ export function useAccountSettings({ client }: Options) {
     } finally {
       setPending(false);
     }
-  }, [avatarFile, client, displayName, loadProfile, profile, setAvatar]);
+  }, [avatarFile, client, displayName, profile, setAvatar]);
 
   useEffect(() => {
     if (!client) return;
@@ -107,21 +100,5 @@ export function useAccountSettings({ client }: Options) {
     pending,
     error,
     save,
-  };
-}
-
-function profileFromInfo(
-  client: MatrixClient,
-  userId: string,
-  info: { displayname?: string; avatar_url?: string },
-): AccountProfile {
-  const avatarMxc = info.avatar_url;
-  return {
-    userId,
-    displayName: info.displayname || userId,
-    avatarMxc,
-    avatarUrl: avatarMxc
-      ? client.mxcUrlToHttp(avatarMxc, 160, 160, "crop", false, true, true) ?? undefined
-      : undefined,
   };
 }
