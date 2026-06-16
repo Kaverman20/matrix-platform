@@ -22,5 +22,21 @@ export default tseslint.config(
       "react-refresh/only-export-components": ["warn", { allowConstantExport: true }],
     },
   },
+  {
+    // P1.4 boundary fence: all Matrix runtime/SDK logic lives in matrix-core.
+    // The app may only import *types* from matrix-js-sdk — any value import is a
+    // regression that should move into packages/matrix-core instead.
+    files: ["apps/**/*.{ts,tsx}"],
+    rules: {
+      "@typescript-eslint/no-restricted-imports": ["error", {
+        paths: [{
+          name: "matrix-js-sdk",
+          message:
+            "В apps/ разрешён только `import type` из matrix-js-sdk. Вся рантайм-логика SDK живёт в @matrix-platform/matrix-core.",
+          allowTypeImports: true,
+        }],
+      }],
+    },
+  },
 );
 
