@@ -41,15 +41,9 @@ importers:
       '@matrix-platform/matrix-core':
         specifier: workspace:*
         version: link:../../packages/matrix-core
-      '@matrix-platform/shared':
-        specifier: workspace:*
-        version: link:../../packages/shared
       '@matrix-platform/ui':
         specifier: workspace:*
         version: link:../../packages/ui
-      '@tanstack/react-virtual':
-        specifier: ^3.14.2
-        version: 3.14.2(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       '@vitejs/plugin-react':
         specifier: ^6.0.1
         version: 6.0.2(vite@8.0.16(esbuild@0.27.7))
@@ -63,8 +57,8 @@ importers:
         specifier: ^1.17.0
         version: 1.17.0(react@19.2.7)
       matrix-js-sdk:
-        specifier: 41.7.0-rc.3
-        version: 41.7.0-rc.3
+        specifier: 41.7.0
+        version: 41.7.0
       react:
         specifier: ^19.2.6
         version: 19.2.7
@@ -88,8 +82,8 @@ importers:
   packages/matrix-core:
     dependencies:
       matrix-js-sdk:
-        specifier: 41.7.0-rc.3
-        version: 41.7.0-rc.3
+        specifier: 41.7.0
+        version: 41.7.0
     devDependencies:
       typescript:
         specifier: ~6.0.2
@@ -675,15 +669,6 @@ packages:
     cpu: [x64]
     os: [win32]
 
-  '@tanstack/react-virtual@3.14.2':
-    resolution: {integrity: sha512-IpWnmCLvuymRfeeLNVXIzNEYBFLpd3drVIS91sqV78VTZFyldlChkOocZRCPp1B+Wnk09bcLNme8WaMU/9/9bQ==}
-    peerDependencies:
-      react: ^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0
-      react-dom: ^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0
-
-  '@tanstack/virtual-core@3.17.0':
-    resolution: {integrity: sha512-gOxY/hFkPh/XQYhnThBHzkbkX3Ed+z/iushyz+R+JAr213aXxUDgQoTgTdrDpBSRsjFM73P/KfUyWmaF9WHMkQ==}
-
   '@tybys/wasm-util@0.10.2':
     resolution: {integrity: sha512-RoBvJ2X0wuKlWFIjrwffGw1IqZHKQqzIchKaadZZfnNpsAYp2mM0h36JtPCjNDAHGgYez/15uMBpfGwchhiMgg==}
 
@@ -1221,8 +1206,8 @@ packages:
   matrix-events-sdk@0.0.1:
     resolution: {integrity: sha512-1QEOsXO+bhyCroIe2/A5OwaxHvBm7EsSQ46DEDn8RBIfQwN5HWBpFvyWWR4QY0KHPPnnJdI99wgRiAl7Ad5qaA==}
 
-  matrix-js-sdk@41.7.0-rc.3:
-    resolution: {integrity: sha512-DKPusJPhOt4RNM3fA9LMr3AWcsgljup75RkzgjKsJSYIv4c4O4olQpmrNRyDyDgCJD5EvRhsD5unjuA2VMPgEw==}
+  matrix-js-sdk@41.7.0:
+    resolution: {integrity: sha512-MP0xNv/VVRbshq00TE6EVo77IIXsQk0KjiVtgKV0t9j/V77a6Klt00QrrO0XykkTUsNC0+mQeBMxnx75rZO86Q==}
     engines: {node: '>=22.0.0'}
 
   matrix-widget-api@1.17.0:
@@ -1982,14 +1967,6 @@ snapshots:
   '@rollup/rollup-win32-x64-msvc@4.62.0':
     optional: true
 
-  '@tanstack/react-virtual@3.14.2(react-dom@19.2.7(react@19.2.7))(react@19.2.7)':
-    dependencies:
-      '@tanstack/virtual-core': 3.17.0
-      react: 19.2.7
-      react-dom: 19.2.7(react@19.2.7)
-
-  '@tanstack/virtual-core@3.17.0': {}
-
   '@tybys/wasm-util@0.10.2':
     dependencies:
       tslib: 2.8.1
@@ -2521,7 +2498,7 @@ snapshots:
 
   matrix-events-sdk@0.0.1: {}
 
-  matrix-js-sdk@41.7.0-rc.3:
+  matrix-js-sdk@41.7.0:
     dependencies:
       '@babel/runtime': 7.29.7
       '@matrix-org/matrix-sdk-crypto-wasm': 18.3.1
