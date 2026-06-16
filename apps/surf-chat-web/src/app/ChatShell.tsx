@@ -1,5 +1,4 @@
 import { AnimatePresence, motion } from "framer-motion";
-import { RoomStateEvent, type MatrixEvent } from "matrix-js-sdk";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { transition } from "@matrix-platform/ui";
 import {
@@ -13,6 +12,7 @@ import {
   removeReaction,
   sendReaction,
   setPinnedEventIds,
+  subscribePinnedEvents,
   togglePinnedEventId,
   type MatrixForwardData,
   type MatrixMedia,
@@ -215,10 +215,7 @@ export function ChatShell() {
         })),
     [messages],
   );
-  const canPinMessages = useMemo(
-    () => canPinMessagesInRoom(client, activeRoomId),
-    [activeRoomId, client],
-  );
+  const canPinMessages = canPinMessagesInRoom(client, activeRoomId);
 
   const openMessageMenu = (
     message: MatrixMessage,
@@ -359,16 +356,7 @@ export function ChatShell() {
   useEffect(() => {
     if (!client || !activeRoomId) return;
 
-    const onState = (event: MatrixEvent) => {
-      if (event.getType() !== "m.room.pinned_events") return;
-      if (event.getRoomId() !== activeRoomId) return;
-      setOptimisticPinnedIds(null);
-    };
-
-    client.on(RoomStateEvent.Events, onState);
-    return () => {
-      client.off(RoomStateEvent.Events, onState);
-    };
+    return subscribePinnedEvents(client, activeRoomId, () => setOptimisticPinnedIds(null));
   }, [client, activeRoomId]);
 
   // First unread message for the open room — drives the "new messages" divider

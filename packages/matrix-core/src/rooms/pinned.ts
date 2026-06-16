@@ -1,4 +1,6 @@
-import { EventTimeline, type MatrixClient, type Room } from "matrix-js-sdk";
+import { EventTimeline, RoomStateEvent, type MatrixClient, type MatrixEvent, type Room } from "matrix-js-sdk";
+import type { MatrixMessageReference } from "../timeline/messageTypes";
+import { colorForId } from "./colors";
 
 const PINNED_EVENTS_TYPE = "m.room.pinned_events";
 
@@ -7,6 +9,10 @@ type PowerLevelsContent = {
   users_default?: number;
   events?: Record<string, number>;
   state_default?: number;
+};
+
+export type MatrixPinnedMessage = MatrixMessageReference & {
+  color?: string;
 };
 
 export function canPinMessages(client: MatrixClient | null, roomId: string | null): boolean {
@@ -38,6 +44,63 @@ export function getPinnedEventIds(
   return Array.isArray(content?.pinned)
     ? content.pinned.filter((id): id is string => typeof id === "string")
     : [];
+}
+
+export function mapPinnedMessages(
+  client: MatrixClient | null,
+  roomId: string | null,
+  pinnedIds: string[],
+): MatrixPinnedMessage[] {
+  if (!client || !roomId) return [];
+
+  const room = client.getRoom(roomId);
+  if (!room) return [];
+
+  return pinnedIds
+    .map<MatrixPinnedMessage | null>((id) => {
+      const event = room.findEventById(id);
+      if (!event || event.isRedacted() || event.getType() !== "m.room.message") {
+        return null;
+      }
+
+      const sender = event.getSender() ?? undefined;
+      const member = sender ? room.getMember(sender) : null;
+      const color = sender ? colorForId(sender) : undefined;
+      const body = event.replacingEvent()?.getContent()?.["m.new_content"] as
+        | { body?: unknown }
+        | undefined;
+      const text = typeof body?.body === "string"
+        ? body.body
+        : typeof event.getContent().body === "string"
+          ? event.getContent().body as string
+          : "Сообщение";
+
+      return {
+        id,
+        sender,
+        author: member?.name || sender,
+        text,
+        color,
+      };
+    })
+    .filter((message): message is MatrixPinnedMessage => message !== null);
+}
+
+export function subscribePinnedEvents(
+  client: MatrixClient,
+  roomId: string,
+  onChange: () => void,
+): () => void {
+  const onState = (event: MatrixEvent) => {
+    if (event.getType() !== PINNED_EVENTS_TYPE) return;
+    if (event.getRoomId() !== roomId) return;
+    onChange();
+  };
+
+  client.on(RoomStateEvent.Events, onState);
+  return () => {
+    client.off(RoomStateEvent.Events, onState);
+  };
 }
 
 export function togglePinnedEventId(currentIds: string[], eventId: string): string[] {
