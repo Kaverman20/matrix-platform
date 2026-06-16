@@ -6,6 +6,27 @@
 
 ---
 
+## 2026-06-16 — P1.4/P1.5 завершены: SDK только в matrix-core + зачистка заглушек
+
+**Контекст.** Завершена изоляция Matrix SDK: вся рантайм-логика вынесена в
+`packages/matrix-core`, `apps/` импортирует из `matrix-js-sdk` только типы.
+Граница закреплена ESLint-правилом (`@typescript-eslint/no-restricted-imports`
+с `allowTypeImports` для `apps/**`) — любой value-импорт SDK в приложении теперь
+ошибка линтера. Core unit-тестов: 71.
+
+**Намеренный мёртвый код (чтобы аудит не считал находкой).**
+- `enableEncryption()` в `packages/matrix-core/src/client/startClient.ts` —
+  намеренно не вызывается (см. запись про E2EE ниже). Не баг.
+- `apps/surf-chat-web/src/features/selection/` и `src/components/` — пустые
+  папки-маркеры будущих фич, только README (помечены `(planned)`). Не забытый код.
+
+**Удалено.** Пакет `packages/shared` (`@matrix-platform/shared`) — содержал
+единственный неиспользуемый тип `Maybe<T>` и ни на что не был подключён (даже не
+в зависимостях web-app). Удалён целиком как мёртвый; если `Maybe<T>` понадобится —
+это одна строка.
+
+---
+
 ## 2026-06-15 — E2EE отложен (crypto-wasm уже ленивый, не на критическом пути)
 
 **Контекст (P1.1).** Стоял вопрос судьбы E2EE: crypto-wasm весит ~5.5 MB, ранее
