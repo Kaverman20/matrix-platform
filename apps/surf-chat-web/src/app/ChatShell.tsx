@@ -14,7 +14,6 @@ import {
   type MatrixMedia,
   type MatrixMessage,
   type MatrixMessageReference,
-  type MatrixSpaceSummary,
 } from "@matrix-platform/matrix-core";
 import { useMatrix } from "./providers/MatrixContext";
 import { Composer, type ComposerHandle } from "../features/composer/Composer";
@@ -34,6 +33,7 @@ import { useRoomSettings } from "../features/room-settings/useRoomSettings";
 import { CreateModals } from "../features/spaces/CreateModals";
 import { SpaceRail } from "../features/spaces/SpaceRail";
 import { useRoomCreation } from "../features/spaces/useRoomCreation";
+import { useSpaceNavigation } from "../features/spaces/useSpaceNavigation";
 import { EmptyState } from "../features/timeline/EmptyState";
 import { GlobalThreadsPanel } from "../features/threads/GlobalThreadsPanel";
 import { ThreadPanel } from "../features/threads/ThreadPanel";
@@ -112,71 +112,15 @@ export function ChatShell() {
   );
   const allRoomIds = useMemo(() => allRooms.map((room) => room.id), [allRooms]);
   usePreloadTimelineMessages(client, allRoomIds);
-  const effectiveActiveSpaceId = useMemo(
-    () => (activeSpaceId && roomGroups.spaces.some((space) => space.id === activeSpaceId) ? activeSpaceId : null),
-    [activeSpaceId, roomGroups.spaces],
-  );
-  const activeSpace = useMemo(
-    () => roomGroups.spaces.find((space) => space.id === effectiveActiveSpaceId) ?? null,
-    [effectiveActiveSpaceId, roomGroups.spaces],
-  );
+  const spaceNavigation = useSpaceNavigation(roomGroups, activeSpaceId, setActiveSpaceId);
   const creation = useRoomCreation({
     client,
-    activeSpaceId: effectiveActiveSpaceId,
+    activeSpaceId: spaceNavigation.effectiveActiveSpaceId,
     onOpenRoom: setActiveRoomId,
     onOpenSpace: setActiveSpaceId,
   });
   const roomSettings = useRoomSettings({ client });
   const accountSettings = useAccountSettings({ client });
-  const activeSpaceChildSet = useMemo(
-    () => (activeSpace ? new Set(activeSpace.childIds) : null),
-    [activeSpace],
-  );
-  const spacesById = useMemo(
-    () => new Map(roomGroups.spaces.map((space) => [space.id, space])),
-    [roomGroups.spaces],
-  );
-  const spaceParentId = useMemo(() => {
-    const parents = new Map<string, string>();
-    for (const parent of roomGroups.spaces) {
-      for (const childId of parent.childSpaceIds) parents.set(childId, parent.id);
-    }
-    return parents;
-  }, [roomGroups.spaces]);
-  const topLevelSpaces = useMemo(
-    () => roomGroups.spaces.filter((space) => !space.nested),
-    [roomGroups.spaces],
-  );
-  const subspaces = useMemo(
-    () =>
-      (activeSpace?.childSpaceIds ?? [])
-        .map((id) => spacesById.get(id))
-        .filter((space): space is MatrixSpaceSummary => Boolean(space)),
-    [activeSpace, spacesById],
-  );
-  // Highlight the top-level ancestor in the rail even when a nested space is open.
-  const railActiveSpaceId = useMemo(() => {
-    let id: string | null = effectiveActiveSpaceId;
-    const seen = new Set<string>();
-    while (id && spaceParentId.has(id) && !seen.has(id)) {
-      seen.add(id);
-      id = spaceParentId.get(id) ?? null;
-    }
-    return id;
-  }, [effectiveActiveSpaceId, spaceParentId]);
-  const parentSpace = useMemo(() => {
-    if (!effectiveActiveSpaceId) return null;
-    const parentId = spaceParentId.get(effectiveActiveSpaceId);
-    return parentId ? spacesById.get(parentId) ?? null : null;
-  }, [effectiveActiveSpaceId, spaceParentId, spacesById]);
-  const visibleRoomGroups = useMemo(
-    () => ({
-      favourites: roomGroups.favourites.filter((room) => !activeSpaceChildSet || activeSpaceChildSet.has(room.id)),
-      channels: roomGroups.channels.filter((room) => !activeSpaceChildSet || activeSpaceChildSet.has(room.id)),
-      dms: roomGroups.dms.filter((room) => !activeSpaceChildSet || activeSpaceChildSet.has(room.id)),
-    }),
-    [roomGroups.channels, roomGroups.dms, roomGroups.favourites, activeSpaceChildSet],
-  );
 
   const activeRoom = useMemo(() => {
     return allRooms.find((room) => room.id === activeRoomId) ?? null;
@@ -285,8 +229,8 @@ export function ChatShell() {
     try {
       await client.leave(roomId);
       if (activeRoomId === roomId) setActiveRoomId(null);
-      if (effectiveActiveSpaceId === roomId) {
-        setActiveSpaceId(spaceParentId.get(roomId) ?? null);
+      if (spaceNavigation.effectiveActiveSpaceId === roomId) {
+        setActiveSpaceId(spaceNavigation.spaceParentId.get(roomId) ?? null);
       }
     } catch (error) {
       console.error("[leave-room]", error);
@@ -295,11 +239,11 @@ export function ChatShell() {
   };
 
   const leaveActiveSpace = async () => {
-    if (!client || !effectiveActiveSpaceId) return;
-    if (!window.confirm(`Выйти из пространства «${activeSpace?.name ?? ""}»?`)) return;
-    const parentId = spaceParentId.get(effectiveActiveSpaceId) ?? null;
+    if (!client || !spaceNavigation.effectiveActiveSpaceId) return;
+    if (!window.confirm(`Выйти из пространства «${spaceNavigation.activeSpace?.name ?? ""}»?`)) return;
+    const parentId = spaceNavigation.spaceParentId.get(spaceNavigation.effectiveActiveSpaceId) ?? null;
     try {
-      await client.leave(effectiveActiveSpaceId);
+      await client.leave(spaceNavigation.effectiveActiveSpaceId);
       setActiveSpaceId(parentId);
     } catch (error) {
       console.error("[leave-space]", error);
@@ -590,8 +534,8 @@ export function ChatShell() {
   return (
     <div className="chat-shell">
       <SpaceRail
-        spaces={topLevelSpaces}
-        activeSpaceId={railActiveSpaceId}
+        spaces={spaceNavigation.topLevelSpaces}
+        activeSpaceId={spaceNavigation.railActiveSpaceId}
         onSelectHome={() => setActiveSpaceId(null)}
         onSelectSpace={setActiveSpaceId}
         onCreateSpace={creation.openCreateSpace}
@@ -610,16 +554,16 @@ export function ChatShell() {
         transition={roomListLayout.resizing ? { duration: 0 } : transition.slow}
       >
         <RoomList
-          favourites={visibleRoomGroups.favourites}
-          channels={visibleRoomGroups.channels}
-          dms={visibleRoomGroups.dms}
+          favourites={spaceNavigation.visibleRoomGroups.favourites}
+          channels={spaceNavigation.visibleRoomGroups.channels}
+          dms={spaceNavigation.visibleRoomGroups.dms}
           activeRoomId={activeRoomId}
           collapsed={roomListLayout.collapsed}
-          activeSpaceId={effectiveActiveSpaceId}
-          activeSpace={activeSpace}
-          subspaces={subspaces}
-          parentSpaceName={parentSpace?.name ?? null}
-          onBack={() => parentSpace && setActiveSpaceId(parentSpace.id)}
+          activeSpaceId={spaceNavigation.effectiveActiveSpaceId}
+          activeSpace={spaceNavigation.activeSpace}
+          subspaces={spaceNavigation.subspaces}
+          parentSpaceName={spaceNavigation.parentSpace?.name ?? null}
+          onBack={() => spaceNavigation.parentSpace && setActiveSpaceId(spaceNavigation.parentSpace.id)}
           onSelectSpace={setActiveSpaceId}
           onToggleCollapsed={roomListLayout.toggleCollapse}
           onSelectRoom={selectRoom}
@@ -804,8 +748,8 @@ export function ChatShell() {
       />
       <CreateModals
         creation={creation}
-        activeSpaceId={effectiveActiveSpaceId}
-        activeSpaceName={activeSpace?.name ?? null}
+        activeSpaceId={spaceNavigation.effectiveActiveSpaceId}
+        activeSpaceName={spaceNavigation.activeSpace?.name ?? null}
       />
       <RoomSettingsModal settings={roomSettings} />
       <AccountSettingsModal settings={accountSettings} onLogout={() => void logout()} />
