@@ -73,9 +73,10 @@ export function LoginScreen() {
         <h1>Surf Chat</h1>
         <p>Войдите в свой Matrix аккаунт</p>
 
-        <label className="field">
+        <label className="surf-field">
           <span>Домашний сервер</span>
           <input
+            className="surf-input"
             value={homeserver}
             onChange={(e) => setHomeserver(e.target.value)}
             placeholder="https://matrix.org"
@@ -89,7 +90,7 @@ export function LoginScreen() {
               <button
                 key={provider.id}
                 type="button"
-                className="auth-card__submit auth-card__submit--sso"
+                className="surf-btn surf-btn--sso"
                 disabled={busy}
                 onClick={() => void loginSso(homeserver.trim(), provider.id)}
               >
@@ -99,7 +100,7 @@ export function LoginScreen() {
             ))}
             <button
               type="button"
-              className="auth-card__switch"
+              className="surf-btn surf-btn--link"
               onClick={() => setShowManualLogin((value) => !value)}
             >
               {showManualLogin ? "Скрыть другой способ" : "Другой способ входа"}
@@ -111,18 +112,20 @@ export function LoginScreen() {
           <>
             {mode === "password" ? (
               <>
-                <label className="field">
+                <label className="surf-field">
                   <span>Имя пользователя</span>
                   <input
+                    className="surf-input"
                     value={user}
                     onChange={(e) => setUser(e.target.value)}
                     placeholder="username"
                     autoCapitalize="none"
                   />
                 </label>
-                <label className="field">
+                <label className="surf-field">
                   <span>Пароль</span>
                   <input
+                    className="surf-input"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     type="password"
@@ -131,9 +134,10 @@ export function LoginScreen() {
                 </label>
               </>
             ) : (
-              <label className="field">
+              <label className="surf-field">
                 <span>Access token</span>
                 <input
+                  className="surf-input"
                   value={accessToken}
                   onChange={(e) => setAccessToken(e.target.value)}
                   placeholder="syt_..."
@@ -144,13 +148,17 @@ export function LoginScreen() {
 
             <button
               type="button"
-              className="auth-card__switch"
+              className="surf-btn surf-btn--link"
               onClick={() => setMode(mode === "password" ? "token" : "password")}
             >
               {mode === "password" ? "Войти по токену доступа" : "Войти по логину и паролю"}
             </button>
 
-            <button className="auth-card__submit" type="submit" disabled={busy}>
+            <button
+              className="surf-btn surf-btn--primary surf-btn--block"
+              type="submit"
+              disabled={busy}
+            >
               <LogIn size={18} />
               {busy ? "Подключаемся..." : "Войти"}
             </button>
@@ -162,4 +170,3 @@ export function LoginScreen() {
     </main>
   );
 }
-

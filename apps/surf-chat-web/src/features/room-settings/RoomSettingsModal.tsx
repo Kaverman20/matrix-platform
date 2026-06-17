@@ -18,14 +18,14 @@ export function RoomSettingsModal({ settings: s }: Props) {
     <AnimatePresence>
       {s.open && (
         <motion.div
-          className="modal-backdrop"
+          className="surf-backdrop"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           onClick={s.close}
         >
           <motion.div
-            className="spacemodal"
+            className="surf-dialog"
             role="dialog"
             aria-modal="true"
             aria-label={heading}
@@ -35,31 +35,31 @@ export function RoomSettingsModal({ settings: s }: Props) {
             exit={{ scale: 0.94, opacity: 0, y: 8 }}
             transition={transition.base}
           >
-            <button className="spacemodal__close" onClick={s.close} aria-label="Закрыть">
+            <button className="surf-dialog__close" onClick={s.close} aria-label="Закрыть">
               <X size={18} />
             </button>
 
-            <div className="spacemodal__heading">{heading}</div>
+            <div className="surf-dialog__title">{heading}</div>
 
             <button
               type="button"
-              className="spacemodal__avatar"
+              className="surf-dialog__avatar"
               onClick={() => s.canManage && avatarInputRef.current?.click()}
               title={s.canManage ? "Сменить картинку" : undefined}
               disabled={!s.canManage}
             >
               {s.avatarPreview ? (
-                <img className="spacemodal__avatarImg" src={s.avatarPreview} alt="" />
+                <img className="surf-dialog__avatarImg" src={s.avatarPreview} alt="" />
               ) : (
                 <>
                   {s.isSpace ? <Boxes size={34} /> : <Hash size={34} />}
                   {s.currentAvatarUrl && (
-                    <AuthedImage url={s.currentAvatarUrl} className="spacemodal__avatarImg" />
+                    <AuthedImage url={s.currentAvatarUrl} className="surf-dialog__avatarImg" />
                   )}
                 </>
               )}
               {s.canManage && (
-                <span className="spacemodal__avatarCam">
+                <span className="surf-dialog__avatarCam">
                   <Camera size={16} />
                 </span>
               )}
@@ -77,7 +77,7 @@ export function RoomSettingsModal({ settings: s }: Props) {
             />
 
             <input
-              className="spacemodal__name"
+              className="surf-input surf-input--underline"
               placeholder="Название"
               value={s.name}
               disabled={!s.canManage}
@@ -94,11 +94,11 @@ export function RoomSettingsModal({ settings: s }: Props) {
             />
 
             {!s.canManage && (
-              <p className="spacemodal__hint">Недостаточно прав для изменения настроек.</p>
+              <p className="surf-hint">Недостаточно прав для изменения настроек.</p>
             )}
 
             <button
-              className="spacemodal__create"
+              className="surf-btn surf-btn--primary surf-btn--block"
               onClick={() => void s.save()}
               disabled={!s.canManage || !s.name.trim() || s.pending}
             >

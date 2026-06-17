@@ -33,7 +33,7 @@ export class ErrorBoundary extends Component<Props, State> {
         <section className="welcome" role="alert">
           <h1>Что-то пошло не так</h1>
           <p>Приложение столкнулось с ошибкой. Попробуйте перезагрузить страницу.</p>
-          <button type="button" className="welcome__button" onClick={() => window.location.reload()}>
+          <button type="button" className="surf-btn surf-btn--primary" onClick={() => window.location.reload()}>
             Перезагрузить
           </button>
         </section>

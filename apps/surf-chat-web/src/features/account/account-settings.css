@@ -50,28 +50,6 @@
   background: var(--color-bg);
 }
 
-.account-settings__actions {
-  width: 100%;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: var(--space-2);
-}
-
-.account-settings__logout {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--space-2);
-  border: 1px solid rgb(217 77 77 / 28%);
-  border-radius: var(--radius-md);
-  padding: 0 14px;
-  color: #d94d4d;
-  background: rgb(217 77 77 / 7%);
-  font: inherit;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.account-settings__logout:hover {
-  background: rgb(217 77 77 / 11%);
+.account-settings__save {
+  align-self: flex-start;
 }

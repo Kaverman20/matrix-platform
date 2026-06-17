@@ -1,7 +1,5 @@
-import { AnimatePresence, motion } from "framer-motion";
-import { Palette, ShieldCheck, SlidersHorizontal, User, X } from "lucide-react";
+import { ChevronLeft, LogOut, Palette, ShieldCheck, SlidersHorizontal, User } from "lucide-react";
 import { useEffect, useState } from "react";
-import { transition } from "@matrix-platform/ui";
 import type { useAccountSettings } from "../account/useAccountSettings";
 import type { useEncryption } from "../encryption/useEncryption";
 import { AccountTab } from "./AccountTab";
@@ -25,27 +23,8 @@ type Props = {
   onLogout: () => void;
 };
 
-export function SettingsModal({ settings: s, encryption, onLogout }: Props) {
-  return (
-    <AnimatePresence>
-      {s.open && s.profile && (
-        <motion.div
-          className="modal-backdrop"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          onClick={s.close}
-        >
-          <SettingsDialog settings={s} encryption={encryption} onLogout={onLogout} />
-        </motion.div>
-      )}
-    </AnimatePresence>
-  );
-}
-
-// Mounted fresh on each open, so the tab selection always starts on "account"
-// and the encryption status is re-checked without a reset effect.
-function SettingsDialog({ settings: s, encryption, onLogout }: Props) {
+/** Full-screen settings (Linear Preferences) — replaces the chat shell entirely. */
+export function SettingsPage({ settings: s, encryption, onLogout }: Props) {
   const [tab, setTab] = useState<TabId>("account");
 
   useEffect(() => {
@@ -59,41 +38,48 @@ function SettingsDialog({ settings: s, encryption, onLogout }: Props) {
   }, []);
 
   return (
-    <motion.div
-      className="settings-modal"
-      role="dialog"
-      aria-modal="true"
-      aria-label="Настройки"
-      onClick={(event) => event.stopPropagation()}
-      initial={{ scale: 0.96, opacity: 0, y: 8 }}
-      animate={{ scale: 1, opacity: 1, y: 0 }}
-      exit={{ scale: 0.96, opacity: 0, y: 8 }}
-      transition={transition.base}
-    >
-      <nav className="settings-modal__nav">
-        <div className="settings-modal__navTitle">Настройки</div>
-        {TABS.map(({ id, label, icon: Icon }) => (
-          <button
-            key={id}
-            type="button"
-            className={`settings-modal__tab${tab === id ? " settings-modal__tab--active" : ""}`}
-            onClick={() => setTab(id)}
-          >
-            <Icon size={18} />
-            <span>{label}</span>
-          </button>
-        ))}
-      </nav>
-
-      <div className="settings-modal__content">
-        <button className="spacemodal__close" onClick={s.close} aria-label="Закрыть">
-          <X size={18} />
+    <div className="settings-page" role="application" aria-label="Настройки">
+      <aside className="settings-page__nav">
+        <button type="button" className="settings-page__back" onClick={s.close}>
+          <ChevronLeft size={18} />
+          <span>Назад в чат</span>
         </button>
-        {tab === "account" && <AccountTab settings={s} onLogout={onLogout} />}
-        {tab === "appearance" && <AppearanceTab />}
-        {tab === "preferences" && <PreferencesTab />}
-        {tab === "encryption" && <EncryptionTab encryption={encryption} />}
-      </div>
-    </motion.div>
+
+        <nav className="settings-page__tabs" aria-label="Разделы настроек">
+          {TABS.map(({ id, label, icon: Icon }) => (
+            <button
+              key={id}
+              type="button"
+              className={`settings-page__tab${tab === id ? " is-active" : ""}`}
+              onClick={() => setTab(id)}
+            >
+              <Icon size={18} />
+              <span>{label}</span>
+            </button>
+          ))}
+        </nav>
+
+        <button
+          type="button"
+          className="settings-page__logout"
+          onClick={() => {
+            s.close();
+            onLogout();
+          }}
+        >
+          <LogOut size={18} />
+          <span>Выйти</span>
+        </button>
+      </aside>
+
+      <main className="settings-page__main">
+        <div className="settings-page__content">
+          {tab === "account" && <AccountTab settings={s} />}
+          {tab === "appearance" && <AppearanceTab />}
+          {tab === "preferences" && <PreferencesTab />}
+          {tab === "encryption" && <EncryptionTab encryption={encryption} />}
+        </div>
+      </main>
+    </div>
   );
 }

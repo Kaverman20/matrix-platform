@@ -1,4 +1,6 @@
 @import "./tokens.css";
+@import "./controls.css";
+@import "./dialog.css";
 
 :root {
   color: var(--color-text);
@@ -86,14 +88,4 @@ button {
 .welcome p {
   margin: 0;
   color: var(--color-text-muted);
-}
-
-.welcome__button {
-  height: 38px;
-  border: 0;
-  border-radius: var(--radius-md);
-  padding: 0 var(--space-4);
-  color: var(--color-text-onAccent);
-  background: var(--color-accent);
-  cursor: pointer;
 }

@@ -1,5 +1,6 @@
 import { MessagesSquare, Plus } from "lucide-react";
 import type { MatrixSpaceSummary } from "@matrix-platform/matrix-core";
+import { HelpMenu } from "../help/HelpMenu";
 import { AuthedImage } from "../media/AuthedImage";
 import "./space-rail.css";
 
@@ -11,12 +12,8 @@ type Props = {
   onSelectSpace: (spaceId: string) => void;
   onCreateSpace: () => void;
   onOpenAllThreads: () => void;
-  onOpenAccount: () => void;
-  account: {
-    displayName: string;
-    userId: string;
-    avatarUrl?: string;
-  } | null;
+  onOpenSettings: () => void;
+  onLogout: () => void;
 };
 
 export function SpaceRail({
@@ -26,11 +23,9 @@ export function SpaceRail({
   onSelectSpace,
   onCreateSpace,
   onOpenAllThreads,
-  onOpenAccount,
-  account,
+  onOpenSettings,
+  onLogout,
 }: Props) {
-  const accountLabel = account?.displayName || account?.userId || "Профиль";
-
   return (
     <nav className="space-rail">
       <button
@@ -66,10 +61,7 @@ export function SpaceRail({
         >
           <MessagesSquare size={20} />
         </button>
-        <button className="space-rail__account" title={accountLabel} onClick={onOpenAccount}>
-          <span>{accountLabel.slice(0, 1).toUpperCase()}</span>
-          <AuthedImage url={account?.avatarUrl} className="space-rail__avatar" />
-        </button>
+        <HelpMenu onOpenSettings={onOpenSettings} onLogout={onLogout} />
       </div>
     </nav>
   );

@@ -44,10 +44,14 @@ export function useAccountSettings({ client }: Options) {
   const close = useCallback(() => {
     setOpen(false);
     setError(null);
-    setAvatarFile(null);
-    if (avatarPreview) URL.revokeObjectURL(avatarPreview);
-    setAvatarPreview(null);
-    setDisplayName(profile?.displayName ?? "");
+    const preview = avatarPreview;
+    const savedName = profile?.displayName ?? "";
+    window.setTimeout(() => {
+      setAvatarFile(null);
+      if (preview) URL.revokeObjectURL(preview);
+      setAvatarPreview(null);
+      setDisplayName(savedName);
+    }, 460);
   }, [avatarPreview, profile?.displayName]);
 
   const setAvatar = useCallback((file: File | null) => {

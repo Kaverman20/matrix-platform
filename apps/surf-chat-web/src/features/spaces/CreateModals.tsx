@@ -21,14 +21,14 @@ export function CreateModals({ creation, activeSpaceId, activeSpaceName }: Props
       <AnimatePresence>
         {c.creatingChannel && (
           <motion.div
-            className="modal-backdrop"
+            className="surf-backdrop"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={c.closeCreateChannel}
           >
             <motion.div
-              className="spacemodal"
+              className="surf-dialog"
               role="dialog"
               aria-modal="true"
               aria-label={isSub ? "Создать сабспейс" : "Создать канал"}
@@ -38,14 +38,14 @@ export function CreateModals({ creation, activeSpaceId, activeSpaceName }: Props
               exit={{ scale: 0.94, opacity: 0, y: 8 }}
               transition={transition.base}
             >
-              <button className="spacemodal__close" onClick={c.closeCreateChannel} aria-label="Закрыть">
+              <button className="surf-dialog__close" onClick={c.closeCreateChannel} aria-label="Закрыть">
                 <X size={18} />
               </button>
 
-              <div className="spacemodal__heading">{isSub ? "Новый сабспейс" : "Новый канал"}</div>
+              <div className="surf-dialog__title">{isSub ? "Новый сабспейс" : "Новый канал"}</div>
 
               <div
-                className="spacemodal__avatar spacemodal__avatar--static"
+                className="surf-dialog__avatar surf-dialog__avatar--static"
                 style={{ background: colorForId(c.newChannelName || activeSpaceId || "channel") }}
               >
                 {c.newChannelName.trim() ? c.newChannelName.trim()[0].toUpperCase() : isSub ? <Boxes size={34} /> : <Hash size={34} />}
@@ -53,7 +53,7 @@ export function CreateModals({ creation, activeSpaceId, activeSpaceName }: Props
 
               <input
                 autoFocus
-                className="spacemodal__name"
+                className="surf-input surf-input--underline"
                 placeholder={isSub ? "Название сабспейса" : "Название канала"}
                 value={c.newChannelName}
                 onChange={(event) => c.setNewChannelName(event.target.value)}
@@ -64,7 +64,7 @@ export function CreateModals({ creation, activeSpaceId, activeSpaceName }: Props
                 }}
               />
 
-              <div className="spacemodal__toggle">
+              <div className="surf-seg">
                 <button
                   type="button"
                   className={c.newChannelType === "private" ? "is-active" : ""}
@@ -87,7 +87,7 @@ export function CreateModals({ creation, activeSpaceId, activeSpaceName }: Props
                 </button>
               </div>
 
-              <p className="spacemodal__hint">
+              <p className="surf-hint">
                 {isSub
                   ? `Сабспейс появится внутри пространства ${activeSpaceName ?? "без названия"}.`
                   : activeSpaceId
@@ -99,7 +99,7 @@ export function CreateModals({ creation, activeSpaceId, activeSpaceName }: Props
               </p>
 
               <button
-                className="spacemodal__create"
+                className="surf-btn surf-btn--primary surf-btn--block"
                 onClick={() => void c.createChannel()}
                 disabled={!c.newChannelName.trim() || c.creatingChannelPending}
               >
@@ -112,14 +112,14 @@ export function CreateModals({ creation, activeSpaceId, activeSpaceName }: Props
       <AnimatePresence>
         {c.creatingDm && (
           <motion.div
-            className="modal-backdrop"
+            className="surf-backdrop"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={c.closeCreateDm}
           >
             <motion.div
-              className="spacemodal"
+              className="surf-dialog"
               role="dialog"
               aria-modal="true"
               aria-label="Создать личный чат"
@@ -129,24 +129,24 @@ export function CreateModals({ creation, activeSpaceId, activeSpaceName }: Props
               exit={{ scale: 0.94, opacity: 0, y: 8 }}
               transition={transition.base}
             >
-              <button className="spacemodal__close" onClick={c.closeCreateDm} aria-label="Закрыть">
+              <button className="surf-dialog__close" onClick={c.closeCreateDm} aria-label="Закрыть">
                 <X size={18} />
               </button>
 
-              <div className="spacemodal__heading">Новый личный чат</div>
+              <div className="surf-dialog__title">Новый личный чат</div>
 
               <div
-                className="spacemodal__avatar spacemodal__avatar--static"
+                className="surf-dialog__avatar surf-dialog__avatar--static"
                 style={{ background: colorForId(c.selectedDmUserId || c.dmQuery || "dm") }}
               >
                 <UserPlus size={32} />
               </div>
 
-              <label className="spacemodal__search">
+              <label className="surf-dialog__search">
                 <Search size={16} />
                 <input
                   autoFocus
-                  className="spacemodal__searchInput"
+                  className="surf-dialog__searchInput"
                   placeholder="Имя или Matrix ID"
                   value={c.dmQuery}
                   onChange={(event) => c.onDmQueryChange(event.target.value)}
@@ -159,11 +159,11 @@ export function CreateModals({ creation, activeSpaceId, activeSpaceName }: Props
                 />
               </label>
 
-              <div className="spacemodal__userlist">
+              <div className="surf-dialog__userlist">
                 {c.dmQuery.trim().length < 2 ? (
-                  <div className="spacemodal__empty">Введите хотя бы 2 символа, чтобы найти пользователя.</div>
+                  <div className="surf-dialog__empty">Введите хотя бы 2 символа, чтобы найти пользователя.</div>
                 ) : c.dmSearching ? (
-                  <div className="spacemodal__empty">Ищем пользователей...</div>
+                  <div className="surf-dialog__empty">Ищем пользователей...</div>
                 ) : c.dmResults.length > 0 ? (
                   c.dmResults.map((entry) => {
                     const active = entry.user_id === c.selectedDmUserId;
@@ -171,16 +171,16 @@ export function CreateModals({ creation, activeSpaceId, activeSpaceName }: Props
                       <button
                         key={entry.user_id}
                         type="button"
-                        className={`spacemodal__user${active ? " is-active" : ""}`}
+                        className={`surf-dialog__user${active ? " is-active" : ""}`}
                         onClick={() => c.setSelectedDmUserId(entry.user_id)}
                       >
                         <span
-                          className="spacemodal__userAvatar"
+                          className="surf-dialog__userAvatar"
                           style={{ background: colorForId(entry.user_id) }}
                         >
                           {(entry.display_name || entry.user_id)[0]?.toUpperCase() ?? "?"}
                         </span>
-                        <span className="spacemodal__userBody">
+                        <span className="surf-dialog__userBody">
                           <strong>{entry.display_name || entry.user_id}</strong>
                           {entry.display_name && <span>{entry.user_id}</span>}
                         </span>
@@ -188,16 +188,16 @@ export function CreateModals({ creation, activeSpaceId, activeSpaceName }: Props
                     );
                   })
                 ) : (
-                  <div className="spacemodal__empty">Никого не нашли.</div>
+                  <div className="surf-dialog__empty">Никого не нашли.</div>
                 )}
               </div>
 
-              <p className="spacemodal__hint">
+              <p className="surf-hint">
                 Если личный чат с этим пользователем уже есть, мы просто откроем существующий.
               </p>
 
               <button
-                className="spacemodal__create"
+                className="surf-btn surf-btn--primary surf-btn--block"
                 onClick={() => void c.createDirectChat()}
                 disabled={!c.selectedDmUserId || c.creatingDmPending}
               >
@@ -210,14 +210,14 @@ export function CreateModals({ creation, activeSpaceId, activeSpaceName }: Props
       <AnimatePresence>
         {c.creatingSpace && (
           <motion.div
-            className="modal-backdrop"
+            className="surf-backdrop"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={c.closeCreateSpace}
           >
             <motion.div
-              className="spacemodal"
+              className="surf-dialog"
               role="dialog"
               aria-modal="true"
               aria-label="Создать пространство"
@@ -227,29 +227,29 @@ export function CreateModals({ creation, activeSpaceId, activeSpaceName }: Props
               exit={{ scale: 0.94, opacity: 0, y: 8 }}
               transition={transition.base}
             >
-              <button className="spacemodal__close" onClick={c.closeCreateSpace} aria-label="Закрыть">
+              <button className="surf-dialog__close" onClick={c.closeCreateSpace} aria-label="Закрыть">
                 <X size={18} />
               </button>
 
               {c.spaceStep === "form" ? (
                 <>
-                  <div className="spacemodal__heading">Новое пространство</div>
+                  <div className="surf-dialog__title">Новое пространство</div>
 
                   <button
                     type="button"
-                    className="spacemodal__avatar"
+                    className="surf-dialog__avatar"
                     style={c.spaceAvatarPreview ? undefined : { background: colorForId(c.newSpaceName || "space") }}
                     onClick={() => avatarInputRef.current?.click()}
                     title="Загрузить картинку"
                   >
                     {c.spaceAvatarPreview ? (
-                      <img className="spacemodal__avatarImg" src={c.spaceAvatarPreview} alt="" />
+                      <img className="surf-dialog__avatarImg" src={c.spaceAvatarPreview} alt="" />
                     ) : c.newSpaceName.trim() ? (
                       c.newSpaceName.trim()[0].toUpperCase()
                     ) : (
                       <Boxes size={34} />
                     )}
-                    <span className="spacemodal__avatarCam">
+                    <span className="surf-dialog__avatarCam">
                       <Camera size={16} />
                     </span>
                   </button>
@@ -267,7 +267,7 @@ export function CreateModals({ creation, activeSpaceId, activeSpaceName }: Props
 
                   <input
                     autoFocus
-                    className="spacemodal__name"
+                    className="surf-input surf-input--underline"
                     placeholder="Название пространства"
                     value={c.newSpaceName}
                     onChange={(event) => c.setNewSpaceName(event.target.value)}
@@ -278,7 +278,7 @@ export function CreateModals({ creation, activeSpaceId, activeSpaceName }: Props
                     }}
                   />
 
-                  <div className="spacemodal__toggle">
+                  <div className="surf-seg">
                     <button
                       type="button"
                       className={c.newSpaceType === "private" ? "is-active" : ""}
@@ -301,7 +301,7 @@ export function CreateModals({ creation, activeSpaceId, activeSpaceName }: Props
                     </button>
                   </div>
 
-                  <p className="spacemodal__hint">
+                  <p className="surf-hint">
                     {c.newSpaceType === "private"
                       ? "Доступ по группе или приглашению."
                       : "Войти может любой сотрудник."}{" "}
@@ -309,7 +309,7 @@ export function CreateModals({ creation, activeSpaceId, activeSpaceName }: Props
                   </p>
 
                   <button
-                    className="spacemodal__create"
+                    className="surf-btn surf-btn--primary surf-btn--block"
                     onClick={() => void c.createSpace()}
                     disabled={!c.newSpaceName.trim() || c.creatingSpacePending}
                   >
@@ -319,20 +319,20 @@ export function CreateModals({ creation, activeSpaceId, activeSpaceName }: Props
               ) : (
                 <>
                   {c.wizardParentName && (
-                    <button type="button" className="spacemodal__back" onClick={c.wizardBack}>
+                    <button type="button" className="surf-dialog__back" onClick={c.wizardBack}>
                       <ChevronLeft size={16} /> {c.wizardParentName}
                     </button>
                   )}
 
-                  <div className="spacemodal__heading">Наполните «{c.wizardCurrentName}»</div>
+                  <div className="surf-dialog__title">Наполните «{c.wizardCurrentName}»</div>
 
-                  <p className="spacemodal__hint">
+                  <p className="surf-hint">
                     Добавьте каналы и сабспейсы. Можно несколько — или пропустить и добавить позже.
                   </p>
 
                   <input
                     autoFocus
-                    className="spacemodal__name"
+                    className="surf-input surf-input--underline"
                     placeholder="Название канала или сабспейса"
                     value={c.wizardName}
                     onChange={(event) => c.setWizardName(event.target.value)}
@@ -343,7 +343,7 @@ export function CreateModals({ creation, activeSpaceId, activeSpaceName }: Props
                     }}
                   />
 
-                  <div className="spacemodal__toggle">
+                  <div className="surf-seg">
                     <button
                       type="button"
                       className={c.wizardType === "private" ? "is-active" : ""}
@@ -366,16 +366,16 @@ export function CreateModals({ creation, activeSpaceId, activeSpaceName }: Props
                     </button>
                   </div>
 
-                  <div className="spacemodal__addRow">
+                  <div className="surf-dialog__addRow">
                     <button
-                      className="spacemodal__add"
+                      className="surf-dialog__add"
                       onClick={() => void c.addWizardChannel()}
                       disabled={!c.wizardName.trim() || c.wizardPending}
                     >
                       <Hash size={15} /> Канал
                     </button>
                     <button
-                      className="spacemodal__add"
+                      className="surf-dialog__add"
                       onClick={() => void c.addWizardSubspace()}
                       disabled={!c.wizardName.trim() || c.wizardPending}
                     >
@@ -384,13 +384,13 @@ export function CreateModals({ creation, activeSpaceId, activeSpaceName }: Props
                   </div>
 
                   {c.wizardChildren.length > 0 && (
-                    <div className="spacemodal__chips">
+                    <div className="surf-dialog__chips">
                       {c.wizardChildren.map((item) =>
                         item.kind === "space" ? (
                           <button
                             key={item.id}
                             type="button"
-                            className="spacemodal__chip spacemodal__chip--btn"
+                            className="surf-dialog__chip surf-dialog__chip--btn"
                             onClick={() => c.enterWizardItem(item)}
                             title="Открыть и добавить каналы внутрь"
                           >
@@ -399,7 +399,7 @@ export function CreateModals({ creation, activeSpaceId, activeSpaceName }: Props
                             <ChevronRight size={13} />
                           </button>
                         ) : (
-                          <span key={item.id} className="spacemodal__chip">
+                          <span key={item.id} className="surf-dialog__chip">
                             <Hash size={13} />
                             {item.name}
                           </span>
@@ -408,7 +408,7 @@ export function CreateModals({ creation, activeSpaceId, activeSpaceName }: Props
                     </div>
                   )}
 
-                  <button className="spacemodal__create" onClick={c.finishSpaceWizard}>
+                  <button className="surf-btn surf-btn--primary surf-btn--block" onClick={c.finishSpaceWizard}>
                     {c.wizardItemCount > 0 ? "Готово" : "Пропустить"}
                   </button>
                 </>

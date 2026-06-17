@@ -70,7 +70,7 @@ export function EncryptionTab({ encryption: e }: Props) {
           </p>
           <button
             type="button"
-            className="spacemodal__create"
+            className="surf-btn surf-btn--primary"
             disabled={e.busy}
             onClick={() => void e.startSetup()}
           >
@@ -91,7 +91,7 @@ export function EncryptionTab({ encryption: e }: Props) {
           </button>
           <button
             type="button"
-            className="spacemodal__create"
+            className="surf-btn surf-btn--primary"
             disabled={e.busy}
             onClick={() => void e.confirmKeySaved()}
           >
@@ -107,7 +107,7 @@ export function EncryptionTab({ encryption: e }: Props) {
             шифрования.
           </p>
           <input
-            className="encryption__input"
+            className="encryption__input surf-input surf-input--mono"
             type="password"
             placeholder="Пароль аккаунта"
             autoComplete="current-password"
@@ -119,7 +119,7 @@ export function EncryptionTab({ encryption: e }: Props) {
           />
           <button
             type="button"
-            className="spacemodal__create"
+            className="surf-btn surf-btn--primary"
             disabled={!e.password || e.busy}
             onClick={e.submitPassword}
           >
@@ -135,7 +135,7 @@ export function EncryptionTab({ encryption: e }: Props) {
             восстановить историю зашифрованных комнат.
           </p>
           <input
-            className="encryption__input encryption__input--key"
+            className="encryption__input surf-input surf-input--mono encryption__input--key"
             type="text"
             placeholder="Ключ восстановления"
             autoComplete="off"
@@ -145,7 +145,7 @@ export function EncryptionTab({ encryption: e }: Props) {
           />
           <button
             type="button"
-            className="spacemodal__create"
+            className="surf-btn surf-btn--primary"
             disabled={!e.keyInput.trim() || e.busy}
             onClick={() => void e.runUnlock()}
           >
@@ -160,7 +160,7 @@ export function EncryptionTab({ encryption: e }: Props) {
         </p>
       )}
 
-      {e.error && <p className="spacemodal__hint encryption__error">{e.error}</p>}
+      {e.error && <p className="surf-hint surf-hint--error">{e.error}</p>}
     </div>
   );
 }

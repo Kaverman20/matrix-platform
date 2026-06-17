@@ -1,6 +1,6 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { transition } from "@matrix-platform/ui";
+import { pageCrossfade, transition } from "@matrix-platform/ui";
 import {
   buildForwardData,
   canPinMessages as canPinMessagesInRoom,
@@ -59,7 +59,7 @@ import {
 import { formatTypingLabel, useTyping } from "../features/timeline/useTyping";
 import { useAccountSettings } from "../features/account/useAccountSettings";
 import { useEncryption } from "../features/encryption/useEncryption";
-import { SettingsModal } from "../features/settings/SettingsModal";
+import { SettingsPage } from "../features/settings/SettingsModal";
 import { usePreferences } from "../features/settings/usePreferences";
 import "./chat-shell.css";
 
@@ -437,8 +437,21 @@ export function ChatShell() {
     return () => window.removeEventListener("keydown", onKey);
   }, [chatNavigation]);
 
+  const showSettings = accountSettings.open && accountSettings.profile;
+
   return (
-    <div className="chat-shell">
+    <div className="app-views">
+      <AnimatePresence initial={false}>
+        {!showSettings && (
+          <motion.div
+            key="chat-shell"
+            className="app-views__layer app-views__layer--chat"
+            variants={pageCrossfade}
+            initial="initial"
+            animate="animate"
+            exit="exit"
+          >
+            <div className="chat-shell">
       <SpaceRail
         spaces={spaceNavigation.topLevelSpaces}
         activeSpaceId={spaceNavigation.railActiveSpaceId}
@@ -446,12 +459,13 @@ export function ChatShell() {
         onSelectSpace={setActiveSpaceId}
         onCreateSpace={creation.openCreateSpace}
         onOpenAllThreads={() => setShowAllThreads(true)}
-        onOpenAccount={accountSettings.openSettings}
-        account={accountSettings.profile}
+        onOpenSettings={accountSettings.openSettings}
+        onLogout={() => void logout()}
       />
 
       <motion.div
         className="chat-shell__room-list"
+        initial={false}
         animate={{
           width: roomListLayout.width,
           minWidth: roomListLayout.width,
@@ -662,11 +676,26 @@ export function ChatShell() {
         activeSpaceName={spaceNavigation.activeSpace?.name ?? null}
       />
       <RoomSettingsModal settings={roomSettings} />
-      <SettingsModal
-        settings={accountSettings}
-        encryption={encryption}
-        onLogout={() => void logout()}
-      />
+    </div>
+          </motion.div>
+        )}
+        {showSettings && (
+          <motion.div
+            key="settings-page"
+            className="app-views__layer app-views__layer--settings"
+            variants={pageCrossfade}
+            initial="initial"
+            animate="animate"
+            exit="exit"
+          >
+            <SettingsPage
+              settings={accountSettings}
+              encryption={encryption}
+              onLogout={() => void logout()}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

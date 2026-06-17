@@ -1,15 +1,11 @@
-import type { ChatView, ThemeMode } from "./usePreferences";
+import type { ChatView } from "./usePreferences";
 import { usePreferences } from "./usePreferences";
+import { SettingsSelect } from "./SettingsSelect";
+import { THEME_PRESETS } from "./themePresets";
 
-const THEME_OPTIONS: { value: ThemeMode; label: string }[] = [
-  { value: "light", label: "Светлая" },
-  { value: "dark", label: "Тёмная" },
-  { value: "system", label: "Системная" },
-];
-
-const VIEW_OPTIONS: { value: ChatView; label: string }[] = [
-  { value: "flat", label: "Плоский" },
-  { value: "bubbles", label: "Пузыри" },
+const VIEW_OPTIONS: { value: ChatView; label: string; hint?: string }[] = [
+  { value: "flat", label: "Плоский", hint: "Сообщения в одной колонке" },
+  { value: "bubbles", label: "Пузыри", hint: "Пузырьки как в мессенджере" },
 ];
 
 export function AppearanceTab() {
@@ -19,39 +15,31 @@ export function AppearanceTab() {
     <div className="settings-tab">
       <h2 className="settings-tab__title">Внешний вид</h2>
 
-      <div className="settings-field">
-        <span className="settings-field__label">Тема</span>
-        <div className="settings-seg" role="group" aria-label="Тема">
-          {THEME_OPTIONS.map(({ value, label }) => (
-            <button
-              key={value}
-              type="button"
-              className={`settings-seg__btn${preferences.theme === value ? " is-active" : ""}`}
-              onClick={() => setPreference("theme", value)}
-            >
-              {label}
-            </button>
-          ))}
+      <div className="settings-list settings-list--rows">
+        <div className="settings-row settings-row--control">
+          <span className="settings-row__label">Тема интерфейса</span>
+          <SettingsSelect
+            ariaLabel="Тема интерфейса"
+            value={preferences.theme}
+            options={THEME_PRESETS}
+            onChange={(theme) => setPreference("theme", theme)}
+          />
         </div>
-        <span className="settings-field__hint">Системная следует настройкам ОС</span>
+
+        <div className="settings-row settings-row--control">
+          <span className="settings-row__label">Вид чата по умолчанию</span>
+          <SettingsSelect
+            ariaLabel="Вид чата по умолчанию"
+            value={preferences.defaultChatView}
+            options={VIEW_OPTIONS}
+            onChange={(view) => setPreference("defaultChatView", view)}
+          />
+        </div>
       </div>
 
-      <div className="settings-field">
-        <span className="settings-field__label">Вид чата по умолчанию</span>
-        <div className="settings-seg" role="group" aria-label="Вид чата">
-          {VIEW_OPTIONS.map(({ value, label }) => (
-            <button
-              key={value}
-              type="button"
-              className={`settings-seg__btn${preferences.defaultChatView === value ? " is-active" : ""}`}
-              onClick={() => setPreference("defaultChatView", value)}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-        <span className="settings-field__hint">Применится при следующем открытии чата</span>
-      </div>
+      <p className="settings-tab__footnote">
+        Системная тема следует настройкам ОС. Вид чата применится при следующем открытии чата.
+      </p>
     </div>
   );
 }

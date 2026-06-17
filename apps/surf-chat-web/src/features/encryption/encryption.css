@@ -29,22 +29,6 @@
 
 .encryption__input {
   width: 100%;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  padding: 10px 12px;
-  background: var(--color-bg-subtle);
-  color: var(--color-text);
-  font: inherit;
-}
-
-.encryption__input--key {
-  font-family: var(--font-mono, ui-monospace, monospace);
-}
-
-.encryption__input:focus {
-  outline: none;
-  border-color: var(--color-border-strong);
-  background: var(--color-bg);
 }
 
 .encryption__key {

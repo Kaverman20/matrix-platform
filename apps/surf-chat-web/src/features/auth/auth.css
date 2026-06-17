@@ -23,7 +23,7 @@
   display: grid;
   place-items: center;
   border-radius: var(--radius-lg);
-  color: var(--color-text-onAccent);
+  color: var(--color-rail-text);
   background: var(--color-rail-bg);
   font-size: var(--text-xl);
   font-weight: 700;
@@ -42,80 +42,21 @@
   font-size: var(--text-base);
 }
 
-.field {
-  display: grid;
-  gap: var(--space-2);
-  color: var(--color-text-muted);
-  font-size: var(--text-sm);
-}
-
-.field input {
-  width: 100%;
-  height: 42px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  padding: 0 var(--space-3);
-  color: var(--color-text);
-  background: var(--color-bg-sunken);
-  outline: none;
-}
-
-.field input:focus {
-  border-color: var(--color-accent);
-  box-shadow: 0 0 0 3px var(--color-accent-subtle);
-}
-
 .auth-card__sso {
   display: grid;
   gap: var(--space-3);
 }
 
-.auth-card__submit {
-  height: 44px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--space-2);
-  border: 0;
-  border-radius: var(--radius-md);
-  color: var(--color-text-onAccent);
-  background: var(--color-accent);
-  cursor: pointer;
+.auth-card .surf-field {
+  margin-top: var(--space-1);
 }
 
-.auth-card__submit:hover {
-  background: var(--color-accent-hover);
-}
-
-.auth-card__submit:disabled {
-  cursor: wait;
-  opacity: 0.72;
-}
-
-.auth-card__submit--sso {
-  /* Always sits on the dark rail surface, so keep light text in both themes. */
-  color: var(--color-rail-text);
-  background: var(--color-rail-bg);
-}
-
-.auth-card__switch {
-  border: 0;
-  padding: 0;
-  justify-self: start;
-  color: var(--color-text-muted);
-  background: transparent;
-  cursor: pointer;
-}
-
-.auth-card__switch:hover {
-  color: var(--color-text);
+.auth-card .surf-btn--primary,
+.auth-card .surf-btn--sso {
+  margin-top: var(--space-1);
 }
 
 .auth-card__error {
-  padding: var(--space-3);
-  border-radius: var(--radius-md);
-  color: var(--color-danger);
-  background: rgb(229 72 77 / 10%);
+  color: #d94d4d;
   font-size: var(--text-sm);
 }
-

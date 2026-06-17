@@ -1,0 +1,189 @@
+/* Shared controls — buttons, fields, hints (Linear-style system). */
+
+.surf-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  border: 0;
+  border-radius: var(--radius-md);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background 140ms ease,
+    color 140ms ease,
+    border-color 140ms ease,
+    opacity 140ms ease,
+    filter 140ms ease;
+}
+
+.surf-btn:disabled {
+  opacity: 0.45;
+  pointer-events: none;
+}
+
+.surf-btn--primary {
+  height: 40px;
+  padding: 0 var(--space-4);
+  color: var(--color-text-onAccent);
+  background: var(--color-accent);
+}
+
+.surf-btn--primary:hover {
+  filter: brightness(0.95);
+}
+
+.surf-btn--block {
+  width: 100%;
+}
+
+.surf-btn--lg {
+  height: 44px;
+  font-size: var(--text-md);
+}
+
+.surf-btn--secondary {
+  height: 40px;
+  padding: 0 var(--space-4);
+  border: 1px solid var(--color-border);
+  color: var(--color-text-strong);
+  background: var(--color-bg);
+}
+
+.surf-btn--secondary:hover {
+  border-color: var(--color-border-strong);
+  background: var(--color-bg-subtle);
+}
+
+.surf-btn--sso {
+  height: 44px;
+  width: 100%;
+  color: var(--color-rail-text);
+  background: var(--color-rail-bg);
+}
+
+.surf-btn--sso:hover {
+  filter: brightness(1.08);
+}
+
+.surf-btn--danger {
+  height: 40px;
+  padding: 0 var(--space-4);
+  border: 1px solid rgb(217 77 77 / 28%);
+  color: #d94d4d;
+  background: rgb(217 77 77 / 7%);
+}
+
+.surf-btn--danger:hover {
+  background: rgb(217 77 77 / 11%);
+}
+
+.surf-btn--ghost {
+  height: 34px;
+  padding: 0 10px;
+  color: var(--color-text-muted);
+  background: transparent;
+}
+
+.surf-btn--ghost:hover {
+  color: var(--color-text-strong);
+  background: var(--color-bg-hover);
+}
+
+.surf-btn--icon {
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  color: var(--color-text-muted);
+  background: transparent;
+}
+
+.surf-btn--icon:hover {
+  color: var(--color-text-strong);
+  background: var(--color-bg-hover);
+}
+
+.surf-btn--link {
+  height: auto;
+  padding: 0;
+  color: var(--color-text-muted);
+  background: transparent;
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.surf-btn--link:hover {
+  color: var(--color-text-strong);
+}
+
+.surf-field {
+  display: grid;
+  gap: var(--space-2);
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.surf-input {
+  width: 100%;
+  height: 42px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 0 var(--space-3);
+  color: var(--color-text);
+  background: var(--color-bg-sunken);
+  outline: none;
+  transition:
+    border-color 150ms ease,
+    box-shadow 150ms ease,
+    background 150ms ease;
+}
+
+.surf-input::placeholder {
+  color: var(--color-text-faint);
+}
+
+.surf-input:focus {
+  border-color: var(--color-accent);
+  background: var(--color-bg);
+  box-shadow: 0 0 0 3px var(--color-accent-subtle);
+}
+
+.surf-input--underline {
+  height: auto;
+  padding: 10px 4px;
+  border: 0;
+  border-bottom: 1.5px solid var(--color-border);
+  border-radius: 0;
+  background: transparent;
+  text-align: center;
+  font-size: var(--text-lg);
+  font-weight: 600;
+  color: var(--color-text-strong);
+  box-shadow: none;
+}
+
+.surf-input--underline::placeholder {
+  font-weight: 500;
+}
+
+.surf-input--underline:focus {
+  border-bottom-color: var(--color-accent);
+  box-shadow: none;
+}
+
+.surf-input--mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: var(--text-sm);
+}
+
+.surf-hint {
+  margin: 0;
+  color: var(--color-text-faint);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+}
+
+.surf-hint--error {
+  color: #d94d4d;
+}

@@ -4,8 +4,9 @@
   z-index: 45;
   display: grid;
   place-items: center;
-  background: rgb(0 0 0 / 30%);
-  backdrop-filter: blur(3px);
+  padding: 16px;
+  background: rgb(15 23 42 / 28%);
+  backdrop-filter: blur(6px);
 }
 
 .forward-modal {
@@ -34,19 +35,21 @@
 }
 
 .forward-modal__head button {
-  width: 30px;
-  height: 30px;
+  /* matches .surf-btn--icon */
+  width: 34px;
+  height: 34px;
   display: grid;
   place-items: center;
   border: 0;
-  border-radius: var(--radius-pill);
+  border-radius: var(--radius-md);
   color: var(--color-text-muted);
   background: transparent;
   cursor: pointer;
 }
 
 .forward-modal__head button:hover {
-  background: var(--color-bg-subtle);
+  color: var(--color-text-strong);
+  background: var(--color-bg-hover);
 }
 
 .forward-modal__search {

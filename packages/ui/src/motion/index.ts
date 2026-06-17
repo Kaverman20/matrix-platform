@@ -38,6 +38,13 @@ export const fade: Variants = {
   exit: { opacity: 0, transition: transition.fast },
 };
 
+/** Symmetric crossfade for full-page view swaps (chat ↔ settings). */
+export const pageCrossfade: Variants = {
+  initial: { opacity: 0 },
+  animate: { opacity: 1, transition: { duration: 0.44, ease: ease.standard } },
+  exit: { opacity: 0, transition: { duration: 0.44, ease: ease.standard } },
+};
+
 export const slideInRight: Variants = {
   hidden: { opacity: 0, x: 24 },
   visible: { opacity: 1, x: 0, transition: transition.slow },
