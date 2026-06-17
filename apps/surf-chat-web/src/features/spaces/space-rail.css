@@ -19,7 +19,7 @@
   place-items: center;
   border: 0;
   border-radius: var(--radius-md);
-  color: var(--color-text-onAccent);
+  color: var(--color-rail-text);
   cursor: pointer;
   outline: none;
   -webkit-tap-highlight-color: transparent;
@@ -111,7 +111,7 @@
 }
 
 .space-rail__account {
-  color: var(--color-text-onAccent);
+  color: var(--color-rail-text);
   background: var(--color-rail-item-hover);
   border: 1px solid var(--color-rail-item-border);
   font-size: var(--text-sm);
