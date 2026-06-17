@@ -387,6 +387,7 @@
   gap: var(--space-2);
   align-items: flex-end;
   margin-top: var(--space-3);
+  overflow: visible;
 }
 
 .mb--cont {
@@ -410,51 +411,45 @@
   font-weight: 600;
 }
 
+/* Bubble — unified SVG path (body + tail), one fill, no appendix gap. */
 .bubble {
   position: relative;
+  display: inline-block;
   max-width: 72%;
-  padding: 7px 11px;
-  border-radius: 16px;
-  background: var(--color-bubble-in);
+  overflow: visible;
   color: var(--color-text-strong);
-  border: 1px solid var(--color-bubble-in-border);
-  box-shadow:
-    0 1px 1.5px rgb(15 23 42 / 5%),
-    0 8px 24px rgb(15 23 42 / 5%);
 }
 
-.mb--own .bubble {
+.bubble:not(.bubble--has-tail) {
+  box-shadow: 0 1px 1px rgb(0 0 0 / 7%);
+}
+
+.bubble--in:not(.bubble--has-tail) {
+  background: var(--color-bubble-in);
+  border-radius: 16px;
+}
+
+.bubble--own:not(.bubble--has-tail) {
   background: var(--color-bubble-own);
-  border-color: var(--color-bubble-own-border);
+  border-radius: 16px;
 }
 
-.mb--own.mb--tail .bubble {
-  border-bottom-right-radius: 0;
-  border-bottom-left-radius: 16px;
+.bubble--has-tail {
+  filter: drop-shadow(0 1px 1px rgb(0 0 0 / 7%));
 }
 
-.mb:not(.mb--own).mb--tail .bubble {
-  border-bottom-left-radius: 0;
-  border-bottom-right-radius: 16px;
-}
-
-.bubble__tail {
+.bubble__shape {
   position: absolute;
-  bottom: -1px;
-  color: var(--color-bubble-in);
-  filter: drop-shadow(0 1px 1px rgb(15 23 42 / 4%));
+  top: 0;
+  z-index: 0;
+  display: block;
   pointer-events: none;
 }
 
-.bubble__tail--own {
-  right: -10px;
-  bottom: 0;
-  color: var(--color-bubble-own);
-}
-
-.bubble__tail--in {
-  left: -10px;
-  bottom: 0;
+.bubble__content {
+  position: relative;
+  z-index: 1;
+  padding: 7px 11px;
 }
 
 .bubble__author {
@@ -497,7 +492,19 @@
   color: var(--color-text-faint);
 }
 
-.mb--highlight .bubble {
+.bubble--highlight:not(.bubble--has-tail) {
+  animation: timeline-bubble-highlight-bg 1.6s ease;
+}
+
+.bubble--highlight .bubble__shape {
+  animation: timeline-bubble-highlight 1.6s ease;
+}
+
+.mb--highlight .bubble:not(.bubble--has-tail) {
+  animation: timeline-bubble-highlight-bg 1.6s ease;
+}
+
+.mb--highlight .bubble__shape {
   animation: timeline-bubble-highlight 1.6s ease;
 }
 
@@ -538,12 +545,24 @@
   }
 }
 
-@keyframes timeline-bubble-highlight {
+@keyframes timeline-bubble-highlight-bg {
   0%,
   30% {
     background-color: color-mix(in srgb, var(--color-accent-subtle) 82%, white);
   }
+
   100% {
     background-color: transparent;
+  }
+}
+
+@keyframes timeline-bubble-highlight {
+  0%,
+  30% {
+    filter: drop-shadow(0 1px 1px rgb(0 0 0 / 7%)) brightness(0.9);
+  }
+
+  100% {
+    filter: drop-shadow(0 1px 1px rgb(0 0 0 / 7%)) brightness(1);
   }
 }

@@ -13,6 +13,7 @@ import { AlertCircle, Check, CheckCheck, Clock3, Forward, Hash, MessagesSquare }
 import type { MatrixMessage, MatrixRoomSummary } from "@matrix-platform/matrix-core";
 import { MessageMedia } from "../media/MessageMedia";
 import { ReactionPill } from "../reactions/ReactionPill";
+import { BubbleShell } from "./BubbleShell";
 import { usePreferences, useTimeFormatter } from "../settings/usePreferences";
 import "./timeline.css";
 
@@ -568,7 +569,7 @@ function BubbleMessage({
   return (
     <article
       data-mid={message.id}
-      className={`mb${message.own ? " mb--own" : ""}${compact ? " mb--cont" : ""}${groupEnd ? " mb--tail" : ""}${highlighted ? " mb--highlight" : ""}`}
+      className={`mb${message.own ? " mb--own" : ""}${compact ? " mb--cont" : ""}${highlighted ? " mb--highlight" : ""}`}
       onContextMenu={(event) => {
         event.preventDefault();
         onOpenMessageMenu(message, event.clientX, event.clientY);
@@ -587,8 +588,7 @@ function BubbleMessage({
           )}
         </span>
       )}
-      <div className="bubble">
-        {groupEnd && <BubbleTail own={message.own} />}
+      <BubbleShell own={message.own} tailed={groupEnd} highlighted={highlighted}>
         {!message.own && !compact && (
           <div className="bubble__author" style={{ color: message.color }}>
             {message.author}
@@ -614,7 +614,7 @@ function BubbleMessage({
           {formatTime(message.timestamp)}
           {message.own && <DeliveryStatus status={message.deliveryStatus} compact />}
         </div>
-      </div>
+      </BubbleShell>
     </article>
   );
 }
@@ -715,24 +715,6 @@ function repliesLabel(count: number): string {
   if (mod10 === 1 && mod100 !== 11) return `${count} ответ`;
   if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return `${count} ответа`;
   return `${count} ответов`;
-}
-
-function BubbleTail({ own }: { own: boolean }) {
-  const path = own
-    ? "M1 1C2.4 5.3 4.9 8.7 8.6 11.1C11.2 12.8 14.1 14.1 17 15C11.7 15.2 8.1 14.3 5.7 12.4C3 10.1 1.4 6.3 1 1Z"
-    : "M17 1C15.6 5.3 13.1 8.7 9.4 11.1C6.8 12.8 3.9 14.1 1 15C6.3 15.2 9.9 14.3 12.3 12.4C15 10.1 16.6 6.3 17 1Z";
-
-  return (
-    <svg
-      className={`bubble__tail${own ? " bubble__tail--own" : " bubble__tail--in"}`}
-      width="18"
-      height="16"
-      viewBox="0 0 18 16"
-      aria-hidden
-    >
-      <path d={path} fill="currentColor" />
-    </svg>
-  );
 }
 
 function RoomIntro({ room }: { room: MatrixRoomSummary }) {
