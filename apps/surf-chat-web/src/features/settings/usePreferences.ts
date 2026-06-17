@@ -62,10 +62,38 @@ function prefersDark(): boolean {
   return window.matchMedia?.("(prefers-color-scheme: dark)").matches ?? false;
 }
 
+function shouldAnimateTheme(): boolean {
+  if (typeof document === "undefined") return false;
+  if (document.documentElement.classList.contains("reduce-motion")) return false;
+  return !window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+}
+
+function runThemeUpdate(update: () => void, animate: boolean) {
+  if (!animate || !shouldAnimateTheme()) {
+    update();
+    return;
+  }
+
+  const html = document.documentElement;
+
+  if ("startViewTransition" in document) {
+    document.startViewTransition(() => update());
+    return;
+  }
+
+  html.classList.add("theme-crossfade");
+  update();
+  window.setTimeout(() => html.classList.remove("theme-crossfade"), 750);
+}
+
 /** Reflect the chosen theme onto <html data-theme>. "system" follows the OS. */
-export function applyTheme(theme: ThemeMode) {
+export function applyTheme(theme: ThemeMode, options?: { animate?: boolean }) {
   const effective = theme === "system" ? (prefersDark() ? "dark" : "light") : theme;
-  document.documentElement.dataset.theme = effective;
+  if (document.documentElement.dataset.theme === effective) return;
+
+  runThemeUpdate(() => {
+    document.documentElement.dataset.theme = effective;
+  }, options?.animate ?? false);
 }
 
 /** Run once on startup before React mounts so there's no light→dark flash. */
@@ -101,6 +129,7 @@ export function usePreferencesStore(): PreferencesStore {
       setPreferences((prev) => {
         const next = { ...prev, [key]: value };
         savePreferences(next);
+        if (key === "theme") applyTheme(value as ThemeMode, { animate: true });
         return next;
       });
     },
