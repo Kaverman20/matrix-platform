@@ -7,6 +7,7 @@ import {
   getEncryptionStatus,
   makePasswordAuthCallback,
   restoreEncryptionWithRecoveryKey,
+  type EncryptionStatus,
   type GeneratedSecretStorageKey,
 } from "@matrix-platform/matrix-core";
 
@@ -26,8 +27,8 @@ export type EncryptionPhase =
   | "error";
 
 export function useEncryption({ client }: Options) {
-  const [open, setOpen] = useState(false);
   const [phase, setPhase] = useState<EncryptionPhase>("loading");
+  const [status, setStatus] = useState<EncryptionStatus | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [recoveryKey, setRecoveryKey] = useState<string | null>(null);
@@ -43,38 +44,20 @@ export function useEncryption({ client }: Options) {
   const refresh = useCallback(async () => {
     if (!client) return;
     setPhase("loading");
+    setStatus(null);
     setError(null);
     try {
       await enableEncryption(client);
-      const status = await getEncryptionStatus(client);
-      if (status.crossSigningReady && status.secretStorageReady) setPhase("ready");
-      else if (status.recoveryExists) setPhase("needs-unlock");
+      const next = await getEncryptionStatus(client);
+      setStatus(next);
+      if (next.crossSigningReady && next.secretStorageReady) setPhase("ready");
+      else if (next.recoveryExists) setPhase("needs-unlock");
       else setPhase("needs-setup");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Не удалось проверить шифрование");
       setPhase("error");
     }
   }, [client]);
-
-  const openModal = useCallback(() => {
-    setOpen(true);
-    setError(null);
-    setRecoveryKey(null);
-    setPassword("");
-    setKeyInput("");
-    generatedKeyRef.current = null;
-    void refresh();
-  }, [refresh]);
-
-  const close = useCallback(() => {
-    setOpen(false);
-    setError(null);
-    setRecoveryKey(null);
-    setPassword("");
-    setKeyInput("");
-    generatedKeyRef.current = null;
-    passwordResolveRef.current = null;
-  }, []);
 
   // Step 1: generate the key locally and show it. Nothing hits the server yet.
   const startSetup = useCallback(async () => {
@@ -154,8 +137,8 @@ export function useEncryption({ client }: Options) {
   }, [client, keyInput, refresh]);
 
   return {
-    open,
     phase,
+    status,
     busy,
     error,
     recoveryKey,
@@ -163,8 +146,7 @@ export function useEncryption({ client }: Options) {
     setPassword,
     keyInput,
     setKeyInput,
-    openModal,
-    close,
+    refresh,
     startSetup,
     confirmKeySaved,
     submitPassword,

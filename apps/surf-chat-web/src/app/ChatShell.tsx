@@ -57,10 +57,9 @@ import {
   useTimelineMessages,
 } from "../features/timeline/useTimelineMessages";
 import { formatTypingLabel, useTyping } from "../features/timeline/useTyping";
-import { AccountSettingsModal } from "../features/account/AccountSettingsModal";
 import { useAccountSettings } from "../features/account/useAccountSettings";
-import { EncryptionModal } from "../features/encryption/EncryptionModal";
 import { useEncryption } from "../features/encryption/useEncryption";
+import { SettingsModal } from "../features/settings/SettingsModal";
 import "./chat-shell.css";
 
 const RIGHT_PANEL_WIDTH = 320;
@@ -661,12 +660,11 @@ export function ChatShell() {
         activeSpaceName={spaceNavigation.activeSpace?.name ?? null}
       />
       <RoomSettingsModal settings={roomSettings} />
-      <AccountSettingsModal
+      <SettingsModal
         settings={accountSettings}
+        encryption={encryption}
         onLogout={() => void logout()}
-        onOpenEncryption={encryption.openModal}
       />
-      <EncryptionModal encryption={encryption} />
     </div>
   );
 }
