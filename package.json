@@ -11,6 +11,14 @@
     "verify": "pnpm lint && pnpm typecheck && pnpm test && pnpm build"
   },
   "packageManager": "pnpm@10.0.0",
+  "pnpm": {
+    "overrides": {
+      "esbuild": ">=0.28.1"
+    },
+    "onlyBuiltDependencies": [
+      "esbuild"
+    ]
+  },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "eslint": "^10.4.1",

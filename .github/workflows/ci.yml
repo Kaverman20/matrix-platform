@@ -28,3 +28,17 @@ jobs:
       - name: Verify
         run: pnpm verify
 
+  python-services:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Compile-check matrix-keycloak-sync
+        run: python -m py_compile services/matrix-keycloak-sync/sync.py
+

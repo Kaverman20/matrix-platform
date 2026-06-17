@@ -18,6 +18,11 @@ export default defineConfig({
   envDir: "../..",
   plugins: [react()],
   build: {
+    // The dominant chunks (matrix-js-sdk and its crypto WASM) are vendor code a
+    // Matrix client must ship regardless; they already live in their own
+    // long-lived chunks via manualChunks. Raise the warning threshold so it
+    // flags genuine app-code regressions instead of this inherent baseline.
+    chunkSizeWarningLimit: 1300,
     rollupOptions: {
       output: { manualChunks },
     },
