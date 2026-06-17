@@ -21,6 +21,7 @@ export * from "./rooms/settings";
 export * from "./rooms/subscribeRoomGroups";
 export * from "./session/sessionStorage";
 export * from "./session/types";
+export * from "./time/formatTime";
 export * from "./timeline/mapTimeline";
 export * from "./timeline/messageTypes";
 export * from "./timeline/pagination";

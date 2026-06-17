@@ -169,3 +169,121 @@
   width: 72px;
   height: 72px;
 }
+
+/* ── Appearance: labelled fields + segmented controls ──────────────────── */
+.settings-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.settings-field__label {
+  color: var(--color-text-strong);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.settings-field__hint {
+  color: var(--color-text-faint);
+  font-size: var(--text-xs);
+}
+
+.settings-seg {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-subtle);
+}
+
+.settings-seg__btn {
+  min-width: 88px;
+  padding: 6px 14px;
+  border: 0;
+  border-radius: calc(var(--radius-md) - 3px);
+  color: var(--color-text-muted);
+  background: transparent;
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease;
+}
+
+.settings-seg__btn:hover {
+  color: var(--color-text-strong);
+}
+
+.settings-seg__btn.is-active {
+  color: var(--color-text-onAccent);
+  background: var(--color-accent);
+}
+
+/* ── Preferences: toggle rows ──────────────────────────────────────────── */
+.settings-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: 14px 0;
+}
+
+.settings-row + .settings-row {
+  border-top: 1px solid var(--color-border);
+}
+
+.settings-row__text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.settings-row__label {
+  color: var(--color-text-strong);
+  font-size: var(--text-sm);
+  font-weight: 500;
+}
+
+.settings-row__hint {
+  color: var(--color-text-faint);
+  font-size: var(--text-xs);
+}
+
+.settings-switch {
+  flex: none;
+  position: relative;
+  width: 40px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: var(--color-border-strong);
+  cursor: pointer;
+  transition: background 140ms ease;
+}
+
+.settings-switch.is-on {
+  background: var(--color-accent);
+}
+
+.settings-switch__knob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 20px;
+  height: 20px;
+  border-radius: var(--radius-pill);
+  background: #fff;
+  box-shadow: var(--shadow-sm);
+  transition: transform 140ms ease;
+}
+
+.settings-switch.is-on .settings-switch__knob {
+  transform: translateX(16px);
+}

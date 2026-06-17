@@ -4,6 +4,7 @@ import { Boxes, ChevronDown, ChevronLeft, ChevronRight, Hash, LogOut, MessageCir
 import type { MatrixRoomSummary, MatrixSpaceSummary } from "@matrix-platform/matrix-core";
 import { fadeUp, transition } from "@matrix-platform/ui";
 import { AuthedImage } from "../media/AuthedImage";
+import { useTimeFormatter } from "../settings/usePreferences";
 import "./room-list.css";
 
 type Props = {
@@ -530,6 +531,7 @@ function RoomSection({
   addLabel,
   onOpenRowMenu,
 }: SectionProps) {
+  const formatTime = useTimeFormatter();
   if (rooms.length === 0 && !onAdd) return null;
   const renderRoom = (room: MatrixRoomSummary, index: number) => {
     const isActive = room.id === activeRoomId;
@@ -576,7 +578,7 @@ function RoomSection({
         <span className="room-row__main">
           <span className="room-row__top">
             <strong>{room.name}</strong>
-            <time>{room.time}</time>
+            <time>{formatTime(room.timestamp)}</time>
           </span>
           <span className="room-row__preview">{room.preview || room.topic || "Нет сообщений"}</span>
         </span>

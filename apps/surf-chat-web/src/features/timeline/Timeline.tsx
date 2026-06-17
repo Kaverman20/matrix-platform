@@ -13,6 +13,7 @@ import { AlertCircle, Check, CheckCheck, Clock3, Forward, Hash, MessagesSquare }
 import type { MatrixMessage, MatrixRoomSummary } from "@matrix-platform/matrix-core";
 import { MessageMedia } from "../media/MessageMedia";
 import { ReactionPill } from "../reactions/ReactionPill";
+import { usePreferences, useTimeFormatter } from "../settings/usePreferences";
 import "./timeline.css";
 
 type Props = {
@@ -462,10 +463,11 @@ export function Timeline({
 }
 
 function SystemMessage({ message }: { message: MatrixMessage }) {
+  const formatTime = useTimeFormatter();
   return (
     <div className="system-message" data-mid={message.id}>
       <span>{message.text}</span>
-      <time>{message.time}</time>
+      <time>{formatTime(message.timestamp)}</time>
     </div>
   );
 }
@@ -495,6 +497,7 @@ function FlatMessage({
   onToggleReaction: (message: MatrixMessage, key: string) => void;
   onOpenThread: (rootId: string) => void;
 }) {
+  const formatTime = useTimeFormatter();
   return (
     <article
       data-mid={message.id}
@@ -535,7 +538,7 @@ function FlatMessage({
         {message.thread && <ThreadChip message={message} onOpenThread={onOpenThread} />}
       </div>
       <div className="message__aside">
-        <time>{message.time}</time>
+        <time>{formatTime(message.timestamp)}</time>
         {message.own && <DeliveryStatus status={message.deliveryStatus} />}
       </div>
     </article>
@@ -561,6 +564,7 @@ function BubbleMessage({
   onToggleReaction: (message: MatrixMessage, key: string) => void;
   onOpenThread: (rootId: string) => void;
 }) {
+  const formatTime = useTimeFormatter();
   return (
     <article
       data-mid={message.id}
@@ -607,7 +611,7 @@ function BubbleMessage({
         {message.thread && <ThreadChip message={message} onOpenThread={onOpenThread} />}
         <div className="bubble__time">
           {message.edited && <span className="message__edited">изменено</span>}
-          {message.time}
+          {formatTime(message.timestamp)}
           {message.own && <DeliveryStatus status={message.deliveryStatus} compact />}
         </div>
       </div>
@@ -622,10 +626,14 @@ function DeliveryStatus({
   status?: MatrixMessage["deliveryStatus"];
   compact?: boolean;
 }) {
+  const { preferences } = usePreferences();
+  // Read receipts ("read" → double check) are hidden when the user opts out;
+  // fall back to the plain "sent" indicator. Sending/error stay as-is.
+  const effectiveStatus = status === "read" && !preferences.showReadReceipts ? "sent" : status;
   const size = compact ? 13 : 14;
-  const className = `message__delivery message__delivery--${status}`;
+  const className = `message__delivery message__delivery--${effectiveStatus}`;
 
-  switch (status) {
+  switch (effectiveStatus) {
     case "sending":
       return <Clock3 size={size} className={className} aria-label="Отправляется" />;
     case "read":

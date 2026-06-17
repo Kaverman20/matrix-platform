@@ -60,6 +60,7 @@ import { formatTypingLabel, useTyping } from "../features/timeline/useTyping";
 import { useAccountSettings } from "../features/account/useAccountSettings";
 import { useEncryption } from "../features/encryption/useEncryption";
 import { SettingsModal } from "../features/settings/SettingsModal";
+import { usePreferences } from "../features/settings/usePreferences";
 import "./chat-shell.css";
 
 const RIGHT_PANEL_WIDTH = 320;
@@ -69,15 +70,14 @@ type ChatView = "flat" | "bubbles";
 
 export function ChatShell() {
   const { client, logout } = useMatrix();
+  const { preferences, setPreference } = usePreferences();
   const roomGroups = useRoomGroups(client);
   const [activeRoomId, setActiveRoomId] = useState<string | null>(
     () => window.localStorage.getItem(ACTIVE_ROOM_STORAGE_KEY),
   );
   const [forwarding, setForwarding] = useState<MatrixForwardData[] | null>(null);
   const [lightbox, setLightbox] = useState<string | null>(null);
-  const [chatView, setChatView] = useState<ChatView>(
-    () => (localStorage.getItem("surf-chat:view") as ChatView) || "flat",
-  );
+  const [chatView, setChatView] = useState<ChatView>(() => preferences.defaultChatView);
   const [showRightPanel, setShowRightPanel] = useState(false);
   const [rightPanelSection, setRightPanelSection] = useState<RightPanelSection>("overview");
   const [activeSpaceId, setActiveSpaceId] = useState<string | null>(null);
@@ -100,9 +100,6 @@ export function ChatShell() {
   const composerRef = useRef<ComposerHandle | null>(null);
   const highlightTimer = useRef<number | null>(null);
 
-  useEffect(() => {
-    localStorage.setItem("surf-chat:view", chatView);
-  }, [chatView]);
 
   useEffect(() => {
     if (activeRoomId) {
@@ -177,7 +174,8 @@ export function ChatShell() {
   });
   const messages = useTimelineMessages(client, activeRoomId);
   const pinnedMessages = usePinnedMessages(client, activeRoomId, optimisticPinnedIds);
-  const typingLabel = formatTypingLabel(useTyping(client, activeRoomId));
+  const rawTypingLabel = formatTypingLabel(useTyping(client, activeRoomId));
+  const typingLabel = preferences.showTypingIndicator ? rawTypingLabel : null;
   const hasOlder = useMemo(
     () => Boolean(client && activeRoomId && canPaginateBackwards(client, activeRoomId)),
     // messages.length is intentionally a dep: re-evaluate after each page loads.
@@ -497,7 +495,11 @@ export function ChatShell() {
               room={activeRoom}
               typingLabel={typingLabel}
               view={chatView}
-              onToggleView={() => setChatView((value) => (value === "bubbles" ? "flat" : "bubbles"))}
+              onToggleView={() => {
+                const next = chatView === "bubbles" ? "flat" : "bubbles";
+                setChatView(next);
+                setPreference("defaultChatView", next);
+              }}
               threadsActive={showThreadsList}
               onToggleThreads={() => setShowThreadsList((value) => !value)}
               infoActive={showRightPanel}

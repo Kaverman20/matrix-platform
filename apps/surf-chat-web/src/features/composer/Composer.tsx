@@ -14,6 +14,8 @@ import {
   type MatrixMessageReference,
 } from "@matrix-platform/matrix-core";
 import { useMatrix } from "../../app/providers/MatrixContext";
+import { usePreferences } from "../settings/usePreferences";
+import { composerSubmitOnKeyDown } from "../settings/composerKeys";
 import "./composer.css";
 
 type Props = {
@@ -42,6 +44,7 @@ export const Composer = forwardRef<ComposerHandle, Props>(function Composer({
   onSent,
 }: Props, ref) {
   const { client } = useMatrix();
+  const { preferences } = usePreferences();
   const [draft, setDraft] = useState(editingMessage?.text ?? "");
   const [attachOpen, setAttachOpen] = useState(false);
   const [emojiOpen, setEmojiOpen] = useState(false);
@@ -366,12 +369,12 @@ export const Composer = forwardRef<ComposerHandle, Props>(function Composer({
             setDraft(e.target.value);
             notifyTyping(e.target.value);
           }}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey) {
-              e.preventDefault();
-              void send();
-            }
-          }}
+          onKeyDown={(e) =>
+            composerSubmitOnKeyDown(e, {
+              enterToSend: preferences.enterToSend,
+              submit: () => void send(),
+            })
+          }
         />
         <div className="composer__emoji-wrap" ref={emojiWrapRef}>
           <button

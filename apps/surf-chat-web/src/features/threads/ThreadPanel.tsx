@@ -10,6 +10,8 @@ import {
   type MatrixRoomSummary,
 } from "@matrix-platform/matrix-core";
 import { useMatrix } from "../../app/providers/MatrixContext";
+import { usePreferences } from "../settings/usePreferences";
+import { composerSubmitOnKeyDown } from "../settings/composerKeys";
 import { Timeline } from "../timeline/Timeline";
 import { useThreadMessages } from "./useThreadMessages";
 import "./thread-panel.css";
@@ -136,6 +138,7 @@ function ThreadComposer({
   onSent: () => void;
 }) {
   const { client } = useMatrix();
+  const { preferences } = usePreferences();
   const [draft, setDraft] = useState(editing?.text ?? "");
   const [sending, setSending] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -234,12 +237,12 @@ function ThreadComposer({
           placeholder={editing ? "Изменить сообщение" : "Ответить в треде"}
           disabled={sending}
           onChange={(event) => setDraft(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === "Enter" && !event.shiftKey) {
-              event.preventDefault();
-              void send();
-            }
-          }}
+          onKeyDown={(event) =>
+            composerSubmitOnKeyDown(event, {
+              enterToSend: preferences.enterToSend,
+              submit: () => void send(),
+            })
+          }
         />
         <button
           type="submit"

@@ -1,5 +1,6 @@
 import type { MatrixClient, Room } from "matrix-js-sdk";
 import { colorForId } from "./colors";
+import { formatDisplayTime } from "../time/formatTime";
 import type { MatrixRoomGroups, MatrixRoomSummary, MatrixSpaceSummary } from "./roomTypes";
 
 type DirectAccountData = Record<string, string[]>;
@@ -212,9 +213,5 @@ function spaceLabel(name: string): string {
 }
 
 function formatTime(timestamp: number): string {
-  if (!timestamp) return "";
-  return new Date(timestamp).toLocaleTimeString([], {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  return formatDisplayTime(timestamp);
 }

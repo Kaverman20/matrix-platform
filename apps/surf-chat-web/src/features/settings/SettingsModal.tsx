@@ -1,17 +1,21 @@
 import { AnimatePresence, motion } from "framer-motion";
-import { ShieldCheck, User, X } from "lucide-react";
+import { Palette, ShieldCheck, SlidersHorizontal, User, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { transition } from "@matrix-platform/ui";
 import type { useAccountSettings } from "../account/useAccountSettings";
 import type { useEncryption } from "../encryption/useEncryption";
 import { AccountTab } from "./AccountTab";
+import { AppearanceTab } from "./AppearanceTab";
 import { EncryptionTab } from "./EncryptionTab";
+import { PreferencesTab } from "./PreferencesTab";
 import "./settings.css";
 
-type TabId = "account" | "encryption";
+type TabId = "account" | "appearance" | "preferences" | "encryption";
 
 const TABS: { id: TabId; label: string; icon: typeof User }[] = [
   { id: "account", label: "Аккаунт", icon: User },
+  { id: "appearance", label: "Внешний вид", icon: Palette },
+  { id: "preferences", label: "Настройки", icon: SlidersHorizontal },
   { id: "encryption", label: "Шифрование", icon: ShieldCheck },
 ];
 
@@ -86,6 +90,8 @@ function SettingsDialog({ settings: s, encryption, onLogout }: Props) {
           <X size={18} />
         </button>
         {tab === "account" && <AccountTab settings={s} onLogout={onLogout} />}
+        {tab === "appearance" && <AppearanceTab />}
+        {tab === "preferences" && <PreferencesTab />}
         {tab === "encryption" && <EncryptionTab encryption={encryption} />}
       </div>
     </motion.div>

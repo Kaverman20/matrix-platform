@@ -1,5 +1,6 @@
 import { EventStatus, EventTimeline, type MatrixClient, type MatrixEvent, type Room } from "matrix-js-sdk";
 import { colorForId } from "../rooms/colors";
+import { formatDisplayTime } from "../time/formatTime";
 import type {
   MatrixMessage,
   MatrixDeliveryStatus,
@@ -447,8 +448,5 @@ function getMemberAvatarUrl(
 }
 
 function formatTime(timestamp: number): string {
-  return new Date(timestamp).toLocaleTimeString([], {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  return formatDisplayTime(timestamp);
 }
