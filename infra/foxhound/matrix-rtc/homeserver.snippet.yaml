@@ -1,0 +1,19 @@
+# Merge into the LIVE homeserver.yaml on the VPS
+# (/opt/synapse-test/data/synapse/homeserver.yaml). NOT committed with the rest
+# of the server config — this is a fragment to apply by hand, then restart Synapse.
+#
+# Enables the MSCs the MatrixRTC + LiveKit stack relies on.
+
+experimental_features:
+  msc3266_enabled: true   # Room summary API (used by the RTC stack)
+  msc4222_enabled: true   # state_after in /sync — reliable call membership state
+  msc4140_enabled: true   # Delayed events — auto-retract membership on crash/hangup
+
+# Delayed events need a non-zero max delay, otherwise membership cleanup is a no-op.
+max_event_delay_duration: 24h
+
+# lk-jwt-service validates the caller's Matrix OpenID token against this server,
+# so the OpenID userinfo endpoint must be reachable. It is served on the client
+# listener (/_matrix/...), so no extra federation listener is required for OpenID
+# itself — but confirm the listener that serves /_matrix is reachable from the
+# lk-jwt-service container (SMOKE.md checks this explicitly).

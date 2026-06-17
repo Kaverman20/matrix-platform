@@ -1,0 +1,39 @@
+# Add these blocks to the foxhound Caddyfile (alongside matrix.foxhound.run etc).
+#
+# PREREQUISITE: synapse-test/docker-compose.yml must give the caddy service
+# `extra_hosts: ["host.docker.internal:host-gateway"]` so the container can reach
+# host-bound ports (LiveKit on :7880, lk-jwt on 127.0.0.1:8080). See README.md.
+#
+# WHY host.docker.internal: matrix-rtc is a SEPARATE compose stack. LiveKit runs
+# with network_mode: host; lk-jwt publishes 127.0.0.1:8080 on the VPS host.
+# Caddy runs inside synapse-test — it cannot use docker service names like
+# `livekit:7880` or `lk-jwt-service:8080` from the other stack.
+
+# 1) MatrixRTC backend: LiveKit WS + lk-jwt-service on one subdomain.
+matrix-rtc.foxhound.run {
+    # lk-jwt-service issues LiveKit JWTs from a Matrix OpenID token.
+    # /get_token = MSC4195 primary; /sfu/get = legacy transitional.
+    @lk_jwt path /sfu/get /sfu/get/* /healthz /healthz/* /get_token /get_token/*
+    handle @lk_jwt {
+        reverse_proxy host.docker.internal:8080
+    }
+
+    # Everything else is LiveKit signalling (WebSocket upgrade handled by Caddy).
+    reverse_proxy host.docker.internal:7880
+}
+
+# 2) TEMP smoke-test client only. Deploy Element Call here to prove the backend,
+#    then REMOVE this block (or gate behind basic_auth). Not part of the product.
+# call.foxhound.run {
+#     root * /srv/element-call
+#     try_files {path} /index.html
+#     file_server
+# }
+
+# 3) Surf Chat (chat.foxhound.run) header CHANGES required for own-UI calls.
+#    Replace the existing Permissions-Policy / Content-Security-Policy lines in
+#    the chat.foxhound.run block with the following (camera/mic opened to self,
+#    LiveKit added to connect-src; no iframe -> no frame-src needed):
+#
+#    Permissions-Policy "camera=(self), microphone=(self), geolocation=(), payment=(), usb=()"
+#    Content-Security-Policy "default-src 'self'; connect-src 'self' https://matrix.foxhound.run https://*.foxhound.run wss://matrix-rtc.foxhound.run; img-src 'self' data: blob: https://matrix.foxhound.run; media-src 'self' blob: https://matrix.foxhound.run; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'; upgrade-insecure-requests"

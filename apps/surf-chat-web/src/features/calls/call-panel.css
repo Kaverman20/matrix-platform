@@ -1,0 +1,59 @@
+/* Skeleton styling for the 1:1 call surface — a compact bar pinned to the top
+   of the chat. Refined in Stage 2 (full-screen / PiP, tiles). */
+.call-panel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-4);
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-bg-subtle);
+}
+
+.call-panel__info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.call-panel__peer {
+  color: var(--color-text-strong);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.call-panel__status {
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+}
+
+.call-panel__controls {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.call-panel__btn {
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: var(--radius-pill);
+  color: var(--color-text);
+  background: var(--color-bg-sunken);
+  cursor: pointer;
+  transition: background 140ms ease, color 140ms ease;
+}
+
+.call-panel__btn:hover {
+  background: var(--color-bg-hover);
+}
+
+.call-panel__btn--hangup {
+  color: var(--color-text-onAccent);
+  background: var(--color-danger, #d64545);
+}
+
+.call-panel__btn--hangup:hover {
+  filter: brightness(1.05);
+}

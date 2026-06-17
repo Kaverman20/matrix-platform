@@ -1,0 +1,53 @@
+# MatrixRTC media backend for Surf Chat calls (Stage 0).
+#
+# Deploy target: foxhound VPS, alongside the existing synapse-test stack.
+# This file is a TEMPLATE — no secrets. Copy .env.example -> .env on the VPS,
+# fill real values, then `docker compose up -d`. See SMOKE.md before testing.
+#
+# Pin image tags to exact versions (not :latest): MatrixRTC is unstable and the
+# LiveKit / lk-jwt-service / matrix-js-sdk triple must move together (ADR 0002).
+#
+# NETWORKING: LiveKit uses host network (UDP media ports). lk-jwt binds to the
+# host at 127.0.0.1:8080. Caddy runs in synapse-test/docker-compose.yml and
+# reaches both via host.docker.internal (see Caddyfile.fragment + caddy
+# extra_hosts in synapse-test).
+services:
+  livekit:
+    image: livekit/livekit-server:v1.8.0
+    restart: unless-stopped
+    command: ["--config", "/etc/livekit.yaml"]
+    network_mode: host # LiveKit needs its UDP media port range reachable directly
+    volumes:
+      - ./livekit.yaml:/etc/livekit.yaml:ro
+    # No `ports:` block: with network_mode host the ports come from livekit.yaml.
+    # The UDP range there MUST be opened on BOTH the host firewall and any cloud
+    # firewall (Hetzner/DO panel). See SMOKE.md.
+
+  lk-jwt-service:
+    image: ghcr.io/element-hq/lk-jwt-service:0.3.0
+    restart: unless-stopped
+    environment:
+      # Shared with livekit.yaml keys block.
+      LIVEKIT_KEY: ${LIVEKIT_API_KEY}
+      LIVEKIT_SECRET: ${LIVEKIT_API_SECRET}
+      LIVEKIT_URL: ${LIVEKIT_WS_URL}
+      # lk-jwt validates the caller's Matrix OpenID token against the homeserver.
+      # This must be reachable from this container and the homeserver must expose
+      # the OpenID endpoint (federation/openid). Common cause of "no token".
+      LIVEKIT_JWT_PORT: "8080"
+      # Homeservers allowed to trigger LiveKit room creation via JWT.
+      # Pin to our server; use * only if you understand the security trade-off.
+      LIVEKIT_FULL_ACCESS_HOMESERVERS: matrix.foxhound.run
+    ports:
+      - "127.0.0.1:8080:8080" # Caddy (in synapse-test) proxies via host.docker.internal:8080
+
+  # Plan B — only if a participant behind strict NAT has no audio after the
+  # smoke test. First try TURN inside livekit.yaml (rtc.turn_servers); a
+  # standalone coturn is a fallback, NOT part of the MVP (ADR 0002, §coturn).
+  #
+  # coturn:
+  #   image: coturn/coturn:4.6.2
+  #   restart: unless-stopped
+  #   network_mode: host
+  #   volumes:
+  #     - ./turnserver.conf:/etc/coturn/turnserver.conf:ro

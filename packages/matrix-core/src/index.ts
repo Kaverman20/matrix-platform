@@ -1,5 +1,7 @@
 export * from "./auth/passwordLogin";
 export * from "./auth/sso";
+export * from "./calls/discoverFoci";
+export * from "./calls/rtcSession";
 export * from "./auth/tokenLogin";
 export * from "./auth/types";
 export * from "./account/profile";

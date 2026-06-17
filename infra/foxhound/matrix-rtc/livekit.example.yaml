@@ -1,0 +1,35 @@
+# LiveKit SFU config (Stage 0). Copy to livekit.yaml on the VPS and fill keys.
+# TEMPLATE — no real secrets in git.
+#
+# CRITICAL: rtc.port_range_start/end and rtc.tcp_port below must be opened on the
+# host firewall AND any cloud-provider firewall. If signalling/JWT work but there
+# is no audio, this is almost always the cause (SMOKE.md).
+
+port: 7880          # HTTP/WS signalling (Caddy proxies wss -> host:7880)
+bind_addresses:
+  - ""              # all interfaces (host network)
+
+rtc:
+  # Media (WebRTC). Keep this range small and EXACTLY what you open on firewalls.
+  port_range_start: 50000
+  port_range_end: 50100
+  tcp_port: 7881     # TCP fallback for clients that can't do UDP
+  use_external_ip: true
+  # Plan B for strict NAT — uncomment and point at a TURN server:
+  # turn_servers:
+  #   - host: turn.foxhound.run
+  #     port: 5349
+  #     protocol: tls
+
+# lk-jwt-service 0.3+ requires auto_create disabled so only authorised clients
+# (via JWT) can create rooms. See lk-jwt release notes / ADR 0002.
+room:
+  auto_create: false
+
+keys:
+  # key: secret — must match LIVEKIT_API_KEY / LIVEKIT_API_SECRET in .env.
+  # Generate: `livekit-server generate-keys` (do NOT commit real values).
+  REPLACE_API_KEY: REPLACE_API_SECRET
+
+logging:
+  level: info
