@@ -533,6 +533,7 @@ function RoomSection({
 }: SectionProps) {
   const formatTime = useTimeFormatter();
   if (rooms.length === 0 && !onAdd) return null;
+  if (collapsed && rooms.length === 0) return null;
   const renderRoom = (room: MatrixRoomSummary, index: number) => {
     const isActive = room.id === activeRoomId;
 
@@ -604,17 +605,47 @@ function RoomSection({
   };
 
   return (
-    <section className="room-section">
-      <AnimatePresence initial={false}>
-        {!collapsed && (
+    <section className={`room-section${open ? "" : " room-section--closed"}`}>
+      <AnimatePresence initial={false} mode="popLayout">
+        {collapsed ? (
+          <motion.button
+            key="compact"
+            type="button"
+            className="room-section__head-compact"
+            title={title}
+            aria-label={title}
+            aria-expanded={open}
+            onClick={onToggleOpen}
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 24 }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={transition.fast}
+          >
+            <motion.span
+              className="room-section__chevron"
+              animate={{ rotate: open ? 0 : -90 }}
+              transition={transition.fast}
+            >
+              <ChevronDown size={12} />
+            </motion.span>
+            <span className="room-section__icon">{icon}</span>
+          </motion.button>
+        ) : (
           <motion.div
+            key="full"
             className="room-section__head"
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 28 }}
             exit={{ opacity: 0, height: 0 }}
             transition={transition.fast}
           >
-            <button type="button" className="room-section__title" onClick={onToggleOpen}>
+            <button
+              type="button"
+              className="room-section__title"
+              aria-label={title}
+              aria-expanded={open}
+              onClick={onToggleOpen}
+            >
               <motion.span
                 className="room-section__chevron"
                 animate={{ rotate: open ? 0 : -90 }}

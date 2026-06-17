@@ -463,15 +463,13 @@ export function ChatShell() {
         onLogout={() => void logout()}
       />
 
-      <motion.div
-        className="chat-shell__room-list"
-        initial={false}
-        animate={{
+      <div
+        className={`chat-shell__room-list${roomListLayout.resizing ? " is-resizing" : ""}`}
+        style={{
           width: roomListLayout.width,
           minWidth: roomListLayout.width,
           flexBasis: roomListLayout.width,
         }}
-        transition={roomListLayout.resizing ? { duration: 0 } : transition.slow}
       >
         <RoomList
           favourites={spaceNavigation.visibleRoomGroups.favourites}
@@ -500,7 +498,7 @@ export function ChatShell() {
           className={`chat-shell__room-list-resizer${roomListLayout.resizing ? " is-active" : ""}`}
           onPointerDown={roomListLayout.startResize}
         />
-      </motion.div>
+      </div>
 
       <main className={`chat-main${activeRoom ? "" : " is-empty"}`}>
         {activeRoom ? (
