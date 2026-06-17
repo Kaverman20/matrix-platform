@@ -24,10 +24,11 @@
   --color-accent-ring: rgb(230 231 234 / 38%);
 
   --color-rail-bg: #0e0f12;
-  --color-rail-item: rgb(255 255 255 / 6%);
-  --color-rail-item-hover: rgb(255 255 255 / 12%);
+  --color-rail-item: rgb(255 255 255 / 10%);
+  --color-rail-item-hover: rgb(255 255 255 / 18%);
   --color-rail-text: #c9cbcf;
   --color-rail-indicator: #e6e7ea;
+  --color-rail-item-border: rgb(255 255 255 / 14%);
 
   --color-online: #30d158;
   --color-danger: #ff6b6b;

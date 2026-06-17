@@ -85,6 +85,7 @@
 
 .space-rail__item--add {
   background: var(--color-rail-item-hover);
+  border: 1px solid var(--color-rail-item-border);
 }
 
 .space-rail__home:hover,
@@ -112,6 +113,7 @@
 .space-rail__account {
   color: var(--color-text-onAccent);
   background: var(--color-rail-item-hover);
+  border: 1px solid var(--color-rail-item-border);
   font-size: var(--text-sm);
   font-weight: 800;
   overflow: hidden;

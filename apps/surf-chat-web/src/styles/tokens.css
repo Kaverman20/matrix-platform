@@ -25,6 +25,7 @@
   --color-rail-item-hover: rgb(255 255 255 / 12%);
   --color-rail-text: #c9cbcf;
   --color-rail-indicator: #f5f3ee;
+  --color-rail-item-border: transparent;
 
   --color-online: #34c759;
   --color-danger: #e5484d;
