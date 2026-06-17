@@ -124,3 +124,48 @@
   color: var(--color-text-faint);
   font-weight: 700;
 }
+
+/* ── Tame the controls inherited from the narrow modal ───────────────────
+   The shared .spacemodal__create / account-settings buttons are sized for a
+   full-width centered dialog. In the wide settings panel they look oversized
+   and heavy, so scope them down to a regular control size here. */
+.settings-modal .spacemodal__create {
+  width: auto;
+  min-width: 160px;
+  height: 40px;
+  margin-top: var(--space-2);
+  padding: 0 var(--space-4);
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.settings-modal .spacemodal__create:hover {
+  transform: none;
+  filter: brightness(0.95);
+}
+
+/* Account tab: a tidy left-aligned action row instead of the stretched grid. */
+.settings-tab--account .account-settings__actions {
+  display: flex;
+  justify-content: flex-start;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+.settings-modal .account-settings__logout {
+  height: 40px;
+  padding: 0 var(--space-4);
+  font-weight: 600;
+}
+
+/* The display-name field doesn't need the oversized modal typography. */
+.settings-modal .spacemodal__name {
+  margin-top: var(--space-3);
+  font-size: var(--text-md);
+}
+
+.settings-modal .spacemodal__avatar {
+  width: 72px;
+  height: 72px;
+}
