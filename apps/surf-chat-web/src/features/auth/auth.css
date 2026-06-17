@@ -93,6 +93,8 @@
 }
 
 .auth-card__submit--sso {
+  /* Always sits on the dark rail surface, so keep light text in both themes. */
+  color: var(--color-rail-text);
   background: var(--color-rail-bg);
 }
 

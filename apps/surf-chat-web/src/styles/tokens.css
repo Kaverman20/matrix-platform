@@ -29,6 +29,13 @@
   --color-online: #34c759;
   --color-danger: #e5484d;
 
+  /* Chat bubbles (bubble view) — themed so dark mode adapts. */
+  --color-bubble-in: #f3f4f6;
+  --color-bubble-in-border: rgb(148 163 184 / 14%);
+  --color-bubble-in-time: rgb(31 41 55 / 72%);
+  --color-bubble-own: #efe9dd;
+  --color-bubble-own-border: rgb(201 182 150 / 12%);
+
   --radius-sm: 6px;
   --radius-md: 10px;
   --radius-lg: 14px;

@@ -415,17 +415,17 @@
   max-width: 72%;
   padding: 7px 11px;
   border-radius: 16px;
-  background: #f3f4f6;
+  background: var(--color-bubble-in);
   color: var(--color-text-strong);
-  border: 1px solid rgb(148 163 184 / 14%);
+  border: 1px solid var(--color-bubble-in-border);
   box-shadow:
     0 1px 1.5px rgb(15 23 42 / 5%),
     0 8px 24px rgb(15 23 42 / 5%);
 }
 
 .mb--own .bubble {
-  background: #efe9dd;
-  border-color: rgb(201 182 150 / 12%);
+  background: var(--color-bubble-own);
+  border-color: var(--color-bubble-own-border);
 }
 
 .mb--own.mb--tail .bubble {
@@ -441,7 +441,7 @@
 .bubble__tail {
   position: absolute;
   bottom: -1px;
-  color: #f3f4f6;
+  color: var(--color-bubble-in);
   filter: drop-shadow(0 1px 1px rgb(15 23 42 / 4%));
   pointer-events: none;
 }
@@ -449,7 +449,7 @@
 .bubble__tail--own {
   right: -10px;
   bottom: 0;
-  color: #efe9dd;
+  color: var(--color-bubble-own);
 }
 
 .bubble__tail--in {
@@ -486,7 +486,7 @@
 }
 
 .mb:not(.mb--own) .bubble__time {
-  color: rgb(31 41 55 / 72%);
+  color: var(--color-bubble-in-time);
 }
 
 .bubble__time .message__edited {
@@ -511,7 +511,7 @@
   border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
   padding: 5px var(--space-2);
   color: var(--color-text-muted);
-  background: rgb(0 0 0 / 4%);
+  background: var(--color-bg-hover);
   text-align: left;
   cursor: default;
 }

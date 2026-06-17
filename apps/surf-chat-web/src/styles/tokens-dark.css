@@ -29,6 +29,15 @@
   --color-rail-text: #c9cbcf;
   --color-rail-indicator: #e6e7ea;
 
+  --color-online: #30d158;
+  --color-danger: #ff6b6b;
+
+  --color-bubble-in: #25282e;
+  --color-bubble-in-border: rgb(255 255 255 / 8%);
+  --color-bubble-in-time: rgb(230 231 234 / 55%);
+  --color-bubble-own: #33414d;
+  --color-bubble-own-border: rgb(255 255 255 / 9%);
+
   --shadow-sm: 0 1px 2px rgb(0 0 0 / 40%);
   --shadow-md: 0 2px 10px rgb(0 0 0 / 45%);
   --shadow-lg: 0 8px 30px rgb(0 0 0 / 55%);
