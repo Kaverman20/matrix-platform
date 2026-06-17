@@ -23,12 +23,27 @@ export function BubbleShell({ own, tailed, highlighted, children }: Props) {
     const el = contentRef.current;
     if (!el) return;
 
-    const measure = () => setSize({ w: el.offsetWidth, h: el.offsetHeight });
+    // Coalesce resize callbacks to one measurement per frame and skip no-op
+    // updates, so a smooth panel resize doesn't trigger a re-render storm
+    // across every mounted bubble (each recomputes its tail SVG path).
+    let frame = 0;
+    const measure = () => {
+      frame = 0;
+      const w = el.offsetWidth;
+      const h = el.offsetHeight;
+      setSize((prev) => (prev.w === w && prev.h === h ? prev : { w, h }));
+    };
     measure();
 
-    const ro = new ResizeObserver(measure);
+    const ro = new ResizeObserver(() => {
+      if (frame) return;
+      frame = requestAnimationFrame(measure);
+    });
     ro.observe(el);
-    return () => ro.disconnect();
+    return () => {
+      if (frame) cancelAnimationFrame(frame);
+      ro.disconnect();
+    };
   }, []);
 
   useLayoutEffect(() => {

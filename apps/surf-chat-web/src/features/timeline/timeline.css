@@ -415,7 +415,11 @@
 .bubble {
   position: relative;
   display: inline-block;
-  max-width: 72%;
+  /* Cap the width in px, not just %, so toggling the side panels doesn't
+     re-wrap bubble text frame-by-frame: on a normal-width chat the bubble
+     stays a constant width and simply slides, instead of reflowing (and
+     forcing every bubble's tail SVG to be re-measured) on each frame. */
+  max-width: min(72%, 760px);
   overflow: visible;
   color: var(--color-text-strong);
 }
