@@ -98,6 +98,19 @@ button {
     animation-timing-function: ease-in-out;
   }
 
+  /* Dark→light: dark fades out quickly; light ramps brightness without a dim overlay hitch. */
+  html:not(.reduce-motion).theme-switch-to-light ::view-transition-group(root) {
+    animation-duration: 1.45s;
+  }
+
+  html:not(.reduce-motion).theme-switch-to-light ::view-transition-old(root) {
+    animation: 0.45s ease-out both theme-dark-fade-out;
+  }
+
+  html:not(.reduce-motion).theme-switch-to-light ::view-transition-new(root) {
+    animation: 1.45s cubic-bezier(0.22, 1, 0.36, 1) both theme-light-brightness-reveal;
+  }
+
   html:not(.reduce-motion).theme-crossfade,
   html:not(.reduce-motion).theme-crossfade *,
   html:not(.reduce-motion).theme-crossfade *::before,
@@ -105,5 +118,27 @@ button {
     transition-property: background-color, border-color, color, fill, stroke, box-shadow;
     transition-duration: 0.7s;
     transition-timing-function: ease-in-out;
+  }
+}
+
+@keyframes theme-dark-fade-out {
+  from {
+    opacity: 1;
+  }
+
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes theme-light-brightness-reveal {
+  from {
+    filter: brightness(0.58);
+    opacity: 1;
+  }
+
+  to {
+    filter: brightness(1);
+    opacity: 1;
   }
 }

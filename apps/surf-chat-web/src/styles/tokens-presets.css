@@ -1,0 +1,152 @@
+/* Theme presets — Linear-style palette variants on <html data-theme-preset="…">.
+   Light default lives in tokens.css (:root). */
+
+[data-theme-preset="pure-light"] {
+  --color-bg: #ffffff;
+  --color-bg-subtle: #f7f7f8;
+  --color-bg-sunken: #efeff1;
+  --color-bg-hover: rgb(43 46 52 / 4%);
+  --color-bg-active: rgb(43 46 52 / 7%);
+
+  --color-border: #e4e4e7;
+  --color-border-strong: #d4d4d8;
+
+  --color-text-onAccent: #ffffff;
+
+  --color-rail-indicator: #f7f7f8;
+
+  --color-bubble-in: #f4f4f5;
+  --color-bubble-own: #ece8e0;
+}
+
+[data-theme-preset="dark"] {
+  --color-bg: #1a1c20;
+  --color-bg-subtle: #15171a;
+  --color-bg-sunken: #101215;
+  --color-bg-hover: rgb(255 255 255 / 6%);
+  --color-bg-active: rgb(255 255 255 / 10%);
+
+  --color-border: #2c2f35;
+  --color-border-strong: #3a3e45;
+
+  --color-text: #e6e7ea;
+  --color-text-strong: #f5f6f7;
+  --color-text-muted: #a4a7ad;
+  --color-text-faint: #74777d;
+  --color-text-onAccent: #15171a;
+
+  --color-accent: #e6e7ea;
+  --color-accent-hover: #f5f6f7;
+  --color-accent-pressed: #cfd1d5;
+  --color-accent-subtle: rgb(230 231 234 / 14%);
+  --color-accent-ring: rgb(230 231 234 / 38%);
+
+  --color-rail-bg: #0e0f12;
+  --color-rail-item: rgb(255 255 255 / 10%);
+  --color-rail-item-hover: rgb(255 255 255 / 18%);
+  --color-rail-text: #c9cbcf;
+  --color-rail-indicator: #e6e7ea;
+  --color-rail-item-border: rgb(255 255 255 / 14%);
+
+  --color-online: #30d158;
+  --color-danger: #ff6b6b;
+
+  --color-bubble-in: #25282e;
+  --color-bubble-in-border: rgb(255 255 255 / 8%);
+  --color-bubble-in-time: rgb(230 231 234 / 55%);
+  --color-bubble-own: #33414d;
+  --color-bubble-own-border: rgb(255 255 255 / 9%);
+
+  --shadow-sm: 0 1px 2px rgb(0 0 0 / 40%);
+  --shadow-md: 0 2px 10px rgb(0 0 0 / 45%);
+  --shadow-lg: 0 8px 30px rgb(0 0 0 / 55%);
+  --shadow-pop: 0 10px 40px rgb(0 0 0 / 60%);
+}
+
+[data-theme-preset="magic-blue"] {
+  --color-bg: #171a22;
+  --color-bg-subtle: #12151d;
+  --color-bg-sunken: #0c0e14;
+  --color-bg-hover: rgb(255 255 255 / 6%);
+  --color-bg-active: rgb(255 255 255 / 10%);
+
+  --color-border: #2a3142;
+  --color-border-strong: #363d4f;
+
+  --color-text: #e8eaed;
+  --color-text-strong: #f4f5f7;
+  --color-text-muted: #a0a8bc;
+  --color-text-faint: #6e768a;
+  --color-text-onAccent: #12151d;
+
+  --color-accent: #8b9cff;
+  --color-accent-hover: #a8b4ff;
+  --color-accent-pressed: #7488f0;
+  --color-accent-subtle: rgb(139 156 255 / 16%);
+  --color-accent-ring: rgb(139 156 255 / 42%);
+
+  --color-rail-bg: #0a0c12;
+  --color-rail-item: rgb(255 255 255 / 8%);
+  --color-rail-item-hover: rgb(255 255 255 / 14%);
+  --color-rail-text: #b8c0d4;
+  --color-rail-indicator: #e8eaed;
+  --color-rail-item-border: rgb(255 255 255 / 12%);
+
+  --color-online: #30d158;
+  --color-danger: #ff6b6b;
+
+  --color-bubble-in: #1e2433;
+  --color-bubble-in-border: rgb(255 255 255 / 8%);
+  --color-bubble-in-time: rgb(232 234 237 / 55%);
+  --color-bubble-own: #2a3555;
+  --color-bubble-own-border: rgb(139 156 255 / 14%);
+
+  --shadow-sm: 0 1px 2px rgb(0 0 0 / 45%);
+  --shadow-md: 0 2px 10px rgb(0 0 0 / 50%);
+  --shadow-lg: 0 8px 30px rgb(0 0 0 / 58%);
+  --shadow-pop: 0 10px 40px rgb(0 0 0 / 62%);
+}
+
+[data-theme-preset="classic-dark"] {
+  --color-bg: #1a1a1a;
+  --color-bg-subtle: #141414;
+  --color-bg-sunken: #0f0f0f;
+  --color-bg-hover: rgb(255 255 255 / 6%);
+  --color-bg-active: rgb(255 255 255 / 10%);
+
+  --color-border: #2e2e2e;
+  --color-border-strong: #3a3a3a;
+
+  --color-text: #ececec;
+  --color-text-strong: #f5f5f5;
+  --color-text-muted: #a3a3a3;
+  --color-text-faint: #737373;
+  --color-text-onAccent: #141414;
+
+  --color-accent: #ececec;
+  --color-accent-hover: #f5f5f5;
+  --color-accent-pressed: #d4d4d4;
+  --color-accent-subtle: rgb(236 236 236 / 14%);
+  --color-accent-ring: rgb(236 236 236 / 38%);
+
+  --color-rail-bg: #0c0c0c;
+  --color-rail-item: rgb(255 255 255 / 8%);
+  --color-rail-item-hover: rgb(255 255 255 / 14%);
+  --color-rail-text: #c9c9c9;
+  --color-rail-indicator: #ececec;
+  --color-rail-item-border: rgb(255 255 255 / 12%);
+
+  --color-online: #30d158;
+  --color-danger: #ff6b6b;
+
+  --color-bubble-in: #242424;
+  --color-bubble-in-border: rgb(255 255 255 / 8%);
+  --color-bubble-in-time: rgb(236 236 236 / 55%);
+  --color-bubble-own: #333333;
+  --color-bubble-own-border: rgb(255 255 255 / 9%);
+
+  --shadow-sm: 0 1px 2px rgb(0 0 0 / 40%);
+  --shadow-md: 0 2px 10px rgb(0 0 0 / 45%);
+  --shadow-lg: 0 8px 30px rgb(0 0 0 / 55%);
+  --shadow-pop: 0 10px 40px rgb(0 0 0 / 60%);
+}

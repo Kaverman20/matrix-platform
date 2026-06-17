@@ -6,7 +6,7 @@ import { MatrixProvider } from "./app/providers/MatrixProvider";
 import { PreferencesProvider } from "./app/providers/PreferencesProvider";
 import { initThemeFromStorage } from "./features/settings/usePreferences";
 import "./styles/index.css";
-import "./styles/tokens-dark.css";
+import "./styles/tokens-presets.css";
 
 // Apply the saved theme before first paint to avoid a light→dark flash.
 initThemeFromStorage();
