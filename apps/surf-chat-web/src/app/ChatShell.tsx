@@ -61,7 +61,6 @@ import { useAccountSettings } from "../features/account/useAccountSettings";
 import { useEncryption } from "../features/encryption/useEncryption";
 import { CallPanel } from "../features/calls/CallPanel";
 import { CALLS_ENABLED } from "../features/calls/callsEnabled";
-import { IncomingCallBanner } from "../features/calls/IncomingCallBanner";
 import { useIncomingCall } from "../features/calls/useIncomingCall";
 import { useRoomCall } from "../features/calls/useRoomCall";
 import { SettingsPage } from "../features/settings/SettingsModal";
@@ -183,12 +182,36 @@ export function ChatShell() {
   const typingLabel = preferences.showTypingIndicator ? rawTypingLabel : null;
   const dmRoomIds = useMemo(() => roomGroups.dms.map((room) => room.id), [roomGroups.dms]);
   const roomCall = useRoomCall(CALLS_ENABLED ? client : null, CALLS_ENABLED ? activeRoomId : null);
-  const { incoming: incomingCall, dismiss: dismissIncomingCall } = useIncomingCall(
+  const { incoming: incomingCall, dismiss: dismissIncomingCall, decline: declineIncomingCall } = useIncomingCall(
     CALLS_ENABLED ? client : null,
     dmRoomIds,
     roomCall.status,
   );
   const callActive = roomCall.status !== "idle";
+  // The call's own room — independent of which chat is open — so the panel
+  // persists and shows the right peer when navigating away from the call.
+  const callRoom = useMemo(
+    () => allRooms.find((room) => room.id === roomCall.callRoomId) ?? null,
+    [allRooms, roomCall.callRoomId],
+  );
+  const callPeerName = callRoom?.name ?? "";
+  const incomingRoom = useMemo(
+    () => (incomingCall ? allRooms.find((room) => room.id === incomingCall.roomId) ?? null : null),
+    [allRooms, incomingCall],
+  );
+  const callUiPeer = useMemo(() => {
+    if (roomCall.status !== "idle" && callRoom) {
+      return { name: callPeerName, avatarUrl: callRoom.avatarUrl, id: callRoom.id };
+    }
+    if (incomingCall) {
+      return {
+        name: incomingCall.callerName,
+        avatarUrl: incomingRoom?.avatarUrl,
+        id: incomingCall.roomId,
+      };
+    }
+    return { name: "", avatarUrl: undefined, id: undefined };
+  }, [callPeerName, callRoom, incomingCall, incomingRoom, roomCall.status]);
   const handleStartCall = useCallback(() => {
     void roomCall.start({ ring: true });
   }, [roomCall]);
@@ -201,6 +224,10 @@ export function ChatShell() {
     }
     void roomCall.start({ ring: false, roomId });
   }, [activeRoomId, chatNavigation, dismissIncomingCall, incomingCall, roomCall]);
+  const handleDeclineCall = useCallback(() => {
+    if (!incomingCall) return;
+    void declineIncomingCall(incomingCall);
+  }, [declineIncomingCall, incomingCall]);
   const hasOlder = useMemo(
     () => Boolean(client && activeRoomId && canPaginateBackwards(client, activeRoomId)),
     // messages.length is intentionally a dep: re-evaluate after each page loads.
@@ -466,6 +493,18 @@ export function ChatShell() {
 
   return (
     <div className="app-views">
+      {CALLS_ENABLED && (roomCall.status !== "idle" || incomingCall) && (
+        <CallPanel
+          key={roomCall.callRoomId ?? incomingCall?.roomId ?? "call"}
+          call={roomCall}
+          incoming={incomingCall}
+          onAnswer={handleAnswerCall}
+          onDecline={handleDeclineCall}
+          peerName={callUiPeer.name}
+          peerAvatarUrl={callUiPeer.avatarUrl}
+          peerId={callUiPeer.id}
+        />
+      )}
       <AnimatePresence initial={false}>
         {!showSettings && (
           <motion.div
@@ -545,16 +584,6 @@ export function ChatShell() {
               callActive={callActive}
               onStartCall={handleStartCall}
             />
-            {CALLS_ENABLED && incomingCall && (
-              <IncomingCallBanner
-                callerName={incomingCall.callerName}
-                onAnswer={handleAnswerCall}
-                onDismiss={dismissIncomingCall}
-              />
-            )}
-            {CALLS_ENABLED && (
-              <CallPanel call={roomCall} peerName={activeRoom.name} />
-            )}
             <AnimatePresence initial={false}>
               {pinnedMessages.length > 0 && (() => {
                 const currentIndex = pinnedMessages.length > 0 ? pinnedIndex % pinnedMessages.length : 0;

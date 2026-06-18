@@ -2,13 +2,14 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { MatrixClient } from "matrix-js-sdk";
 import type { MatrixRTCSession } from "matrix-js-sdk/lib/matrixrtc";
 import type { Room } from "livekit-client";
-import { joinCall, leaveCall } from "@matrix-platform/matrix-core";
+import { joinCall, leaveCall, subscribePeerDeclined } from "@matrix-platform/matrix-core";
 import { fetchLiveKitCredentials } from "./fetchLiveKitJwt";
 import {
   connectLiveKitRoom,
   disconnectLiveKitRoom,
   setLiveKitMicrophoneMuted,
 } from "./livekitSession";
+import { mapCallError } from "./mapCallError";
 import { startRingback, type Ringback } from "./ringback";
 
 export type CallStatus =
@@ -17,6 +18,12 @@ export type CallStatus =
   | "ringing" // connected, waiting for the other side to join (outgoing)
   | "connected" // peer is in the call — duration ticks
   | "error";
+
+/** How long an outgoing call rings before giving up (no answer / declined). */
+const RING_TIMEOUT_MS = 30_000;
+
+/** How long to show a terminal error (declined, no answer, connection failed) before closing. */
+const ERROR_DISMISS_MS = 4_000;
 
 export type StartCallOptions = {
   /** Emit MatrixRTC ring notification (outgoing call). */
@@ -31,6 +38,8 @@ export type RoomCall = {
   muted: boolean;
   /** Seconds since the peer joined; only meaningful while `connected`. */
   durationSec: number;
+  /** Room the active call belongs to — independent of the chat being viewed. */
+  callRoomId: string | null;
   start: (options?: StartCallOptions) => Promise<void>;
   hangup: () => Promise<void>;
   toggleMute: () => void;
@@ -38,14 +47,16 @@ export type RoomCall = {
 
 /**
  * Orchestrates a 1:1 room call: MatrixRTC membership (matrix-core) plus LiveKit
- * media (livekit-client). Drives the phone-like UX — "ringing" with a ringback
- * tone until the peer joins, then an in-call timer; peer leaving ends the call.
+ * media (livekit-client). Phone-like UX — ringback while waiting, an in-call
+ * timer once the peer joins, a no-answer timeout, and auto-end when they leave.
  */
 export function useRoomCall(client: MatrixClient | null, roomId: string | null): RoomCall {
   const [status, setStatus] = useState<CallStatus>("idle");
   const [error, setError] = useState<string | null>(null);
   const [muted, setMuted] = useState(false);
   const [durationSec, setDurationSec] = useState(0);
+  const [outgoing, setOutgoing] = useState(false);
+  const [callRoomId, setCallRoomId] = useState<string | null>(null);
   const sessionRef = useRef<MatrixRTCSession | null>(null);
   const liveKitRef = useRef<Room | null>(null);
   const liveKitUnwatchRef = useRef<(() => void) | null>(null);
@@ -59,30 +70,41 @@ export function useRoomCall(client: MatrixClient | null, roomId: string | null):
     const session = sessionRef.current;
     liveKitRef.current = null;
     sessionRef.current = null;
-    setMuted(false);
     await disconnectLiveKitRoom(liveKit);
     if (session) await leaveCall(session);
   }, []);
 
-  const hangup = useCallback(async () => {
-    setStatus("idle");
-    setError(null);
-    setDurationSec(0);
-    await cleanup();
-  }, [cleanup]);
+  /** Ends the call. With a reason it surfaces as an error (e.g. "Не отвечает"). */
+  const endCall = useCallback(
+    async (reason?: string) => {
+      setStatus(reason ? "error" : "idle");
+      setError(reason ?? null);
+      setMuted(false);
+      setDurationSec(0);
+      setOutgoing(false);
+      if (!reason) setCallRoomId(null);
+      await cleanup();
+    },
+    [cleanup],
+  );
 
-  const hangupRef = useRef(hangup);
+  const hangup = useCallback(() => endCall(), [endCall]);
+
+  const endCallRef = useRef(endCall);
   useEffect(() => {
-    hangupRef.current = hangup;
-  }, [hangup]);
+    endCallRef.current = endCall;
+  }, [endCall]);
 
   const start = useCallback(
     async (options?: StartCallOptions) => {
       const targetRoomId = options?.roomId ?? roomId;
       if (!client || !targetRoomId) return;
+      const isOutgoing = options?.ring === true;
       setError(null);
-      setStatus("connecting");
       setDurationSec(0);
+      setOutgoing(isOutgoing);
+      setCallRoomId(targetRoomId);
+      setStatus("connecting");
       wasConnectedRef.current = false;
 
       let session: MatrixRTCSession | null = null;
@@ -94,14 +116,14 @@ export function useRoomCall(client: MatrixClient | null, roomId: string | null):
 
         const { wsUrl, jwt } = await fetchLiveKitCredentials(client, targetRoomId);
         const connected = await connectLiveKitRoom(wsUrl, jwt, {
-          onDisconnect: () => void hangupRef.current(),
+          onDisconnect: () => void endCallRef.current(),
           onRemotePresence: (present) => {
             if (present) {
               wasConnectedRef.current = true;
               setStatus("connected");
             } else if (wasConnectedRef.current) {
               // Peer left an established 1:1 call → end it.
-              void hangupRef.current();
+              void endCallRef.current();
             } else {
               setStatus("ringing");
             }
@@ -119,8 +141,9 @@ export function useRoomCall(client: MatrixClient | null, roomId: string | null):
         if (session) await leaveCall(session);
         sessionRef.current = null;
         liveKitRef.current = null;
-        setError(err instanceof Error ? err.message : "Не удалось начать звонок");
+        setError(mapCallError(err));
         setStatus("error");
+        setOutgoing(false);
       }
     },
     [client, roomId],
@@ -134,18 +157,49 @@ export function useRoomCall(client: MatrixClient | null, roomId: string | null):
     });
   }, []);
 
-  // Ringback tone while waiting for the peer.
+  // Ringback tone for an outgoing call, from the moment of dialling until the
+  // peer joins — starts immediately (during "connecting") so there's no silent
+  // gap while the LiveKit connection is set up.
+  const shouldRing = outgoing && (status === "connecting" || status === "ringing");
   useEffect(() => {
-    if (status !== "ringing") return;
+    if (!shouldRing) return;
     let rb: Ringback | null = startRingback();
     return () => {
       rb?.stop();
       rb = null;
     };
-  }, [status]);
+  }, [shouldRing]);
 
-  // In-call timer. durationSec is reset to 0 in start()/hangup() (callbacks), so
-  // the effect only needs to tick while connected — no synchronous setState here.
+  // No-answer / declined timeout: stop an unanswered outgoing call.
+  useEffect(() => {
+    if (!shouldRing) return;
+    const id = window.setTimeout(() => void endCallRef.current("Не отвечает"), RING_TIMEOUT_MS);
+    return () => window.clearTimeout(id);
+  }, [shouldRing]);
+
+  // Callee declined via MSC4310 rtc.decline — stop dialling immediately.
+  useEffect(() => {
+    if (!client || !callRoomId || !outgoing) return;
+    if (status !== "connecting" && status !== "ringing") return;
+
+    return subscribePeerDeclined(client, callRoomId, () => {
+      void endCallRef.current("Абонент сбросил");
+    });
+  }, [callRoomId, client, outgoing, status]);
+
+  // Brief error toast (Telegram-style) then return to idle.
+  useEffect(() => {
+    if (status !== "error" || !error) return;
+    const id = window.setTimeout(() => {
+      setStatus("idle");
+      setError(null);
+      setCallRoomId(null);
+    }, ERROR_DISMISS_MS);
+    return () => window.clearTimeout(id);
+  }, [error, status]);
+
+  // In-call timer. durationSec is reset in start()/endCall() (callbacks), so the
+  // effect only ticks while connected — no synchronous setState here.
   useEffect(() => {
     if (status !== "connected") return;
     const startedAt = Date.now();
@@ -155,11 +209,15 @@ export function useRoomCall(client: MatrixClient | null, roomId: string | null):
     return () => window.clearInterval(id);
   }, [status]);
 
+  // Tear the call down only when the whole chat unmounts (logout) — NOT when the
+  // viewed room changes. The call is bound to the room captured at start(), so
+  // navigating to another chat keeps it alive (Telegram-style). `cleanup` is
+  // stable, so this effect runs its teardown once, on unmount.
   useEffect(() => {
     return () => {
       void cleanup();
     };
-  }, [roomId, cleanup]);
+  }, [cleanup]);
 
-  return { status, error, muted, durationSec, start, hangup, toggleMute };
+  return { status, error, muted, durationSec, callRoomId, start, hangup, toggleMute };
 }

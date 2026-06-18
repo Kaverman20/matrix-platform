@@ -28,10 +28,15 @@ export async function connectLiveKitRoom(
   audioRoot.setAttribute("aria-hidden", "true");
   document.body.appendChild(audioRoot);
 
+  const emitPresence = () => handlers?.onRemotePresence?.(room.remoteParticipants.size > 0);
+
   const attachRemoteAudio = (track: RemoteTrack) => {
     if (track.kind !== Track.Kind.Audio) return;
     const el = track.attach();
     audioRoot.appendChild(el);
+    // Receiving the peer's audio is the strongest "they're really here" signal —
+    // back up ParticipantConnected (which can lag) so ringback stops promptly.
+    emitPresence();
   };
 
   const detachRemoteAudio = (track: RemoteTrack) => {
@@ -40,8 +45,6 @@ export async function connectLiveKitRoom(
 
   room.on(RoomEvent.TrackSubscribed, attachRemoteAudio);
   room.on(RoomEvent.TrackUnsubscribed, detachRemoteAudio);
-
-  const emitPresence = () => handlers?.onRemotePresence?.(room.remoteParticipants.size > 0);
   room.on(RoomEvent.ParticipantConnected, emitPresence);
   room.on(RoomEvent.ParticipantDisconnected, emitPresence);
 
