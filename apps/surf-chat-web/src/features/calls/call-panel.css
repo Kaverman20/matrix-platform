@@ -172,3 +172,12 @@
   background: #000;
   transform: scaleX(-1); /* mirror own camera, like every call app */
 }
+
+.call-panel__banner-screen {
+  padding: 6px var(--space-3);
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-bg-subtle);
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+  text-align: center;
+}

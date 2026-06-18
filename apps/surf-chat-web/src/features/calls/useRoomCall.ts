@@ -14,6 +14,7 @@ import {
   disconnectLiveKitRoom,
   setLiveKitCameraEnabled,
   setLiveKitMicrophoneMuted,
+  setLiveKitScreenShareEnabled,
 } from "./livekitSession";
 import { mapCallError } from "./mapCallError";
 import { startRingback, type Ringback } from "./ringback";
@@ -54,6 +55,7 @@ export type RoomCall = {
   error: string | null;
   muted: boolean;
   cameraEnabled: boolean;
+  screenSharing: boolean;
   reconnecting: boolean;
   mediaMode: CallMediaMode;
   media: CallMedia;
@@ -65,7 +67,13 @@ export type RoomCall = {
   hangup: () => Promise<void>;
   toggleMute: () => void;
   toggleCamera: () => Promise<void>;
+  toggleScreenShare: () => Promise<void>;
 };
+
+/** Whether this browser can capture a screen (hide the button otherwise). */
+export function canScreenShare(): boolean {
+  return typeof navigator.mediaDevices?.getDisplayMedia === "function";
+}
 
 const NO_MEDIA: CallMedia = { localCamera: null, remoteCamera: null, remoteScreen: null };
 
@@ -79,6 +87,7 @@ export function useRoomCall(client: MatrixClient | null, roomId: string | null):
   const [error, setError] = useState<string | null>(null);
   const [muted, setMuted] = useState(false);
   const [cameraEnabled, setCameraEnabled] = useState(false);
+  const [screenSharing, setScreenSharing] = useState(false);
   const [reconnecting, setReconnecting] = useState(false);
   const [mediaMode, setMediaMode] = useState<CallMediaMode>("audio");
   const [media, setMedia] = useState<CallMedia>(NO_MEDIA);
@@ -90,12 +99,16 @@ export function useRoomCall(client: MatrixClient | null, roomId: string | null):
   const liveKitUnwatchRef = useRef<(() => void) | null>(null);
   const wasConnectedRef = useRef(false);
   const cameraEnabledRef = useRef(false);
+  const screenSharingRef = useRef(false);
+  const remoteScreenRef = useRef(false);
 
   const cleanup = useCallback(async () => {
     liveKitUnwatchRef.current?.();
     liveKitUnwatchRef.current = null;
     wasConnectedRef.current = false;
     cameraEnabledRef.current = false;
+    screenSharingRef.current = false;
+    remoteScreenRef.current = false;
     const liveKit = liveKitRef.current;
     const session = sessionRef.current;
     liveKitRef.current = null;
@@ -107,10 +120,13 @@ export function useRoomCall(client: MatrixClient | null, roomId: string | null):
   const resetMediaState = useCallback(() => {
     setMuted(false);
     setCameraEnabled(false);
+    setScreenSharing(false);
     setReconnecting(false);
     setMediaMode("audio");
     setMedia(NO_MEDIA);
     cameraEnabledRef.current = false;
+    screenSharingRef.current = false;
+    remoteScreenRef.current = false;
   }, []);
 
   /** Ends the call. With a reason it surfaces as an error (e.g. "Не отвечает"). */
@@ -177,6 +193,7 @@ export function useRoomCall(client: MatrixClient | null, roomId: string | null):
               }
             },
             onRemoteVideo: (source, track) => {
+              if (source === "screen") remoteScreenRef.current = Boolean(track);
               setMedia((prev) =>
                 source === "screen"
                   ? { ...prev, remoteScreen: track }
@@ -233,6 +250,31 @@ export function useRoomCall(client: MatrixClient | null, roomId: string | null):
       setMedia((prev) => ({ ...prev, localCamera: null }));
       setMediaMode("audio");
       setError("Нет доступа к камере");
+    }
+  }, []);
+
+  const toggleScreenShare = useCallback(async () => {
+    const room = liveKitRef.current;
+    if (!room || !canScreenShare()) return;
+    const next = !screenSharingRef.current;
+    if (next && remoteScreenRef.current) {
+      setError("Собеседник уже показывает экран");
+      return;
+    }
+    try {
+      await setLiveKitScreenShareEnabled(room, next, () => {
+        // Browser "Stop sharing" button.
+        screenSharingRef.current = false;
+        setScreenSharing(false);
+        setMediaMode(cameraEnabledRef.current ? "video" : "audio");
+      });
+      screenSharingRef.current = next;
+      setScreenSharing(next);
+      setMediaMode(next ? "screen" : cameraEnabledRef.current ? "video" : "audio");
+    } catch {
+      screenSharingRef.current = false;
+      setScreenSharing(false);
+      setError("Не удалось начать демонстрацию");
     }
   }, []);
 
@@ -296,6 +338,7 @@ export function useRoomCall(client: MatrixClient | null, roomId: string | null):
     error,
     muted,
     cameraEnabled,
+    screenSharing,
     reconnecting,
     mediaMode,
     media,
@@ -305,5 +348,6 @@ export function useRoomCall(client: MatrixClient | null, roomId: string | null):
     hangup,
     toggleMute,
     toggleCamera,
+    toggleScreenShare,
   };
 }

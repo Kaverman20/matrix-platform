@@ -139,3 +139,24 @@ export async function setLiveKitCameraEnabled(
       | undefined) ?? null
   );
 }
+
+/** Toggles screen sharing. When starting, wires the browser's native "Stop
+ * sharing" (the track's `ended` event) to `onEnded` so the UI flips back. */
+export async function setLiveKitScreenShareEnabled(
+  room: Room | null,
+  enabled: boolean,
+  onEnded?: () => void,
+): Promise<void> {
+  if (!room) return;
+  const { Track } = await import("livekit-client");
+  if (!enabled) {
+    await room.localParticipant.setScreenShareEnabled(false);
+    return;
+  }
+  await room.localParticipant.setScreenShareEnabled(true, { audio: false });
+  const mediaTrack = room.localParticipant.getTrackPublication(Track.Source.ScreenShare)?.track
+    ?.mediaStreamTrack;
+  if (mediaTrack && onEnded) {
+    mediaTrack.addEventListener("ended", () => onEnded(), { once: true });
+  }
+}

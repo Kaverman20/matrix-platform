@@ -1,9 +1,19 @@
-import { GripHorizontal, Mic, MicOff, Phone, PhoneOff, Video, VideoOff } from "lucide-react";
+import {
+  GripHorizontal,
+  Mic,
+  MicOff,
+  Monitor,
+  MonitorOff,
+  Phone,
+  PhoneOff,
+  Video,
+  VideoOff,
+} from "lucide-react";
 import { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { colorForId } from "@matrix-platform/matrix-core";
 import type { IncomingCall } from "./useIncomingCall";
-import type { RoomCall } from "./useRoomCall";
+import { canScreenShare, type RoomCall } from "./useRoomCall";
 import { formatCallDuration } from "./callDuration";
 import { AuthedImage } from "../media/AuthedImage";
 import { useDraggablePanel } from "./useDraggablePanel";
@@ -117,6 +127,12 @@ export function CallPanel({
         {isActive && <span className="call-panel__drag-status">{statusText(call)}</span>}
       </div>
 
+      {isActive && (call.screenSharing || call.media.remoteScreen) && (
+        <div className="call-panel__banner-screen">
+          {call.screenSharing ? "Вы показываете экран" : `${peerName} показывает экран`}
+        </div>
+      )}
+
       {showVideoStage ? (
         <div className="call-panel__stage">
           {mainTrack ? (
@@ -189,6 +205,18 @@ export function CallPanel({
             >
               {call.cameraEnabled ? <Video size={18} /> : <VideoOff size={18} />}
             </button>
+            {canScreenShare() && (
+              <button
+                type="button"
+                className="call-panel__btn"
+                aria-pressed={call.screenSharing}
+                disabled={call.status !== "connected"}
+                title={call.screenSharing ? "Остановить демонстрацию" : "Показать экран"}
+                onClick={() => void call.toggleScreenShare()}
+              >
+                {call.screenSharing ? <MonitorOff size={18} /> : <Monitor size={18} />}
+              </button>
+            )}
             <button
               type="button"
               className="call-panel__btn call-panel__btn--hangup"
