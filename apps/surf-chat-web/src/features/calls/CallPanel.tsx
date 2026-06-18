@@ -1,10 +1,12 @@
 import { Mic, MicOff, PhoneOff } from "lucide-react";
 import type { RoomCall } from "./useRoomCall";
+import { formatCallDuration } from "./callDuration";
 import "./call-panel.css";
 
 const STATUS_LABEL: Record<RoomCall["status"], string> = {
   idle: "",
   connecting: "Соединение…",
+  ringing: "Звоним…",
   connected: "В звонке",
   error: "Ошибка",
 };
@@ -23,7 +25,11 @@ export function CallPanel({ call, peerName }: Props) {
       <div className="call-panel__info">
         <strong className="call-panel__peer">{peerName}</strong>
         <span className="call-panel__status">
-          {call.status === "error" ? call.error : STATUS_LABEL[call.status]}
+          {call.status === "error"
+            ? call.error
+            : call.status === "connected"
+              ? formatCallDuration(call.durationSec)
+              : STATUS_LABEL[call.status]}
         </span>
       </div>
       <div className="call-panel__controls">
