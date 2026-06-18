@@ -12,8 +12,38 @@ import { startRingtone } from "./ringtone";
 
 export type IncomingCall = IncomingRing;
 
+const HANDLED_RINGS_KEY = "surf-chat-handled-rings";
+const HANDLED_RING_TTL_MS = 60_000;
+
 function ringKey(ring: IncomingRing): string {
   return `${ring.roomId}:${ring.callerId}`;
+}
+
+function loadPersistedHandledRings(): Set<string> {
+  try {
+    const raw = sessionStorage.getItem(HANDLED_RINGS_KEY);
+    if (!raw) return new Set();
+    const entries = JSON.parse(raw) as Array<{ id: string; at: number }>;
+    const now = Date.now();
+    const fresh = entries.filter((entry) => now - entry.at < HANDLED_RING_TTL_MS);
+    sessionStorage.setItem(HANDLED_RINGS_KEY, JSON.stringify(fresh));
+    return new Set(fresh.map((entry) => entry.id));
+  } catch {
+    return new Set();
+  }
+}
+
+function persistHandledRing(id: string): void {
+  try {
+    const raw = sessionStorage.getItem(HANDLED_RINGS_KEY);
+    const entries = raw ? (JSON.parse(raw) as Array<{ id: string; at: number }>) : [];
+    const now = Date.now();
+    const fresh = entries.filter((entry) => now - entry.at < HANDLED_RING_TTL_MS);
+    fresh.push({ id, at: now });
+    sessionStorage.setItem(HANDLED_RINGS_KEY, JSON.stringify(fresh));
+  } catch {
+    // sessionStorage may be unavailable in some contexts
+  }
 }
 
 function shouldClearIncoming(current: IncomingCall, ended: IncomingRingEnded): boolean {
@@ -43,12 +73,14 @@ export function useIncomingCall(
     callStatusRef.current = callStatus;
   }, [callStatus]);
 
-  const handledRingsRef = useRef(new Set<string>());
+  const handledRingsRef = useRef(loadPersistedHandledRings());
 
   const markHandled = useCallback((ring: IncomingCall | null) => {
     if (!ring) return;
     handledRingsRef.current.add(ring.notificationEventId);
     handledRingsRef.current.add(ringKey(ring));
+    persistHandledRing(ring.notificationEventId);
+    persistHandledRing(ringKey(ring));
   }, []);
 
   const dismiss = useCallback(() => {
@@ -94,24 +126,20 @@ export function useIncomingCall(
       if (callStatusRef.current !== "idle") {
         handledRingsRef.current.add(ring.notificationEventId);
         handledRingsRef.current.add(key);
+        persistHandledRing(ring.notificationEventId);
+        persistHandledRing(key);
         if (!isPendingRingId(ring.notificationEventId)) {
           void declineIncomingCall(client!, ring.roomId, ring.notificationEventId, "busy");
         }
         return;
       }
 
-      setIncoming((current) => {
-        if (current && current.roomId === ring.roomId && current.callerId === ring.callerId) {
-          if (isPendingRingId(current.notificationEventId) && !isPendingRingId(ring.notificationEventId)) {
-            return ring;
-          }
-          return current;
-        }
-        return ring;
-      });
+      setIncoming(ring);
     },
     [client],
   );
+
+  const dmRoomIdsKey = dmRoomIds.slice().sort().join("\0");
 
   useEffect(() => {
     if (!client) return;
@@ -119,7 +147,7 @@ export function useIncomingCall(
       onRing: acceptRing,
       onRingEnded: clearIfMatches,
     });
-  }, [acceptRing, clearIfMatches, client, dmRoomIds]);
+  }, [acceptRing, clearIfMatches, client, dmRoomIds, dmRoomIdsKey]);
 
   useEffect(() => {
     if (!incoming) return;

@@ -8,6 +8,10 @@ import type { CallIntent } from "./rtcSession";
 /** Rings older than this are ignored when replayed from timeline sync on page load. */
 export const RING_MAX_AGE_MS = 8_000;
 
+export function isFreshCallMembership(membership: CallMembership): boolean {
+  return Date.now() - membership.createdTs() <= RING_MAX_AGE_MS;
+}
+
 export type IncomingRing = {
   roomId: string;
   callerId: string;
@@ -33,30 +37,11 @@ export function isPendingRingId(notificationEventId: string): boolean {
   return notificationEventId.startsWith(PENDING_RING_PREFIX);
 }
 
-export function pendingRingId(roomId: string, callerId: string): string {
-  return `${PENDING_RING_PREFIX}${roomId}:${callerId}`;
-}
-
 export type IncomingCallSignalHandlers = {
   onRing: (ring: IncomingRing) => void;
   /** Caller hung up, declined, or left the RTC session before answer. */
   onRingEnded: (ended: IncomingRingEnded) => void;
 };
-
-function callersWhoJoined(
-  previous: CallMembership[],
-  next: CallMembership[],
-  myId: string | null,
-): string[] {
-  const prevIds = activeCallerIds(previous);
-  const joined: string[] = [];
-  for (const membership of next) {
-    const callerId = membership.userId;
-    if (callerId === myId || membership.isExpired() || prevIds.has(callerId)) continue;
-    joined.push(callerId);
-  }
-  return joined;
-}
 
 function ringFromCaller(
   client: MatrixClient,
@@ -103,6 +88,14 @@ function callersWhoLeft(
   return ended;
 }
 
+function callerHasFreshMembership(
+  memberships: CallMembership[],
+  callerId: string,
+): boolean {
+  const membership = memberships.find((m) => m.userId === callerId && !m.isExpired());
+  return membership ? isFreshCallMembership(membership) : false;
+}
+
 function tryParseRing(
   client: MatrixClient,
   event: MatrixEvent,
@@ -123,31 +116,24 @@ function tryParseRing(
     const expiresAt = content.sender_ts + content.lifetime;
     if (Date.now() >= expiresAt) return null;
 
-    if (!options?.liveEvent && Date.now() - content.sender_ts > RING_MAX_AGE_MS) return null;
-
     const sender = event.getSender();
     if (!sender) return null;
 
-    if (!options?.liveEvent) {
-      const room = client.getRoom(roomId);
-      const session = room ? client.matrixRTC.getRoomSession(room) : null;
-      const callerStillPresent = session?.memberships.some(
-        (m) => m.userId === sender && !m.isExpired(),
-      );
-      if (!callerStillPresent) return null;
+    const room = client.getRoom(roomId);
+    const session = room ? client.matrixRTC.getRoomSession(room) : null;
+    const memberships = session?.memberships ?? [];
+
+    if (options?.liveEvent) {
+      if (!callerHasFreshMembership(memberships, sender)) return null;
+    } else {
+      if (Date.now() - content.sender_ts > RING_MAX_AGE_MS) return null;
+      if (!callerHasFreshMembership(memberships, sender)) return null;
     }
 
     const notificationEventId = event.getId();
     if (!notificationEventId) return null;
 
-    return ringFromCaller(
-      client,
-      roomId,
-      sender,
-      client.getRoom(roomId) ? client.matrixRTC.getRoomSession(client.getRoom(roomId)!).memberships : [],
-      notificationEventId,
-      expiresAt,
-    );
+    return ringFromCaller(client, roomId, sender, memberships, notificationEventId, expiresAt);
   } catch {
     return null;
   }
@@ -204,7 +190,6 @@ export function subscribeIncomingCallSignals(
     if (!room) continue;
 
     const session = client.matrixRTC.getRoomSession(room);
-    /** Baseline prevents treating pre-existing RTC memberships as a new incoming call on page load. */
     let knownMemberships: CallMembership[] = [...session.memberships];
 
     const onMembershipsChanged = (_oldMemberships: CallMembership[], newMemberships: CallMembership[]) => {
@@ -213,19 +198,6 @@ export function subscribeIncomingCallSignals(
 
       const ended = callersWhoLeft(roomId, previous, newMemberships, myId);
       for (const item of ended) handlers.onRingEnded(item);
-
-      for (const callerId of callersWhoJoined(previous, newMemberships, myId)) {
-        handlers.onRing(
-          ringFromCaller(
-            client,
-            roomId,
-            callerId,
-            newMemberships,
-            pendingRingId(roomId, callerId),
-            Date.now() + 30_000,
-          ),
-        );
-      }
     };
 
     session.on(MatrixRTCSessionEvent.MembershipsChanged, onMembershipsChanged);
