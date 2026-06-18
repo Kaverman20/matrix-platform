@@ -3,10 +3,12 @@ import type { MatrixClient } from "matrix-js-sdk";
 import type { MatrixRTCSession } from "matrix-js-sdk/lib/matrixrtc";
 import type { LocalVideoTrack, RemoteVideoTrack, Room } from "livekit-client";
 import {
+  getDmPeerUserId,
   joinCall,
   leaveCall,
   sendCallSummary,
   subscribePeerDeclined,
+  userHasActiveRtcMembership,
   type CallIntent,
 } from "@matrix-platform/matrix-core";
 import { fetchLiveKitCredentials } from "./fetchLiveKitJwt";
@@ -145,6 +147,7 @@ export function useRoomCall(client: MatrixClient | null, roomId: string | null):
           answered: wasConnectedRef.current,
           durationSec: durationRef.current,
           intent: callIntentRef.current,
+          busy: reason === "Занят",
         }).catch(() => undefined);
       }
       outgoingRef.current = false;
@@ -173,6 +176,21 @@ export function useRoomCall(client: MatrixClient | null, roomId: string | null):
       if (!client || !targetRoomId) return;
       const isOutgoing = options?.ring === true;
       const isVideo = options?.intent === "video";
+
+      if (isOutgoing) {
+        const peerId = getDmPeerUserId(client, targetRoomId);
+        if (peerId && userHasActiveRtcMembership(client, peerId)) {
+          outgoingRef.current = true;
+          callRoomIdRef.current = targetRoomId;
+          callIntentRef.current = options?.intent ?? "audio";
+          wasConnectedRef.current = false;
+          durationRef.current = 0;
+          setCallRoomId(targetRoomId);
+          await endCallRef.current("Занят");
+          return;
+        }
+      }
+
       outgoingRef.current = isOutgoing;
       callRoomIdRef.current = targetRoomId;
       callIntentRef.current = options?.intent ?? "audio";
@@ -321,8 +339,8 @@ export function useRoomCall(client: MatrixClient | null, roomId: string | null):
   useEffect(() => {
     if (!client || !callRoomId || !outgoing) return;
     if (status !== "connecting" && status !== "ringing") return;
-    return subscribePeerDeclined(client, callRoomId, () => {
-      void endCallRef.current("Абонент сбросил");
+    return subscribePeerDeclined(client, callRoomId, ({ reason }) => {
+      void endCallRef.current(reason === "busy" ? "Занят" : "Абонент сбросил");
     });
   }, [callRoomId, client, outgoing, status]);
 

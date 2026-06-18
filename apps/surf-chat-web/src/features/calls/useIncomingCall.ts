@@ -14,6 +14,7 @@ export type IncomingCall = IncomingRing;
 /**
  * Listens for MatrixRTC ring notifications in DM rooms and surfaces a floating
  * incoming-call window. Dismisses when the caller cancels or the ring expires.
+ * Auto-declines with «busy» when already in another call.
  */
 export function useIncomingCall(
   client: MatrixClient | null,
@@ -28,7 +29,7 @@ export function useIncomingCall(
     async (ring: IncomingCall) => {
       if (!client) return;
       try {
-        await declineIncomingCall(client, ring.roomId, ring.notificationEventId);
+        await declineIncomingCall(client, ring.roomId, ring.notificationEventId, "declined");
       } finally {
         setIncoming(null);
       }
@@ -48,7 +49,10 @@ export function useIncomingCall(
     if (!client) return;
     return subscribeIncomingCallSignals(client, dmRoomIds, {
       onRing: (ring) => {
-        if (callStatus !== "idle") return;
+        if (callStatus !== "idle") {
+          void declineIncomingCall(client, ring.roomId, ring.notificationEventId, "busy");
+          return;
+        }
         setIncoming(ring);
       },
       onRingEnded: clearIfMatches,

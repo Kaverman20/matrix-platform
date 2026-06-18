@@ -9,12 +9,15 @@ export type CallSummary = {
   answered: boolean;
   durationSec: number;
   intent: CallIntent;
+  /** Outgoing caller reached a busy peer (Telegram-style «Занят»). */
+  busy?: boolean;
 };
 
 type CallSummaryMarker = {
   answered: boolean;
   duration_ms: number;
   intent: CallIntent;
+  busy?: boolean;
 };
 
 /** Posts a call-history line to the room. Only the caller sends it, so a 1:1
@@ -28,13 +31,16 @@ export async function sendCallSummary(
     answered: summary.answered,
     duration_ms: Math.max(0, Math.round(summary.durationSec * 1000)),
     intent: summary.intent,
+    ...(summary.busy ? { busy: true } : {}),
   };
   await client.sendEvent(roomId, EventType.RoomMessage, {
     // Plain-text fallback for clients that don't understand the marker.
     msgtype: "m.notice",
-    body: summary.answered
-      ? `${summary.intent === "video" ? "📹" : "📞"} Звонок · ${formatDurationShort(summary.durationSec)}`
-      : `${summary.intent === "video" ? "📹" : "📞"} Пропущенный звонок`,
+    body: summary.busy
+      ? `${summary.intent === "video" ? "📹" : "📞"} Занят`
+      : summary.answered
+        ? `${summary.intent === "video" ? "📹" : "📞"} Звонок · ${formatDurationShort(summary.durationSec)}`
+        : `${summary.intent === "video" ? "📹" : "📞"} Пропущенный звонок`,
     [CALL_SUMMARY_KEY]: marker,
   } as never);
 }
@@ -47,12 +53,16 @@ export function parseCallSummary(content: Record<string, unknown>): CallSummary 
     answered: marker.answered,
     durationSec: typeof marker.duration_ms === "number" ? marker.duration_ms / 1000 : 0,
     intent: marker.intent === "video" ? "video" : "audio",
+    busy: marker.busy === true,
   };
 }
 
 /** Localized one-line summary for the timeline, from the viewer's perspective. */
 export function formatCallSummaryLine(summary: CallSummary, own: boolean): string {
   const icon = summary.intent === "video" ? "📹" : "📞";
+  if (!summary.answered && summary.busy && own) {
+    return `${icon} Занят`;
+  }
   if (!summary.answered) {
     return own ? `${icon} Отменённый звонок` : `${icon} Пропущенный звонок`;
   }

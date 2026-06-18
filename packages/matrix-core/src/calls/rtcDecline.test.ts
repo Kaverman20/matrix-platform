@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { EventType, RelationType, RoomEvent } from "matrix-js-sdk";
 import type { MatrixClient, MatrixEvent } from "matrix-js-sdk";
-import { declineIncomingCall, subscribePeerDeclined } from "./rtcDecline";
+import { RTC_DECLINE_REASON_KEY, declineIncomingCall, subscribePeerDeclined } from "./rtcDecline";
 
 describe("declineIncomingCall", () => {
   it("sends rtc.decline referencing the ring notification", async () => {
@@ -15,6 +15,21 @@ describe("declineIncomingCall", () => {
         event_id: "$ring",
         rel_type: RelationType.Reference,
       },
+    });
+  });
+
+  it("includes a busy marker when declining because the callee is in a call", async () => {
+    const sendEvent = vi.fn().mockResolvedValue({ event_id: "$decline" });
+    const client = { sendEvent } as unknown as MatrixClient;
+
+    await declineIncomingCall(client, "!dm:hs", "$ring", "busy");
+
+    expect(sendEvent).toHaveBeenCalledWith("!dm:hs", EventType.RTCDecline, {
+      "m.relates_to": {
+        event_id: "$ring",
+        rel_type: RelationType.Reference,
+      },
+      [RTC_DECLINE_REASON_KEY]: "busy",
     });
   });
 });
@@ -43,7 +58,34 @@ describe("subscribePeerDeclined", () => {
 
     handlers.get(RoomEvent.Timeline)!(decline, { roomId: "!dm:hs" });
 
-    expect(onDeclined).toHaveBeenCalledWith("@bob:hs");
+    expect(onDeclined).toHaveBeenCalledWith({ declinerId: "@bob:hs", reason: "declined" });
+  });
+
+  it("reports busy when the decline marker is present", () => {
+    const handlers = new Map<string, (event: MatrixEvent, room?: { roomId: string }) => void>();
+    const client = {
+      getUserId: () => "@me:hs",
+      on: vi.fn((event: string, handler: (e: MatrixEvent, room?: { roomId: string }) => void) => {
+        handlers.set(event, handler);
+      }),
+      off: vi.fn(),
+    } as unknown as MatrixClient;
+
+    const onDeclined = vi.fn();
+    subscribePeerDeclined(client, "!dm:hs", onDeclined);
+
+    const decline = {
+      getType: () => EventType.RTCDecline,
+      getSender: () => "@bob:hs",
+      getContent: () => ({
+        "m.relates_to": { rel_type: RelationType.Reference, event_id: "$ring" },
+        [RTC_DECLINE_REASON_KEY]: "busy",
+      }),
+    } as unknown as MatrixEvent;
+
+    handlers.get(RoomEvent.Timeline)!(decline, { roomId: "!dm:hs" });
+
+    expect(onDeclined).toHaveBeenCalledWith({ declinerId: "@bob:hs", reason: "busy" });
   });
 
   it("ignores own decline events", () => {

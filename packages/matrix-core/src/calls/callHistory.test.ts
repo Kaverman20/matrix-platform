@@ -8,7 +8,12 @@ describe("parseCallSummary", () => {
 
   it("parses the marker into seconds", () => {
     const content = { [CALL_SUMMARY_KEY]: { answered: true, duration_ms: 154000, intent: "audio" } };
-    expect(parseCallSummary(content)).toEqual({ answered: true, durationSec: 154, intent: "audio" });
+    expect(parseCallSummary(content)).toEqual({
+      answered: true,
+      durationSec: 154,
+      intent: "audio",
+      busy: false,
+    });
   });
 });
 
@@ -27,5 +32,11 @@ describe("formatCallSummaryLine", () => {
     const missed = { answered: false, durationSec: 0, intent: "audio" } as const;
     expect(formatCallSummaryLine(missed, false)).toBe("📞 Пропущенный звонок");
     expect(formatCallSummaryLine(missed, true)).toBe("📞 Отменённый звонок");
+  });
+
+  it("busy for the caller", () => {
+    const busy = { answered: false, durationSec: 0, intent: "audio", busy: true } as const;
+    expect(formatCallSummaryLine(busy, true)).toBe("📞 Занят");
+    expect(formatCallSummaryLine(busy, false)).toBe("📞 Пропущенный звонок");
   });
 });
