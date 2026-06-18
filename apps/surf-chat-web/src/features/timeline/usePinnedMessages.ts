@@ -3,7 +3,7 @@ import type { MatrixClient } from "matrix-js-sdk";
 import {
   getPinnedEventIds,
   mapPinnedMessages,
-  subscribePinnedEvents,
+  subscribeTimeline,
   type MatrixPinnedMessage,
 } from "@matrix-platform/matrix-core";
 
@@ -19,7 +19,9 @@ export function usePinnedMessages(
   useEffect(() => {
     if (!client || !roomId) return;
 
-    return subscribePinnedEvents(client, roomId, () => setVersion((value) => value + 1));
+    // Re-map when pinned state or timeline events change — pinned previews need
+    // findEventById, which only succeeds after history has synced/loaded.
+    return subscribeTimeline(client, roomId, () => setVersion((value) => value + 1));
   }, [client, roomId]);
 
   return useMemo(() => {

@@ -9,6 +9,7 @@ import { parseLocationDeepLink, resolveDeepLink } from "@matrix-platform/matrix-
 export function useDeepLink(
   client: MatrixClient | null,
   onOpenRoom: (roomId: string) => void,
+  onFocusMessage?: (messageId: string) => void | Promise<void>,
 ): void {
   const handledKeyRef = useRef<string | null>(null);
 
@@ -25,6 +26,9 @@ export function useDeepLink(
     void resolveDeepLink(client, target)
       .then((roomId) => {
         onOpenRoom(roomId);
+        if (target.type === "room" && target.eventId) {
+          window.setTimeout(() => void onFocusMessage?.(target.eventId!), 320);
+        }
         window.history.replaceState(
           window.history.state,
           document.title,
@@ -35,5 +39,5 @@ export function useDeepLink(
         console.error("[deep-link]", error);
         window.alert("Не удалось открыть ссылку. Возможно, у вас нет доступа к этой комнате.");
       });
-  }, [client, onOpenRoom]);
+  }, [client, onFocusMessage, onOpenRoom]);
 }

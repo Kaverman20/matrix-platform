@@ -12,6 +12,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { AlertCircle, Check, CheckCheck, Clock3, Forward, Hash, MessagesSquare } from "lucide-react";
 import type { MatrixMessage, MatrixRoomSummary } from "@matrix-platform/matrix-core";
 import { MessageMedia } from "../media/MessageMedia";
+import { MessageBody } from "./MessageBody";
 import { ReactionPill } from "../reactions/ReactionPill";
 import { BubbleShell } from "./BubbleShell";
 import { usePreferences, useTimeFormatter } from "../settings/usePreferences";
@@ -24,6 +25,7 @@ type Props = {
   onOpenMessageMenu: (message: MatrixMessage, x: number, y: number) => void;
   onToggleReaction: (message: MatrixMessage, key: string) => void;
   onOpenThread: (rootId: string) => void;
+  onJumpToMessage?: (messageId: string) => void;
   onLoadOlder?: () => Promise<boolean>;
   hasOlder?: boolean;
   showIntro?: boolean;
@@ -107,6 +109,7 @@ export function Timeline({
   onOpenMessageMenu,
   onToggleReaction,
   onOpenThread,
+  onJumpToMessage,
   onLoadOlder,
   hasOlder = false,
   showIntro = true,
@@ -426,6 +429,7 @@ export function Timeline({
                 onOpenMessageMenu={onOpenMessageMenu}
                 onToggleReaction={onToggleReaction}
                 onOpenThread={onOpenThread}
+                onJumpToMessage={onJumpToMessage}
               />
             ) : (
               <FlatMessage
@@ -436,6 +440,7 @@ export function Timeline({
                 onOpenMessageMenu={onOpenMessageMenu}
                 onToggleReaction={onToggleReaction}
                 onOpenThread={onOpenThread}
+                onJumpToMessage={onJumpToMessage}
               />
             )}
             </div>
@@ -489,6 +494,7 @@ function FlatMessage({
   onOpenMessageMenu,
   onToggleReaction,
   onOpenThread,
+  onJumpToMessage,
 }: {
   compact: boolean;
   highlighted: boolean;
@@ -497,6 +503,7 @@ function FlatMessage({
   onOpenMessageMenu: (message: MatrixMessage, x: number, y: number) => void;
   onToggleReaction: (message: MatrixMessage, key: string) => void;
   onOpenThread: (rootId: string) => void;
+  onJumpToMessage?: (messageId: string) => void;
 }) {
   const formatTime = useTimeFormatter();
   return (
@@ -522,7 +529,11 @@ function FlatMessage({
             <strong style={{ color: message.color }}>{message.own ? "Вы" : message.author}</strong>
           </header>
         )}
-        <MessageContent message={message} onOpenImage={onOpenImage} />
+        <MessageContent
+          message={message}
+          onOpenImage={onOpenImage}
+          onJumpToMessage={onJumpToMessage}
+        />
         {message.reactions.length > 0 && (
           <motion.div className="message__reactions" layout>
             <AnimatePresence initial={false}>
@@ -555,6 +566,7 @@ function BubbleMessage({
   onOpenMessageMenu,
   onToggleReaction,
   onOpenThread,
+  onJumpToMessage,
 }: {
   compact: boolean;
   groupEnd: boolean;
@@ -564,6 +576,7 @@ function BubbleMessage({
   onOpenMessageMenu: (message: MatrixMessage, x: number, y: number) => void;
   onToggleReaction: (message: MatrixMessage, key: string) => void;
   onOpenThread: (rootId: string) => void;
+  onJumpToMessage?: (messageId: string) => void;
 }) {
   const formatTime = useTimeFormatter();
   return (
@@ -594,7 +607,12 @@ function BubbleMessage({
             {message.author}
           </div>
         )}
-        <MessageContent message={message} onOpenImage={onOpenImage} bubble />
+        <MessageContent
+          message={message}
+          onOpenImage={onOpenImage}
+          onJumpToMessage={onJumpToMessage}
+          bubble
+        />
         {message.reactions.length > 0 && (
           <div className="message__reactions">
             <AnimatePresence initial={false}>
@@ -649,10 +667,12 @@ function DeliveryStatus({
 function MessageContent({
   message,
   onOpenImage,
+  onJumpToMessage,
   bubble = false,
 }: {
   message: MatrixMessage;
   onOpenImage: (src: string) => void;
+  onJumpToMessage?: (messageId: string) => void;
   bubble?: boolean;
 }) {
   return (
@@ -669,19 +689,26 @@ function MessageContent({
         <button
           type="button"
           className={bubble ? "bubble__reply-preview" : "message__reply-preview"}
-          title="Сообщение, на которое отвечают"
+          title="Перейти к сообщению"
+          onClick={() => onJumpToMessage?.(message.replyTo!.id)}
         >
           <strong>{message.replyTo.author ?? "Сообщение"}</strong>
           <span>{message.replyTo.text ?? "Предыдущее сообщение"}</span>
         </button>
       )}
-      {message.media && <MessageMedia media={message.media} onOpenImage={onOpenImage} />}
-      {shouldShowText(message) ? (
-        message.text
+      {!message.deleted && message.media && (
+        <MessageMedia media={message.media} onOpenImage={onOpenImage} />
+      )}
+      {message.deleted ? (
+        <span className="message__deleted">Сообщение удалено</span>
+      ) : shouldShowText(message) ? (
+        <MessageBody text={message.text} formattedBody={message.formattedBody} />
       ) : !message.media ? (
         <span className="message__empty">Пустое сообщение</span>
       ) : null}
-      {!bubble && message.edited && <span className="message__edited">(изменено)</span>}
+      {!bubble && message.edited && !message.deleted && (
+        <span className="message__edited">(изменено)</span>
+      )}
     </div>
   );
 }

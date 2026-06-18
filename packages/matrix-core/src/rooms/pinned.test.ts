@@ -1,6 +1,6 @@
 import type { MatrixClient, Room } from "matrix-js-sdk";
 import { describe, expect, it, vi } from "vitest";
-import { canPinMessages, getPinnedEventIds, setPinnedEventIds, togglePinnedEventId } from "./pinned";
+import { canPinMessages, getPinnedEventIds, mapPinnedMessages, setPinnedEventIds, togglePinnedEventId } from "./pinned";
 
 describe("pinned room events", () => {
   it("adds an event id when it is not pinned yet", () => {
@@ -47,6 +47,28 @@ describe("pinned room events", () => {
       "",
     );
   });
+
+  it("keeps unloaded pinned ids as placeholders", () => {
+    const client = fakeClient({
+      "m.room.pinned_events": { pinned: ["$missing", "$loaded"] },
+    });
+    const room = client.getRoom("!room:server") as Room;
+    room.findEventById = ((id: string) =>
+      id === "$loaded"
+        ? {
+            getType: () => "m.room.message",
+            isRedacted: () => false,
+            getSender: () => "@alice:server",
+            getContent: () => ({ body: "hello" }),
+            replacingEvent: () => null,
+          }
+        : undefined) as Room["findEventById"];
+
+    expect(mapPinnedMessages(client, "!room:server", ["$missing", "$loaded"])).toEqual([
+      { id: "$missing", text: "Сообщение не загружено" },
+      expect.objectContaining({ id: "$loaded", text: "hello" }),
+    ]);
+  });
 });
 
 function fakeClient(
@@ -64,6 +86,8 @@ function fakeClient(
     getLiveTimeline: () => ({
       getState: () => undefined,
     }),
+    getMember: () => null,
+    findEventById: () => undefined,
   } as unknown as Room;
 
   return {

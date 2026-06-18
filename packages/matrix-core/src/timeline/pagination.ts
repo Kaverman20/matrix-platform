@@ -12,6 +12,16 @@ export function canPaginateBackwards(
   );
 }
 
+/** Whether the room timeline already contains the given event id. */
+export function isEventInTimeline(
+  client: MatrixClient,
+  roomId: string,
+  eventId: string,
+): boolean {
+  const room = client.getRoom(roomId);
+  return Boolean(room?.findEventById(eventId));
+}
+
 function countMessages(room: Room): number {
   return room
     .getLiveTimeline()
@@ -46,4 +56,30 @@ export async function paginateBackwards(
   }
 
   return countMessages(room) > before;
+}
+
+/**
+ * Paginate backwards until `eventId` appears in the room timeline, or history
+ * is exhausted. Used for jump-to-reply, pinned messages, and deep links.
+ */
+export async function paginateToEvent(
+  client: MatrixClient,
+  roomId: string,
+  eventId: string,
+  options: { maxPages?: number; pageSize?: number } = {},
+): Promise<boolean> {
+  if (isEventInTimeline(client, roomId, eventId)) return true;
+
+  const maxPages = options.maxPages ?? 50;
+  const pageSize = options.pageSize ?? 50;
+
+  for (let page = 0; page < maxPages; page += 1) {
+    if (!canPaginateBackwards(client, roomId)) return false;
+
+    const loaded = await paginateBackwards(client, roomId, pageSize);
+    if (isEventInTimeline(client, roomId, eventId)) return true;
+    if (!loaded) return false;
+  }
+
+  return isEventInTimeline(client, roomId, eventId);
 }

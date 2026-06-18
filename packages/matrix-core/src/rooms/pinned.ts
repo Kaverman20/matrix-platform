@@ -59,7 +59,11 @@ export function mapPinnedMessages(
   return pinnedIds
     .map<MatrixPinnedMessage | null>((id) => {
       const event = room.findEventById(id);
-      if (!event || event.isRedacted() || event.getType() !== "m.room.message") {
+      if (!event) {
+        return { id, text: "Сообщение не загружено" };
+      }
+
+      if (event.isRedacted() || event.getType() !== "m.room.message") {
         return null;
       }
 

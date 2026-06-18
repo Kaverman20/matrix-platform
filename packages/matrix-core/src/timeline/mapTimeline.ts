@@ -19,7 +19,12 @@ export function buildTimelineMessages(
   const room = client.getRoom(roomId);
   if (!room) return [];
 
-  return buildMessagesFromEvents(client, room, room.getLiveTimeline().getEvents());
+  const events = room
+    .getLiveTimeline()
+    .getEvents()
+    .filter((event) => !isThreadReplyEvent(event));
+
+  return buildMessagesFromEvents(client, room, events);
 }
 
 /** Messages inside a single thread (root + replies), oldest first. */
@@ -85,6 +90,25 @@ function buildMessagesFromEvents(
         };
       }
 
+      if (event.getType() === "m.room.message" && event.isRedacted()) {
+        const own = sender === me;
+        return {
+          id: eventId,
+          kind: "message",
+          sender,
+          author: member?.name || sender,
+          time: formatTime(event.getTs()),
+          timestamp: event.getTs(),
+          text: "Сообщение удалено",
+          color: colorForId(sender),
+          avatarUrl: getMemberAvatarUrl(client, member),
+          own,
+          edited: false,
+          deleted: true,
+          reactions: reactionsByTarget.get(eventId) ?? [],
+        };
+      }
+
       if (!isRealMessageEvent(event)) return null;
 
       const own = sender === me;
@@ -99,6 +123,7 @@ function buildMessagesFromEvents(
         time: formatTime(event.getTs()),
         timestamp: event.getTs(),
         text: text.value,
+        formattedBody: text.formattedBody,
         color: colorForId(sender),
         avatarUrl: getMemberAvatarUrl(client, member),
         media: resolveMedia(client, content),
@@ -245,6 +270,12 @@ function isRealMessageEvent(event: MatrixEvent): boolean {
   return relation?.rel_type !== "m.replace";
 }
 
+/** Thread replies belong in the thread panel, not the main room timeline. */
+export function isThreadReplyEvent(event: MatrixEvent): boolean {
+  const relation = event.getContent()["m.relates_to"] as { rel_type?: unknown } | undefined;
+  return relation?.rel_type === "m.thread";
+}
+
 function getSystemEventText(room: Room, event: MatrixEvent): string | null {
   if (event.isRedacted()) return null;
 
@@ -335,19 +366,36 @@ function getPinnedSystemText(event: MatrixEvent, actor: string): string | null {
   return null;
 }
 
-function getEffectiveText(event: MatrixEvent): { value: string; edited: boolean } {
+function getEffectiveText(event: MatrixEvent): {
+  value: string;
+  formattedBody?: string;
+  edited: boolean;
+} {
   const replacingEvent = event.replacingEvent();
   if (replacingEvent) {
     const newContent = replacingEvent.getContent()["m.new_content"] as
-      | { body?: unknown }
+      | { body?: unknown; formatted_body?: unknown }
       | undefined;
     if (typeof newContent?.body === "string") {
-      return { value: newContent.body, edited: true };
+      return {
+        value: newContent.body,
+        formattedBody: typeof newContent.formatted_body === "string"
+          ? newContent.formatted_body
+          : undefined,
+        edited: true,
+      };
     }
   }
 
-  const body = event.getContent().body;
-  return { value: typeof body === "string" ? body : "", edited: false };
+  const content = event.getContent();
+  const body = content.body;
+  return {
+    value: typeof body === "string" ? body : "",
+    formattedBody: typeof content.formatted_body === "string"
+      ? content.formatted_body
+      : undefined,
+    edited: false,
+  };
 }
 
 function resolveMedia(
@@ -437,6 +485,10 @@ function getReplyReference(
 
   const repliedEvent = eventById.get(eventId);
   if (!repliedEvent) return { id: eventId };
+
+  if (repliedEvent.isRedacted()) {
+    return { id: eventId, text: "Сообщение удалено" };
+  }
 
   const sender = repliedEvent.getSender() ?? undefined;
   const member = sender ? room.getMember(sender) : undefined;

@@ -12,6 +12,7 @@ import {
   markReadUpToEvent,
   mxcThumbnailUrl,
   paginateBackwards,
+  paginateToEvent,
   removeReaction,
   reorderFavourites,
   sendReaction,
@@ -176,13 +177,11 @@ export function ChatShell() {
     onRemoteNavigate: resetTransientPanels,
   });
 
-  const focusPinnedMessage = useCallback((messageId: string) => {
-    // Scope to the main chat so we don't grab the same message rendered inside
-    // the thread panel.
+  const focusMessage = useCallback((messageId: string, scope = ".chat-main") => {
     const node = document.querySelector<HTMLElement>(
-      `.chat-main [data-mid="${CSS.escape(messageId)}"]`,
+      `${scope} [data-mid="${CSS.escape(messageId)}"]`,
     );
-    if (!node) return;
+    if (!node) return false;
 
     node.scrollIntoView({ block: "center", behavior: "smooth" });
     setHighlightMessageId(messageId);
@@ -190,7 +189,25 @@ export function ChatShell() {
       window.clearTimeout(highlightTimerRef.current);
     }
     highlightTimerRef.current = window.setTimeout(() => setHighlightMessageId(null), 1700);
+    return true;
   }, [highlightTimerRef, setHighlightMessageId]);
+
+  const focusMessageWithPagination = useCallback(async (messageId: string) => {
+    if (focusMessage(messageId)) return;
+
+    if (!client || !activeRoomId) return;
+
+    const found = await paginateToEvent(client, activeRoomId, messageId);
+    if (!found) return;
+
+    const tryScroll = (attempt = 0) => {
+      if (focusMessage(messageId)) return;
+      if (attempt < 12) {
+        window.setTimeout(() => tryScroll(attempt + 1), 50);
+      }
+    };
+    tryScroll();
+  }, [activeRoomId, client, focusMessage]);
   const clearMessageMenu = useCallback(() => setMessageMenu(null), [setMessageMenu]);
   const resolveSpaceForRoom = useCallback(
     (roomId: string) => findSpaceIdForRoom(roomGroups.spaces, roomId),
@@ -220,11 +237,11 @@ export function ChatShell() {
     clearMessageMenu,
     clearComposerMode,
     startForward: composerMode.startForward,
-    focusPinnedMessage,
+    focusPinnedMessage: focusMessageWithPagination,
     resolveSpaceForRoom,
     resolveIsDmRoom,
   });
-  useDeepLink(client, chatNavigation.selectRoom);
+  useDeepLink(client, chatNavigation.selectRoom, focusMessageWithPagination);
   useChatShellKeyboard({ state: shell, activeRoom, chatNavigation, composerRef, roomListRef });
   const creation = useRoomCreation({
     client,
@@ -392,7 +409,7 @@ export function ChatShell() {
     setThreadReplyTo(null);
     setActiveThreadRootId(rootId);
     // Highlight + scroll to the root message in the main chat.
-    window.setTimeout(() => focusPinnedMessage(rootId), 90);
+    window.setTimeout(() => void focusMessageWithPagination(rootId), 90);
   };
 
   const cyclePinnedMessage = () => {
@@ -401,7 +418,7 @@ export function ChatShell() {
     const current = pinnedMessages[index];
     if (!current?.id) return;
 
-    focusPinnedMessage(current.id);
+    void focusMessageWithPagination(current.id);
     setPinnedIndex((index + 1) % pinnedMessages.length);
   };
 
@@ -615,6 +632,7 @@ export function ChatShell() {
               onOpenMessageMenu={openMessageMenu}
               onToggleReaction={toggleReaction}
               onOpenThread={openThread}
+              onJumpToMessage={(messageId) => void focusMessageWithPagination(messageId)}
               onLoadOlder={loadOlder}
               hasOlder={hasOlder}
               room={activeRoom}
@@ -697,6 +715,7 @@ export function ChatShell() {
           onOpenImage={setLightbox}
           onOpenMessageMenu={(message, x, y) => openMessageMenu(message, x, y, "thread")}
           onToggleReaction={toggleReaction}
+          onJumpToMessage={(messageId) => focusMessage(messageId, ".thread-panel")}
           onCancelEdit={() => setThreadEditing(null)}
           onCancelReply={() => setThreadReplyTo(null)}
           onSent={() => {

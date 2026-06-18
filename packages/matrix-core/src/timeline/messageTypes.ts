@@ -6,12 +6,15 @@ export type MatrixMessage = {
   time: string;
   timestamp: number;
   text: string;
+  /** HTML body from the Matrix event, when present. */
+  formattedBody?: string;
   color: string;
   avatarUrl?: string;
   media?: MatrixMedia;
   own: boolean;
   deliveryStatus?: MatrixDeliveryStatus;
   edited: boolean;
+  deleted?: boolean;
   forwardedFrom?: string;
   reactions: MatrixReaction[];
   replyTo?: MatrixMessageReference;

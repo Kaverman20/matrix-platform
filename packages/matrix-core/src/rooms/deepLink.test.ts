@@ -10,6 +10,14 @@ describe("parseLocationDeepLink", () => {
     });
   });
 
+  it("parses a room id with an event id", () => {
+    expect(parseLocationDeepLink({ hash: "#/!abc:hs/$event123" })).toEqual({
+      type: "room",
+      roomId: "!abc:hs",
+      eventId: "$event123",
+    });
+  });
+
   it("parses a user id hash", () => {
     expect(parseLocationDeepLink({ hash: "#/@alice:hs" })).toEqual({
       type: "user",

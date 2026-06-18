@@ -327,7 +327,7 @@
   color: var(--color-text-muted);
   background: var(--color-bg-subtle);
   text-align: left;
-  cursor: default;
+  cursor: pointer;
 }
 
 .message__reply-preview strong {
@@ -365,6 +365,21 @@
 .message__empty {
   color: var(--color-text-faint);
   font-style: italic;
+}
+
+.message__deleted {
+  color: var(--color-text-faint);
+  font-style: italic;
+}
+
+.message-body a {
+  color: var(--color-accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.message-body a:hover {
+  opacity: 0.85;
 }
 
 .message__edited {
@@ -527,7 +542,7 @@
   color: var(--color-text-muted);
   background: var(--color-bg-hover);
   text-align: left;
-  cursor: default;
+  cursor: pointer;
 }
 
 .bubble__reply-preview strong {

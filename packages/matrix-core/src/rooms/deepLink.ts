@@ -3,11 +3,11 @@ import type { MatrixClient } from "matrix-js-sdk";
 import { createOrFindDirectRoom } from "./createRoom";
 
 export type DeepLinkTarget =
-  | { type: "room"; roomId: string }
+  | { type: "room"; roomId: string; eventId?: string }
   | { type: "alias"; alias: string }
   | { type: "user"; userId: string };
 
-/** Parses `matrix.to`-style hash links: `#/!room:hs`, `#/@user:hs`, `#/#alias:hs`. */
+/** Parses `matrix.to`-style hash links: `#/!room:hs`, `#/!room:hs/$event`, `#/@user:hs`, `#/#alias:hs`. */
 export function parseLocationDeepLink(location: Pick<Location, "hash">): DeepLinkTarget | null {
   let fragment = location.hash.replace(/^#/, "").trim();
   if (!fragment) return null;
@@ -21,16 +21,31 @@ export function parseLocationDeepLink(location: Pick<Location, "hash">): DeepLin
   }
 
   if (fragment.startsWith("!") && fragment.includes(":")) {
-    return { type: "room", roomId: fragment };
+    const parsed = parseRoomDeepLink(fragment);
+    if (parsed) return parsed;
   }
   if (fragment.startsWith("@") && fragment.includes(":")) {
-    return { type: "user", userId: fragment };
+    return { type: "user", userId: fragment.split("?")[0] ?? fragment };
   }
   if (fragment.startsWith("#") && fragment.includes(":")) {
-    return { type: "alias", alias: fragment };
+    return { type: "alias", alias: fragment.split("?")[0] ?? fragment };
   }
 
   return null;
+}
+
+function parseRoomDeepLink(fragment: string): DeepLinkTarget | null {
+  const slash = fragment.indexOf("/");
+  const roomId = (slash === -1 ? fragment : fragment.slice(0, slash)).split("?")[0];
+  if (!roomId.startsWith("!") || !roomId.includes(":")) return null;
+
+  let eventId: string | undefined;
+  if (slash !== -1) {
+    const tail = fragment.slice(slash + 1).split("?")[0];
+    if (tail.startsWith("$")) eventId = tail;
+  }
+
+  return { type: "room", roomId, eventId };
 }
 
 async function ensureJoined(client: MatrixClient, roomIdOrAlias: string): Promise<string> {

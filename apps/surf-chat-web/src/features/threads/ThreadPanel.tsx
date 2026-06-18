@@ -27,6 +27,7 @@ type Props = {
   onOpenImage: (src: string) => void;
   onOpenMessageMenu: (message: MatrixMessage, x: number, y: number) => void;
   onToggleReaction: (message: MatrixMessage, key: string) => void;
+  onJumpToMessage?: (messageId: string) => void;
   onCancelEdit: () => void;
   onCancelReply: () => void;
   onSent: () => void;
@@ -44,6 +45,7 @@ export function ThreadPanel({
   onOpenImage,
   onOpenMessageMenu,
   onToggleReaction,
+  onJumpToMessage,
   onCancelEdit,
   onCancelReply,
   onSent,
@@ -103,6 +105,7 @@ export function ThreadPanel({
         onOpenImage={onOpenImage}
         onOpenMessageMenu={onOpenMessageMenu}
         onToggleReaction={onToggleReaction}
+        onJumpToMessage={onJumpToMessage}
         onOpenThread={() => {}}
       />
 
