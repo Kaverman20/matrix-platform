@@ -59,6 +59,11 @@ import {
 import { formatTypingLabel, useTyping } from "../features/timeline/useTyping";
 import { useAccountSettings } from "../features/account/useAccountSettings";
 import { useEncryption } from "../features/encryption/useEncryption";
+import { CallPanel } from "../features/calls/CallPanel";
+import { CALLS_ENABLED } from "../features/calls/callsEnabled";
+import { IncomingCallBanner } from "../features/calls/IncomingCallBanner";
+import { useIncomingCall } from "../features/calls/useIncomingCall";
+import { useRoomCall } from "../features/calls/useRoomCall";
 import { SettingsPage } from "../features/settings/SettingsModal";
 import { usePreferences } from "../features/settings/usePreferences";
 import "./chat-shell.css";
@@ -176,6 +181,26 @@ export function ChatShell() {
   const pinnedMessages = usePinnedMessages(client, activeRoomId, optimisticPinnedIds);
   const rawTypingLabel = formatTypingLabel(useTyping(client, activeRoomId));
   const typingLabel = preferences.showTypingIndicator ? rawTypingLabel : null;
+  const dmRoomIds = useMemo(() => roomGroups.dms.map((room) => room.id), [roomGroups.dms]);
+  const roomCall = useRoomCall(CALLS_ENABLED ? client : null, CALLS_ENABLED ? activeRoomId : null);
+  const { incoming: incomingCall, dismiss: dismissIncomingCall } = useIncomingCall(
+    CALLS_ENABLED ? client : null,
+    dmRoomIds,
+    roomCall.status,
+  );
+  const callActive = roomCall.status !== "idle";
+  const handleStartCall = useCallback(() => {
+    void roomCall.start({ ring: true });
+  }, [roomCall]);
+  const handleAnswerCall = useCallback(() => {
+    if (!incomingCall) return;
+    const { roomId } = incomingCall;
+    dismissIncomingCall();
+    if (activeRoomId !== roomId) {
+      chatNavigation.selectRoom(roomId);
+    }
+    void roomCall.start({ ring: false, roomId });
+  }, [activeRoomId, chatNavigation, dismissIncomingCall, incomingCall, roomCall]);
   const hasOlder = useMemo(
     () => Boolean(client && activeRoomId && canPaginateBackwards(client, activeRoomId)),
     // messages.length is intentionally a dep: re-evaluate after each page loads.
@@ -516,7 +541,20 @@ export function ChatShell() {
               onToggleThreads={() => setShowThreadsList((value) => !value)}
               infoActive={showRightPanel}
               onToggleInfo={() => setShowRightPanel((value) => !value)}
+              callsEnabled={CALLS_ENABLED}
+              callActive={callActive}
+              onStartCall={handleStartCall}
             />
+            {CALLS_ENABLED && incomingCall && (
+              <IncomingCallBanner
+                callerName={incomingCall.callerName}
+                onAnswer={handleAnswerCall}
+                onDismiss={dismissIncomingCall}
+              />
+            )}
+            {CALLS_ENABLED && (
+              <CallPanel call={roomCall} peerName={activeRoom.name} />
+            )}
             <AnimatePresence initial={false}>
               {pinnedMessages.length > 0 && (() => {
                 const currentIndex = pinnedMessages.length > 0 ? pinnedIndex % pinnedMessages.length : 0;

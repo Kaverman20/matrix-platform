@@ -1,4 +1,4 @@
-import { AlignLeft, Hash, MessageSquare, MessagesSquare, PanelRight, Phone, Video } from "lucide-react";
+import { AlignLeft, Hash, MessageSquare, MessagesSquare, PanelRight, Phone } from "lucide-react";
 import type { MatrixRoomSummary } from "@matrix-platform/matrix-core";
 
 type Props = {
@@ -10,6 +10,10 @@ type Props = {
   onToggleThreads: () => void;
   infoActive: boolean;
   onToggleInfo: () => void;
+  /** Stage 3: show audio-call button in DM when calls are enabled. */
+  callsEnabled?: boolean;
+  callActive?: boolean;
+  onStartCall?: () => void;
 };
 
 /** Header bar of the open chat: room title, typing indicator, and the
@@ -23,7 +27,12 @@ export function ChatMainHeader({
   onToggleThreads,
   infoActive,
   onToggleInfo,
+  callsEnabled = false,
+  callActive = false,
+  onStartCall,
 }: Props) {
+  const showCallButton = callsEnabled && room.kind === "dm";
+
   return (
     <header className="chat-main__header">
       <div className="chat-main__title">
@@ -50,12 +59,17 @@ export function ChatMainHeader({
         >
           <MessagesSquare size={18} />
         </button>
-        <button type="button" className="icon-button" title="Звонок">
-          <Phone size={18} />
-        </button>
-        <button type="button" className="icon-button" title="Видео">
-          <Video size={18} />
-        </button>
+        {showCallButton && (
+          <button
+            type="button"
+            className="icon-button"
+            title="Позвонить"
+            disabled={callActive}
+            onClick={onStartCall}
+          >
+            <Phone size={18} />
+          </button>
+        )}
         <button
           type="button"
           className={`icon-button${infoActive ? " is-active" : ""}`}

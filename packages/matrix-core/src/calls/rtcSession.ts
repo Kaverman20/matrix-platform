@@ -25,6 +25,11 @@ export class CallUnavailableError extends Error {
   }
 }
 
+export type JoinCallOptions = {
+  /** Emit an in-room ring notification for the callee (outgoing 1:1 call). */
+  ring?: boolean;
+};
+
 /**
  * Joins (or creates) the RTC session for a room and announces our membership.
  * The returned session is what the UI subscribes to for membership changes and
@@ -36,6 +41,7 @@ export class CallUnavailableError extends Error {
 export async function joinCall(
   client: MatrixClient,
   roomId: string,
+  options?: JoinCallOptions,
 ): Promise<MatrixRTCSession> {
   const room = client.getRoom(roomId);
   if (!room) throw new CallUnavailableError(`Unknown room ${roomId}`);
@@ -46,9 +52,12 @@ export async function joinCall(
   }
 
   const session = client.matrixRTC.getRoomSession(room);
+  const joinConfig = options?.ring
+    ? { notificationType: "ring" as const, callIntent: "audio" as const }
+    : undefined;
   // joinRoomSession is fire-and-forget (void): membership is published async and
   // observed via MatrixRTCSessionEvent. The first focus is our preferred SFU.
-  session.joinRoomSession(foci);
+  session.joinRoomSession(foci, undefined, joinConfig);
   return session;
 }
 

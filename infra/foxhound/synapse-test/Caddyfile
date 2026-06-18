@@ -1,6 +1,28 @@
 # Caddy obtains and renews Let's Encrypt certificates for these domains.
 # Matrix endpoints are proxied to Synapse on the internal Docker network.
 matrix.foxhound.run {
+    # MatrixRTC discovery. Synapse served an empty body for /.well-known, so these
+    # are static blocks. They MUST come before reverse_proxy /_matrix/*.
+    #
+    # client: the Surf Chat app (chat.foxhound.run) fetches this cross-origin to
+    # find the LiveKit focus, so Access-Control-Allow-Origin is required —
+    # without it the browser blocks the fetch and calls fail with "no LiveKit focus".
+    handle /.well-known/matrix/client {
+        header Access-Control-Allow-Origin "*"
+        header Content-Type "application/json"
+        respond `{"m.homeserver":{"base_url":"https://matrix.foxhound.run"},"org.matrix.msc4143.rtc_foci":[{"type":"livekit","livekit_service_url":"https://matrix-rtc.foxhound.run"}]}` 200
+    }
+
+    # server: lk-jwt-service resolves the homeserver for OpenID via server
+    # discovery. Without this it dialed matrix.foxhound.run:8448 (federation port,
+    # closed) -> "connection refused" and no JWT was issued. :443 points it at the
+    # TLS client port instead.
+    handle /.well-known/matrix/server {
+        header Access-Control-Allow-Origin "*"
+        header Content-Type "application/json"
+        respond `{"m.server":"matrix.foxhound.run:443"}` 200
+    }
+
     reverse_proxy /_matrix/* synapse:8008
     reverse_proxy /_synapse/client/* synapse:8008
     reverse_proxy /_synapse/admin/* synapse:8008
@@ -18,8 +40,11 @@ chat.foxhound.run {
         X-Content-Type-Options "nosniff"
         X-Frame-Options "DENY"
         Referrer-Policy "strict-origin-when-cross-origin"
-        Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
-        Content-Security-Policy "default-src 'self'; connect-src 'self' https://matrix.foxhound.run https://*.foxhound.run; img-src 'self' data: blob: https://matrix.foxhound.run; media-src 'self' blob: https://matrix.foxhound.run; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'; upgrade-insecure-requests"
+        # microphone=(self) is required for the calls feature (own-UI, no iframe).
+        # camera left open for future video; wss://matrix-rtc.foxhound.run in
+        # connect-src is the LiveKit signalling socket.
+        Permissions-Policy "camera=(self), microphone=(self), geolocation=(), payment=(), usb=()"
+        Content-Security-Policy "default-src 'self'; connect-src 'self' https://matrix.foxhound.run https://*.foxhound.run wss://matrix-rtc.foxhound.run; img-src 'self' data: blob: https://matrix.foxhound.run; media-src 'self' blob: https://matrix.foxhound.run; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'; upgrade-insecure-requests"
     }
 
     # Content-addressed (hash in filename) assets never change — cache forever.

@@ -86,16 +86,19 @@ html.reduce-motion .chat-shell__room-list {
 .chat-main {
   min-width: 0;
   flex: 1;
-  display: grid;
-  grid-template-rows: var(--header-height) minmax(0, 1fr) auto;
+  /* Flex column (not a fixed 3-row grid) so any number of stacked top bars —
+     pinned, incoming-call, call panel — sit above the timeline without stealing
+     its flexible row. Only the timeline grows; header/bars/composer keep their
+     content height. */
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
   background: var(--color-bg);
 }
 
-.chat-main.is-empty {
-  grid-template-rows: minmax(0, 1fr);
-}
-
 .chat-main__header {
+  flex: 0 0 var(--header-height);
+  height: var(--header-height);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -241,6 +244,7 @@ html.reduce-motion .chat-shell__room-list {
 }
 
 .chat-main__placeholder {
+  flex: 1;
   min-height: 0;
   display: flex;
   align-items: center;

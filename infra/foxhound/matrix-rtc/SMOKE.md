@@ -28,11 +28,19 @@ Use the exact ports from your `livekit.yaml` (`rtc.port_range_start` /
 
 - [ ] `curl -fsS https://matrix.foxhound.run/.well-known/matrix/client | jq '."org.matrix.msc4143.rtc_foci"'`
       returns the LiveKit focus (type `livekit`, correct `livekit_service_url`)
+- [ ] `curl -fsS https://matrix.foxhound.run/.well-known/matrix/server` →
+      `{"m.server":"matrix.foxhound.run:443"}`. REQUIRED: without it lk-jwt
+      resolves the homeserver to the federation port :8448 (closed) and OpenID
+      fails with "Failed to look up user info / connection refused".
+- [ ] Both well-known responses carry `Access-Control-Allow-Origin: *`
+      (`curl -sI -H "Origin: https://chat.foxhound.run" ... | grep -i access-control`).
 
 ## 3. lk-jwt ↔ Synapse OpenID
 
 - [ ] From the `lk-jwt-service` container, the homeserver `/_matrix` endpoint is
       reachable (OpenID userinfo). If JWTs aren't issued, this is the usual cause.
+- [ ] `docker compose logs lk-jwt-service` shows `Got Matrix user info ... (full access)`
+      on a call attempt — not `Failed to look up user info`.
 - [ ] Synapse restarted after applying `homeserver.snippet.yaml`
       (msc3266 / msc4222 / msc4140 enabled).
 

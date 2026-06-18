@@ -55,7 +55,17 @@ describe("joinCall", () => {
     const { client, session } = fakeClient();
     const result = await joinCall(client, "!room:server");
     expect(result).toBe(session);
-    expect(session.joinRoomSession).toHaveBeenCalledWith([LIVEKIT_FOCUS]);
+    expect(session.joinRoomSession).toHaveBeenCalledWith([LIVEKIT_FOCUS], undefined, undefined);
+  });
+
+  it("passes ring notification config when requested", async () => {
+    const { client, session } = fakeClient();
+    await joinCall(client, "!room:server", { ring: true });
+    expect(session.joinRoomSession).toHaveBeenCalledWith(
+      [LIVEKIT_FOCUS],
+      undefined,
+      { notificationType: "ring", callIntent: "audio" },
+    );
   });
 });
 
