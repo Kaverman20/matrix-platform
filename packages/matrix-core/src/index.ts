@@ -1,5 +1,6 @@
 export * from "./auth/passwordLogin";
 export * from "./auth/sso";
+export * from "./calls/callHistory";
 export * from "./calls/discoverFoci";
 export * from "./calls/incomingRing";
 export * from "./calls/rtcDecline";

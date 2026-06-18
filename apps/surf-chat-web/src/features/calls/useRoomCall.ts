@@ -5,6 +5,7 @@ import type { LocalVideoTrack, RemoteVideoTrack, Room } from "livekit-client";
 import {
   joinCall,
   leaveCall,
+  sendCallSummary,
   subscribePeerDeclined,
   type CallIntent,
 } from "@matrix-platform/matrix-core";
@@ -101,6 +102,12 @@ export function useRoomCall(client: MatrixClient | null, roomId: string | null):
   const cameraEnabledRef = useRef(false);
   const screenSharingRef = useRef(false);
   const remoteScreenRef = useRef(false);
+  // Refs mirror the call's identity for endCall(), which is a stable callback and
+  // can't read fresh state from its closure.
+  const outgoingRef = useRef(false);
+  const callRoomIdRef = useRef<string | null>(null);
+  const callIntentRef = useRef<CallIntent>("audio");
+  const durationRef = useRef(0);
 
   const cleanup = useCallback(async () => {
     liveKitUnwatchRef.current?.();
@@ -132,6 +139,16 @@ export function useRoomCall(client: MatrixClient | null, roomId: string | null):
   /** Ends the call. With a reason it surfaces as an error (e.g. "Не отвечает"). */
   const endCall = useCallback(
     async (reason?: string) => {
+      // Only the caller writes the call-history line, so a 1:1 call logs once.
+      if (outgoingRef.current && client && callRoomIdRef.current) {
+        void sendCallSummary(client, callRoomIdRef.current, {
+          answered: wasConnectedRef.current,
+          durationSec: durationRef.current,
+          intent: callIntentRef.current,
+        }).catch(() => undefined);
+      }
+      outgoingRef.current = false;
+      durationRef.current = 0;
       setStatus(reason ? "error" : "idle");
       setError(reason ?? null);
       setDurationSec(0);
@@ -140,7 +157,7 @@ export function useRoomCall(client: MatrixClient | null, roomId: string | null):
       if (!reason) setCallRoomId(null);
       await cleanup();
     },
-    [cleanup, resetMediaState],
+    [cleanup, client, resetMediaState],
   );
 
   const hangup = useCallback(() => endCall(), [endCall]);
@@ -156,6 +173,10 @@ export function useRoomCall(client: MatrixClient | null, roomId: string | null):
       if (!client || !targetRoomId) return;
       const isOutgoing = options?.ring === true;
       const isVideo = options?.intent === "video";
+      outgoingRef.current = isOutgoing;
+      callRoomIdRef.current = targetRoomId;
+      callIntentRef.current = options?.intent ?? "audio";
+      durationRef.current = 0;
       setError(null);
       setDurationSec(0);
       setOutgoing(isOutgoing);
@@ -321,7 +342,9 @@ export function useRoomCall(client: MatrixClient | null, roomId: string | null):
     if (status !== "connected") return;
     const startedAt = Date.now();
     const id = window.setInterval(() => {
-      setDurationSec(Math.floor((Date.now() - startedAt) / 1000));
+      const s = Math.floor((Date.now() - startedAt) / 1000);
+      durationRef.current = s;
+      setDurationSec(s);
     }, 1000);
     return () => window.clearInterval(id);
   }, [status]);

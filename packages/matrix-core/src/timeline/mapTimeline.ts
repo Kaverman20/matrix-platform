@@ -1,4 +1,5 @@
 import { EventStatus, EventTimeline, type MatrixClient, type MatrixEvent, type Room } from "matrix-js-sdk";
+import { formatCallSummaryLine, parseCallSummary } from "../calls/callHistory";
 import { colorForId } from "../rooms/colors";
 import { formatDisplayTime } from "../time/formatTime";
 import type {
@@ -66,7 +67,8 @@ function buildMessagesFromEvents(
       const sender = event.getSender() ?? "";
       const member = room.getMember(sender);
       const eventId = event.getId() ?? event.getTxnId() ?? `${sender}:${event.getTs()}:${index}`;
-      const systemText = getSystemEventText(room, event);
+      const callSummaryText = getCallSummaryText(event, me);
+      const systemText = callSummaryText ?? getSystemEventText(room, event);
       if (systemText) {
         return {
           id: eventId,
@@ -223,6 +225,15 @@ function buildReactionAggregates(
         .sort((a, b) => b.count - a.count || a.key.localeCompare(b.key)),
     ]),
   );
+}
+
+/** Renders a call-summary message as a centered system line, localized to the
+ * viewer (Исходящий/Входящий/Пропущенный). */
+function getCallSummaryText(event: MatrixEvent, me: string | null): string | null {
+  if (event.getType() !== "m.room.message" || event.isRedacted()) return null;
+  const summary = parseCallSummary(event.getContent());
+  if (!summary) return null;
+  return formatCallSummaryLine(summary, event.getSender() === me);
 }
 
 function isRealMessageEvent(event: MatrixEvent): boolean {
