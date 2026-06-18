@@ -7,6 +7,7 @@ import {
   type IncomingRingEnded,
 } from "@matrix-platform/matrix-core";
 import type { CallStatus } from "./useRoomCall";
+import { startRingtone } from "./ringtone";
 
 export type IncomingCall = IncomingRing;
 
@@ -62,6 +63,15 @@ export function useIncomingCall(
   }, [incoming]);
 
   const visibleIncoming = incoming && callStatus === "idle" ? incoming : null;
+
+  // Ringtone while the incoming window is shown — stops on answer (status leaves
+  // idle), decline/dismiss/cancel (incoming cleared), or ring expiry.
+  const ringActive = Boolean(visibleIncoming);
+  useEffect(() => {
+    if (!ringActive) return;
+    const ringtone = startRingtone();
+    return () => ringtone.stop();
+  }, [ringActive]);
 
   return { incoming: visibleIncoming, dismiss, decline };
 }
