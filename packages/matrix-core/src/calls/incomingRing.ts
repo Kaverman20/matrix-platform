@@ -56,6 +56,77 @@ function callersWhoLeft(
   return ended;
 }
 
+function tryParseRing(
+  client: MatrixClient,
+  event: MatrixEvent,
+  roomId: string,
+  myId: string | null,
+): IncomingRing | null {
+  if (event.getType() !== EventType.RTCNotification) return null;
+  if (event.getSender() === myId) return null;
+
+  try {
+    const content = parseCallNotificationContent(event.getContent());
+    if (content.notification_type !== "ring") return null;
+
+    const mentions = content["m.mentions"]?.user_ids;
+    if (mentions?.length && myId && !mentions.includes(myId)) return null;
+
+    const expiresAt = content.sender_ts + content.lifetime;
+    if (Date.now() >= expiresAt) return null;
+
+    const sender = event.getSender();
+    if (!sender) return null;
+
+    const notificationEventId = event.getId();
+    if (!notificationEventId) return null;
+
+    const matrixRoom = client.getRoom(roomId);
+    const member = matrixRoom?.getMember(sender);
+    const callerName = member?.rawDisplayName ?? member?.name ?? sender;
+
+    let callIntent: CallIntent = "audio";
+    if (matrixRoom) {
+      const session = client.matrixRTC.getRoomSession(matrixRoom);
+      const callerMembership = session.memberships.find((m) => m.userId === sender);
+      if (callerMembership?.callIntent === "video") callIntent = "video";
+    }
+
+    return {
+      roomId,
+      callerId: sender,
+      callerName,
+      notificationEventId,
+      callIntent,
+      expiresAt,
+    };
+  } catch {
+    return null;
+  }
+}
+
+/** Catch rings that arrived before the listener was attached. */
+function scanRecentRings(
+  client: MatrixClient,
+  roomIds: readonly string[],
+  myId: string | null,
+  onRing: (ring: IncomingRing) => void,
+): void {
+  for (const roomId of roomIds) {
+    const room = client.getRoom(roomId);
+    if (!room?.getLiveTimeline) continue;
+    const events = room.getLiveTimeline().getEvents();
+    for (let i = events.length - 1; i >= 0; i -= 1) {
+      const event = events[i];
+      const ring = tryParseRing(client, event, roomId, myId);
+      if (ring) {
+        onRing(ring);
+        break;
+      }
+    }
+  }
+}
+
 /**
  * Subscribes to MatrixRTC incoming-call signals in DM rooms: ring notifications,
  * caller leaving the session (cancel before answer), and explicit declines.
@@ -74,48 +145,9 @@ export function subscribeIncomingCallSignals(
   const onTimeline = (event: MatrixEvent, room: { roomId: string } | undefined) => {
     if (!room || !dmSet.has(room.roomId)) return;
 
-    if (event.getType() === EventType.RTCNotification) {
-      if (event.getSender() === myId) return;
-      try {
-        const content = parseCallNotificationContent(event.getContent());
-        if (content.notification_type !== "ring") return;
-
-        const mentions = content["m.mentions"]?.user_ids;
-        if (mentions?.length && myId && !mentions.includes(myId)) return;
-
-        const expiresAt = content.sender_ts + content.lifetime;
-        if (Date.now() >= expiresAt) return;
-
-        const sender = event.getSender();
-        if (!sender) return;
-
-        const notificationEventId = event.getId();
-        if (!notificationEventId) return;
-
-        const matrixRoom = client.getRoom(room.roomId);
-        const member = matrixRoom?.getMember(sender);
-        const callerName = member?.rawDisplayName ?? member?.name ?? sender;
-
-        // Read the caller's announced intent from their RTC membership (if present
-        // yet) so the callee can show "видеозвонок" and answer with the camera.
-        let callIntent: CallIntent = "audio";
-        if (matrixRoom) {
-          const session = client.matrixRTC.getRoomSession(matrixRoom);
-          const callerMembership = session.memberships.find((m) => m.userId === sender);
-          if (callerMembership?.callIntent === "video") callIntent = "video";
-        }
-
-        handlers.onRing({
-          roomId: room.roomId,
-          callerId: sender,
-          callerName,
-          notificationEventId,
-          callIntent,
-          expiresAt,
-        });
-      } catch {
-        // Ignore malformed notification events.
-      }
+    const ring = tryParseRing(client, event, room.roomId, myId);
+    if (ring) {
+      handlers.onRing(ring);
       return;
     }
 
@@ -150,6 +182,8 @@ export function subscribeIncomingCallSignals(
       session.off(MatrixRTCSessionEvent.MembershipsChanged, onMembershipsChanged);
     });
   }
+
+  scanRecentRings(client, dmRoomIds, myId, handlers.onRing);
 
   return () => {
     for (const cleanup of cleanups) cleanup();

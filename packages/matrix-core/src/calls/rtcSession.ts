@@ -64,6 +64,13 @@ export async function joinCall(
     callIntent: options?.intent ?? "audio",
   };
   if (options?.ring) joinConfig.notificationType = "ring";
+
+  // Stale local session state can suppress the ring notification (SDK only rings
+  // when transitioning from 0 → 1 members). Leave first so the ring is sent.
+  if (session.isJoined()) {
+    await session.leaveRoomSession();
+  }
+
   // joinRoomSession is fire-and-forget (void): membership is published async and
   // observed via MatrixRTCSessionEvent. The first focus is our preferred SFU.
   session.joinRoomSession(foci, undefined, joinConfig);

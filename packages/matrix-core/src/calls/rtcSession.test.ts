@@ -77,6 +77,14 @@ describe("joinCall", () => {
       callIntent: "video",
     });
   });
+
+  it("leaves a stale session before joining so the ring notification is sent", async () => {
+    const session = fakeSession(true);
+    const { client } = fakeClient({ session });
+    await joinCall(client, "!room:server", { ring: true });
+    expect(session.leaveRoomSession).toHaveBeenCalledOnce();
+    expect(session.joinRoomSession).toHaveBeenCalledOnce();
+  });
 });
 
 describe("leaveCall", () => {

@@ -3,6 +3,7 @@ export * from "./auth/sso";
 export * from "./calls/callHistory";
 export * from "./calls/callBusy";
 export * from "./calls/discoverFoci";
+export * from "./calls/incomingCallRooms";
 export * from "./calls/incomingRing";
 export * from "./calls/rtcDecline";
 export * from "./calls/rtcSession";

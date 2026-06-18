@@ -16,6 +16,7 @@ import {
   sendReaction,
   setPinnedEventIds,
   setRoomFavourite,
+  listIncomingCallRoomIds,
   subscribePinnedEvents,
   togglePinnedEventId,
   type MatrixForwardData,
@@ -180,11 +181,14 @@ export function ChatShell() {
   const pinnedMessages = usePinnedMessages(client, activeRoomId, optimisticPinnedIds);
   const rawTypingLabel = formatTypingLabel(useTyping(client, activeRoomId));
   const typingLabel = preferences.showTypingIndicator ? rawTypingLabel : null;
-  const dmRoomIds = useMemo(() => roomGroups.dms.map((room) => room.id), [roomGroups.dms]);
+  const incomingCallRoomIds = useMemo(
+    () => (client ? listIncomingCallRoomIds(client) : []),
+    [client, allRooms],
+  );
   const roomCall = useRoomCall(CALLS_ENABLED ? client : null, CALLS_ENABLED ? activeRoomId : null);
   const { incoming: incomingCall, dismiss: dismissIncomingCall, decline: declineIncomingCall } = useIncomingCall(
     CALLS_ENABLED ? client : null,
-    dmRoomIds,
+    incomingCallRoomIds,
     roomCall.status,
   );
   const callActive = roomCall.status !== "idle";
