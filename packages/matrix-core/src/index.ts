@@ -27,6 +27,7 @@ export * from "./rooms/mapRooms";
 export * from "./rooms/pinned";
 export * from "./rooms/roomTypes";
 export * from "./rooms/settings";
+export * from "./rooms/spaceUnreads";
 export * from "./rooms/subscribeRoomGroups";
 export * from "./session/sessionStorage";
 export * from "./session/types";

@@ -110,6 +110,26 @@
   transform: translateY(-50%);
 }
 
+.space-rail__badge {
+  position: absolute;
+  top: -6px;
+  right: -4px;
+  min-width: 18px;
+  height: 18px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius-pill);
+  padding: 0 5px;
+  color: var(--color-text-onAccent);
+  background: var(--color-accent);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  box-shadow: 0 0 0 2px var(--color-rail-bg);
+  pointer-events: none;
+  z-index: 1;
+}
+
 .space-rail__account {
   color: var(--color-rail-text);
   background: var(--color-rail-item-hover);

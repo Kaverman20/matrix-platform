@@ -1,7 +1,8 @@
 import { useMemo } from "react";
-import type {
-  MatrixRoomGroups,
-  MatrixSpaceSummary,
+import {
+  computeTopLevelSpaceUnreads,
+  type MatrixRoomGroups,
+  type MatrixSpaceSummary,
 } from "@matrix-platform/matrix-core";
 
 export function useSpaceNavigation(
@@ -40,6 +41,11 @@ export function useSpaceNavigation(
   const topLevelSpaces = useMemo(
     () => roomGroups.spaces.filter((space) => !space.nested),
     [roomGroups.spaces],
+  );
+
+  const topLevelSpaceUnreads = useMemo(
+    () => computeTopLevelSpaceUnreads(roomGroups.spaces, roomGroups),
+    [roomGroups],
   );
 
   const subspaces = useMemo(
@@ -83,6 +89,7 @@ export function useSpaceNavigation(
     spacesById,
     spaceParentId,
     topLevelSpaces,
+    topLevelSpaceUnreads,
     subspaces,
     railActiveSpaceId,
     parentSpace,

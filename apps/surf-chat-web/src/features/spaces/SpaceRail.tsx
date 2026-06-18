@@ -1,11 +1,12 @@
 import { MessagesSquare, Plus } from "lucide-react";
-import type { MatrixSpaceSummary } from "@matrix-platform/matrix-core";
+import { formatUnreadCount, type MatrixSpaceSummary } from "@matrix-platform/matrix-core";
 import { HelpMenu } from "../help/HelpMenu";
 import { AuthedImage } from "../media/AuthedImage";
 import "./space-rail.css";
 
 type Props = {
   spaces: MatrixSpaceSummary[];
+  spaceUnreads: Readonly<Record<string, number>>;
   /** The currently active space id, or null for the "all chats" home. */
   activeSpaceId: string | null;
   onSelectHome: () => void;
@@ -18,6 +19,7 @@ type Props = {
 
 export function SpaceRail({
   spaces,
+  spaceUnreads,
   activeSpaceId,
   onSelectHome,
   onSelectSpace,
@@ -41,6 +43,7 @@ export function SpaceRail({
           <SpaceRailItem
             key={space.id}
             space={space}
+            unread={spaceUnreads[space.id] ?? 0}
             active={activeSpaceId === space.id}
             onSelect={() => onSelectSpace(space.id)}
           />
@@ -69,21 +72,26 @@ export function SpaceRail({
 
 function SpaceRailItem({
   space,
+  unread,
   active,
   onSelect,
 }: {
   space: MatrixSpaceSummary;
+  unread: number;
   active: boolean;
   onSelect: () => void;
 }) {
+  const badge = !active && unread > 0 ? formatUnreadCount(unread) : "";
+
   return (
     <button
       className={`space-rail__item${active ? " is-active" : ""}`}
       style={{ background: space.color }}
-      title={space.name}
+      title={badge ? `${space.name} (${unread} непрочитанных)` : space.name}
       onClick={onSelect}
     >
       {active && <span className="space-rail__indicator" />}
+      {badge && <span className="space-rail__badge">{badge}</span>}
       {space.label}
       <AuthedImage url={space.avatarUrl} className="space-rail__avatar" />
     </button>

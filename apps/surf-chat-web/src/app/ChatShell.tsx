@@ -462,6 +462,7 @@ export function ChatShell() {
             <div className="chat-shell">
       <SpaceRail
         spaces={spaceNavigation.topLevelSpaces}
+        spaceUnreads={spaceNavigation.topLevelSpaceUnreads}
         activeSpaceId={spaceNavigation.railActiveSpaceId}
         onSelectHome={() => setActiveSpaceId(null)}
         onSelectSpace={setActiveSpaceId}
