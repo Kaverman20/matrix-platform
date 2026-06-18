@@ -1,5 +1,40 @@
-import { defineConfig } from "vite";
+import { execSync } from "node:child_process";
+import { writeFileSync } from "node:fs";
+import { resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import react from "@vitejs/plugin-react";
+import { defineConfig, type Plugin } from "vite";
+
+const appRoot = fileURLToPath(new URL(".", import.meta.url));
+
+function readBuildId(): string {
+  try {
+    return execSync("git rev-parse --short HEAD", {
+      cwd: resolve(appRoot, "../.."),
+      encoding: "utf8",
+    }).trim();
+  } catch {
+    return String(Date.now());
+  }
+}
+
+const appBuildId = readBuildId();
+
+function surfChatBuildIdPlugin(): Plugin {
+  return {
+    name: "surf-chat-build-id",
+    config() {
+      return {
+        define: {
+          __APP_BUILD_ID__: JSON.stringify(appBuildId),
+        },
+      };
+    },
+    closeBundle() {
+      writeFileSync(resolve(appRoot, "dist/build-id.txt"), `${appBuildId}\n`, "utf8");
+    },
+  };
+}
 
 // Split the big, statically-imported dependencies into long-lived vendor chunks
 // so the browser caches and parses them in parallel and an app-code change
@@ -17,7 +52,7 @@ function manualChunks(id: string): string | undefined {
 
 export default defineConfig({
   envDir: "../..",
-  plugins: [react()],
+  plugins: [react(), surfChatBuildIdPlugin()],
   build: {
     // The dominant chunks (matrix-js-sdk and its crypto WASM) are vendor code a
     // Matrix client must ship regardless; they already live in their own

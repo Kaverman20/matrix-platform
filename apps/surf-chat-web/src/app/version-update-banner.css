@@ -1,0 +1,63 @@
+.version-banner {
+  position: fixed;
+  left: 50%;
+  bottom: 20px;
+  z-index: 500;
+  width: min(420px, calc(100vw - 32px));
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 16px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-bg);
+  box-shadow: var(--shadow-pop);
+  transform: translateX(-50%);
+}
+
+.version-banner__text {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.version-banner__text strong {
+  font-size: var(--text-sm);
+}
+
+.version-banner__text span {
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+}
+
+.version-banner__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+
+.version-banner__btn {
+  border: 0;
+  border-radius: var(--radius-md);
+  padding: 8px 12px;
+  font: inherit;
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+.version-banner__btn--primary {
+  color: var(--color-text-onAccent);
+  background: var(--color-accent);
+}
+
+.version-banner__btn--ghost {
+  color: var(--color-text-muted);
+  background: transparent;
+}
+
+.version-banner__btn--ghost:hover {
+  color: var(--color-text);
+  background: var(--color-bg-subtle);
+}

@@ -12,6 +12,8 @@ interface ImportMetaEnv {
   readonly VITE_CALLS_ENABLED?: string;
 }
 
+declare const __APP_BUILD_ID__: string;
+
 interface ImportMeta {
   readonly env: ImportMetaEnv;
 }

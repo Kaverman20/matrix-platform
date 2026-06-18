@@ -67,6 +67,7 @@ import { SettingsPage } from "../features/settings/SettingsModal";
 import { usePreferences } from "../features/settings/usePreferences";
 import { useChatUrl } from "./useChatUrl";
 import { useChatShellKeyboard } from "./useChatShellKeyboard";
+import { useMultiTabNavigation } from "./useMultiTabNavigation";
 import { useChatShellState } from "./useChatShellState";
 import { useDeepLink } from "./useDeepLink";
 import "./chat-shell.css";
@@ -142,6 +143,7 @@ export function ChatShell() {
     spaces: roomGroups.spaces,
     knownRoomIds: allRoomIds,
   });
+
   usePreloadTimelineMessages(client, allRoomIds);
   const spaceNavigation = useSpaceNavigation(roomGroups, activeSpaceId, sidebarView, setActiveSpaceId);
   const roomSettings = useRoomSettings({ client });
@@ -153,6 +155,27 @@ export function ChatShell() {
   }, [activeRoomId, allRooms]);
   const composerMode = useComposerMode(activeRoom?.id);
   const clearComposerMode = composerMode.clearComposerMode;
+
+  const resetTransientPanels = useCallback(() => {
+    setActiveThreadRootId(null);
+    setShowThreadsList(false);
+    setShowAllThreads(false);
+    setMessageMenu(null);
+    setForwarding(null);
+    setLightbox(null);
+    clearComposerMode();
+  }, [clearComposerMode, setActiveThreadRootId, setForwarding, setLightbox, setMessageMenu, setShowAllThreads, setShowThreadsList]);
+
+  useMultiTabNavigation({
+    activeRoomId,
+    setActiveRoomId,
+    activeSpaceId,
+    setActiveSpaceId,
+    sidebarView,
+    setSidebarView,
+    onRemoteNavigate: resetTransientPanels,
+  });
+
   const focusPinnedMessage = useCallback((messageId: string) => {
     // Scope to the main chat so we don't grab the same message rendered inside
     // the thread panel.
