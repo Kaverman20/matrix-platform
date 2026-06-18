@@ -87,7 +87,21 @@ button {
 
 .welcome p {
   margin: 0;
+  max-width: 420px;
   color: var(--color-text-muted);
+  line-height: 1.5;
+}
+
+.sync-error__mark {
+  color: var(--color-text-onAccent);
+}
+
+.sync-error__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: center;
+  margin-top: 8px;
 }
 
 /* Theme switch: crossfade via View Transitions API (fallback: .theme-crossfade). */

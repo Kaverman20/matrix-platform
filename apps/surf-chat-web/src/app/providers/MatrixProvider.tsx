@@ -28,13 +28,16 @@ export function MatrixProvider({ children }: Props) {
   const [status, setStatus] = useState<MatrixStatus>("anonymous");
   const [error, setError] = useState<string | null>(null);
   const startedRef = useRef(false);
+  const clientRef = useRef<MatrixClient | null>(null);
+
+  useEffect(() => {
+    clientRef.current = client;
+  }, [client]);
 
   const resetToLogin = useCallback((message?: string) => {
     clearMatrixSession(window.localStorage);
-    setClient((current) => {
-      current?.stopClient();
-      return null;
-    });
+    clientRef.current?.stopClient();
+    setClient(null);
     setError(message ?? null);
     setStatus("anonymous");
   }, []);
@@ -47,31 +50,26 @@ export function MatrixProvider({ children }: Props) {
       try {
         const nextClient = await startMatrixClient(session);
 
-        // Initialise E2EE in the background so encrypted rooms decrypt. Off the
-        // critical path: it loads a multi-MB wasm module. Failures are logged,
-        // not fatal — the app still works for unencrypted rooms.
         void enableEncryption(nextClient).catch((e) => {
           console.error("[matrix] enableEncryption failed", e);
         });
 
         subscribeSyncState(nextClient, {
           onReady: () => setStatus("ready"),
-          // First sync failed (bad network / invalid token without a logout
-          // signal) — surface it instead of hanging on the boot screen.
           onError: () => {
             setError("Не удалось синхронизироваться с сервером");
-            setStatus("error");
+            setStatus("sync_error");
           },
         });
         subscribeSessionLogout(nextClient, () => {
-          resetToLogin("Сессия истекла - войдите заново");
+          resetToLogin("Сессия истекла — войдите заново");
         });
         setupDirectInviteAutoJoin(nextClient);
 
         setClient(nextClient);
       } catch (e) {
         setError(e instanceof Error ? e.message : String(e));
-        setStatus("error");
+        setStatus("sync_error");
       }
     },
     [resetToLogin],
@@ -86,7 +84,13 @@ export function MatrixProvider({ children }: Props) {
       const loginToken = params.get("loginToken");
 
       if (loginToken) {
-        window.history.replaceState({}, document.title, window.location.pathname);
+        params.delete("loginToken");
+        const search = params.toString();
+        window.history.replaceState(
+          {},
+          document.title,
+          `${window.location.pathname}${search ? `?${search}` : ""}${window.location.hash}`,
+        );
         const homeserver =
           window.localStorage.getItem(DEFAULT_SSO_HOMESERVER_STORAGE_KEY) ??
           DEFAULT_HOMESERVER;
@@ -153,12 +157,24 @@ export function MatrixProvider({ children }: Props) {
 
   const logout = useCallback(async () => {
     try {
-      await client?.logout(true);
+      await clientRef.current?.logout(true);
     } catch {
       // Local logout still wins if the server request fails.
     }
     resetToLogin();
-  }, [client, resetToLogin]);
+  }, [resetToLogin]);
+
+  const retrySync = useCallback(async () => {
+    const session = loadMatrixSession(window.localStorage);
+    if (!session) {
+      resetToLogin();
+      return;
+    }
+
+    clientRef.current?.stopClient();
+    setClient(null);
+    await boot(session);
+  }, [boot, resetToLogin]);
 
   const value = useMemo(
     () => ({
@@ -171,8 +187,9 @@ export function MatrixProvider({ children }: Props) {
       loginAccessToken,
       loginSso,
       logout,
+      retrySync,
     }),
-    [client, error, loginAccessToken, loginPassword, loginSso, logout, status],
+    [client, error, loginAccessToken, loginPassword, loginSso, logout, retrySync, status],
   );
 
   return <MatrixContext.Provider value={value}>{children}</MatrixContext.Provider>;

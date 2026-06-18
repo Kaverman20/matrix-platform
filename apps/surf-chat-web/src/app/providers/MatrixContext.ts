@@ -1,7 +1,7 @@
 import { createContext, useContext } from "react";
 import type { MatrixClient } from "matrix-js-sdk";
 
-export type MatrixStatus = "anonymous" | "connecting" | "ready" | "error";
+export type MatrixStatus = "anonymous" | "connecting" | "ready" | "sync_error";
 
 export type MatrixContextValue = {
   client: MatrixClient | null;
@@ -17,6 +17,8 @@ export type MatrixContextValue = {
   loginAccessToken: (homeserver: string, accessToken: string) => Promise<void>;
   loginSso: (homeserver: string, idpId: string | null) => Promise<void>;
   logout: () => Promise<void>;
+  /** Re-run client boot from the saved session after a sync failure. */
+  retrySync: () => Promise<void>;
 };
 
 export const MatrixContext = createContext<MatrixContextValue | null>(null);

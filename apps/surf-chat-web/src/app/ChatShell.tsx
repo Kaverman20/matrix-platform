@@ -66,6 +66,8 @@ import { useIncomingCall } from "../features/calls/useIncomingCall";
 import { useRoomCall } from "../features/calls/useRoomCall";
 import { SettingsPage } from "../features/settings/SettingsModal";
 import { usePreferences } from "../features/settings/usePreferences";
+import { resolveInitialActiveRoomId } from "./chatUrl";
+import { useChatRoomUrl } from "./useChatRoomUrl";
 import "./chat-shell.css";
 
 const RIGHT_PANEL_WIDTH = 320;
@@ -77,8 +79,8 @@ export function ChatShell() {
   const { client, logout } = useMatrix();
   const { preferences, setPreference } = usePreferences();
   const roomGroups = useRoomGroups(client);
-  const [activeRoomId, setActiveRoomId] = useState<string | null>(
-    () => window.localStorage.getItem(ACTIVE_ROOM_STORAGE_KEY),
+  const [activeRoomId, setActiveRoomId] = useState<string | null>(() =>
+    resolveInitialActiveRoomId(ACTIVE_ROOM_STORAGE_KEY),
   );
   const [forwarding, setForwarding] = useState<MatrixForwardData[] | null>(null);
   const [lightbox, setLightbox] = useState<string | null>(null);
@@ -123,6 +125,7 @@ export function ChatShell() {
     [roomGroups.channels, roomGroups.dms, roomGroups.favourites],
   );
   const allRoomIds = useMemo(() => allRooms.map((room) => room.id), [allRooms]);
+  useChatRoomUrl({ client, activeRoomId, setActiveRoomId, knownRoomIds: allRoomIds });
   usePreloadTimelineMessages(client, allRoomIds);
   const spaceNavigation = useSpaceNavigation(roomGroups, activeSpaceId, setActiveSpaceId);
   const roomSettings = useRoomSettings({ client });
