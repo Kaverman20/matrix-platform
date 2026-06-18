@@ -40,6 +40,7 @@ function setup(overrides: Record<string, unknown> = {}) {
     clearComposerMode: vi.fn(),
     startForward: vi.fn(),
     focusPinnedMessage: vi.fn(),
+    resolveSpaceForRoom: vi.fn(() => null),
     ...overrides,
   };
 
@@ -57,9 +58,19 @@ describe("useChatNavigation", () => {
     act(() => result.current.selectRoom("!next:server"));
 
     expect(options.setActiveRoomId).toHaveBeenCalledWith("!next:server");
+    expect(options.resolveSpaceForRoom).toHaveBeenCalledWith("!next:server");
+    expect(options.setActiveSpaceId).toHaveBeenCalledWith(null);
     expect(options.setRightPanelSection).toHaveBeenCalledWith("overview");
     expect(options.setActiveThreadRootId).toHaveBeenCalledWith(null);
     expect(options.clearComposerMode).toHaveBeenCalledTimes(1);
+  });
+
+  it("selectRoom auto-switches to the room parent space", () => {
+    const resolveSpaceForRoom = vi.fn(() => "!space:server");
+    const { result, options } = setup({ resolveSpaceForRoom });
+    act(() => result.current.selectRoom("!next:server"));
+
+    expect(options.setActiveSpaceId).toHaveBeenCalledWith("!space:server");
   });
 
   it("closeActiveRoom clears the open room and side state", () => {

@@ -2,9 +2,10 @@ import { useEffect, useRef, useState } from "react";
 import type { MatrixForwardData, MatrixMessage, MatrixMessageReference } from "@matrix-platform/matrix-core";
 import type { RightPanelSection } from "../features/room-settings/RoomRightPanel";
 import type { usePreferences } from "../features/settings/usePreferences";
-import { resolveInitialActiveRoomId } from "./chatUrl";
+import { resolveInitialActiveRoomId, resolveInitialActiveSpaceId } from "./chatUrl";
 
 export const ACTIVE_ROOM_STORAGE_KEY = "surf-chat:active-room";
+export const ACTIVE_SPACE_STORAGE_KEY = "surf-chat:active-space";
 
 export type ChatView = "flat" | "bubbles";
 
@@ -25,7 +26,9 @@ export function useChatShellState(preferences: ReturnType<typeof usePreferences>
   const [chatView, setChatView] = useState<ChatView>(() => preferences.defaultChatView);
   const [showRightPanel, setShowRightPanel] = useState(false);
   const [rightPanelSection, setRightPanelSection] = useState<RightPanelSection>("overview");
-  const [activeSpaceId, setActiveSpaceId] = useState<string | null>(null);
+  const [activeSpaceId, setActiveSpaceId] = useState<string | null>(() =>
+    resolveInitialActiveSpaceId(ACTIVE_SPACE_STORAGE_KEY),
+  );
   const [activeThreadRootId, setActiveThreadRootId] = useState<string | null>(null);
   const [showThreadsList, setShowThreadsList] = useState(false);
   const [showAllThreads, setShowAllThreads] = useState(false);
@@ -46,6 +49,14 @@ export function useChatShellState(preferences: ReturnType<typeof usePreferences>
       window.localStorage.removeItem(ACTIVE_ROOM_STORAGE_KEY);
     }
   }, [activeRoomId]);
+
+  useEffect(() => {
+    if (activeSpaceId) {
+      window.localStorage.setItem(ACTIVE_SPACE_STORAGE_KEY, activeSpaceId);
+    } else {
+      window.localStorage.removeItem(ACTIVE_SPACE_STORAGE_KEY);
+    }
+  }, [activeSpaceId]);
 
   useEffect(() => {
     const timer = highlightTimerRef.current;

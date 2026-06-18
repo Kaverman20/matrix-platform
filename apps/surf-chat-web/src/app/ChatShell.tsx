@@ -6,6 +6,7 @@ import {
   canPinMessages as canPinMessagesInRoom,
   canPaginateBackwards,
   deleteMessage,
+  findSpaceIdForRoom,
   getPinnedEventIds,
   loadRoomThreads,
   markReadUpToEvent,
@@ -64,7 +65,7 @@ import { useIncomingCall } from "../features/calls/useIncomingCall";
 import { useRoomCall } from "../features/calls/useRoomCall";
 import { SettingsPage } from "../features/settings/SettingsModal";
 import { usePreferences } from "../features/settings/usePreferences";
-import { useChatRoomUrl } from "./useChatRoomUrl";
+import { useChatUrl } from "./useChatUrl";
 import { useChatShellKeyboard } from "./useChatShellKeyboard";
 import { useChatShellState } from "./useChatShellState";
 import { useDeepLink } from "./useDeepLink";
@@ -125,7 +126,15 @@ export function ChatShell() {
     [roomGroups.channels, roomGroups.dms, roomGroups.favourites],
   );
   const allRoomIds = useMemo(() => allRooms.map((room) => room.id), [allRooms]);
-  useChatRoomUrl({ client, activeRoomId, setActiveRoomId, knownRoomIds: allRoomIds });
+  useChatUrl({
+    client,
+    activeRoomId,
+    setActiveRoomId,
+    activeSpaceId,
+    setActiveSpaceId,
+    spaces: roomGroups.spaces,
+    knownRoomIds: allRoomIds,
+  });
   usePreloadTimelineMessages(client, allRoomIds);
   const spaceNavigation = useSpaceNavigation(roomGroups, activeSpaceId, setActiveSpaceId);
   const roomSettings = useRoomSettings({ client });
@@ -153,6 +162,10 @@ export function ChatShell() {
     highlightTimerRef.current = window.setTimeout(() => setHighlightMessageId(null), 1700);
   }, [highlightTimerRef, setHighlightMessageId]);
   const clearMessageMenu = useCallback(() => setMessageMenu(null), [setMessageMenu]);
+  const resolveSpaceForRoom = useCallback(
+    (roomId: string) => findSpaceIdForRoom(roomGroups.spaces, roomId),
+    [roomGroups.spaces],
+  );
   const chatNavigation = useChatNavigation({
     client,
     activeRoomId,
@@ -173,6 +186,7 @@ export function ChatShell() {
     clearComposerMode,
     startForward: composerMode.startForward,
     focusPinnedMessage,
+    resolveSpaceForRoom,
   });
   useDeepLink(client, chatNavigation.selectRoom);
   useChatShellKeyboard({ state: shell, activeRoom, chatNavigation, composerRef });

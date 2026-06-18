@@ -26,6 +26,7 @@ type Options = {
   clearComposerMode: () => void;
   startForward: (items: MatrixForwardData[]) => void;
   focusPinnedMessage: (messageId: string) => void;
+  resolveSpaceForRoom: (roomId: string) => string | null;
 };
 
 export function useChatNavigation({
@@ -48,6 +49,7 @@ export function useChatNavigation({
   clearComposerMode,
   startForward,
   focusPinnedMessage,
+  resolveSpaceForRoom,
 }: Options) {
   const resetRoomView = useCallback(() => {
     setRightPanelSection("overview");
@@ -67,12 +69,14 @@ export function useChatNavigation({
 
   const selectRoom = useCallback((roomId: string) => {
     setActiveRoomId(roomId);
+    setActiveSpaceId(resolveSpaceForRoom(roomId));
     resetRoomView();
     clearComposerMode();
-  }, [clearComposerMode, resetRoomView, setActiveRoomId]);
+  }, [clearComposerMode, resetRoomView, resolveSpaceForRoom, setActiveRoomId, setActiveSpaceId]);
 
   const openThreadFromGlobal = useCallback((roomId: string, rootId: string) => {
     setActiveRoomId(roomId);
+    setActiveSpaceId(resolveSpaceForRoom(roomId));
     resetRoomView();
     setShowAllThreads(false);
     clearComposerMode();
@@ -82,7 +86,9 @@ export function useChatNavigation({
     clearComposerMode,
     focusPinnedMessage,
     resetRoomView,
+    resolveSpaceForRoom,
     setActiveRoomId,
+    setActiveSpaceId,
     setActiveThreadRootId,
     setShowAllThreads,
   ]);
@@ -90,6 +96,7 @@ export function useChatNavigation({
   const selectForwardRoom = useCallback((roomId: string) => {
     if (!forwarding?.length) return;
     setActiveRoomId(roomId);
+    setActiveSpaceId(resolveSpaceForRoom(roomId));
     setPinnedIndex(0);
     setHighlightMessageId(null);
     setOptimisticPinnedIds(null);
@@ -103,6 +110,8 @@ export function useChatNavigation({
     setOptimisticPinnedIds,
     setPinnedIndex,
     startForward,
+    resolveSpaceForRoom,
+    setActiveSpaceId,
   ]);
 
   const leaveRoom = useCallback(async (roomId: string) => {

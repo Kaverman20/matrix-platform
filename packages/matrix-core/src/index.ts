@@ -22,6 +22,7 @@ export * from "./rooms/colors";
 export * from "./rooms/deepLink";
 export * from "./rooms/createRoom";
 export * from "./rooms/favourites";
+export * from "./rooms/findSpaceForRoom";
 export * from "./rooms/mapRooms";
 export * from "./rooms/pinned";
 export * from "./rooms/roomTypes";
