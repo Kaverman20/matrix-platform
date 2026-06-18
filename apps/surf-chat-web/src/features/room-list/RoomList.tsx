@@ -4,7 +4,7 @@ import { Boxes, ChevronDown, ChevronLeft, ChevronRight, Hash, LogOut, MessageCir
 import type { MatrixRoomSummary, MatrixSpaceSummary } from "@matrix-platform/matrix-core";
 import { fadeUp, transition } from "@matrix-platform/ui";
 import { AuthedImage } from "../media/AuthedImage";
-import { useTimeFormatter } from "../settings/usePreferences";
+import { useRoomListTimeFormatter } from "../settings/usePreferences";
 import "./room-list.css";
 
 type Props = {
@@ -531,7 +531,7 @@ function RoomSection({
   addLabel,
   onOpenRowMenu,
 }: SectionProps) {
-  const formatTime = useTimeFormatter();
+  const formatTime = useRoomListTimeFormatter();
   if (rooms.length === 0 && !onAdd) return null;
   if (collapsed && rooms.length === 0) return null;
   const renderRoom = (room: MatrixRoomSummary, index: number) => {

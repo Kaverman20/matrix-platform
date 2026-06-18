@@ -1,6 +1,6 @@
 import type { MatrixClient, Room } from "matrix-js-sdk";
 import { colorForId } from "./colors";
-import { formatDisplayTime } from "../time/formatTime";
+import { formatRoomListTime } from "../time/formatTime";
 import type { MatrixRoomGroups, MatrixRoomSummary, MatrixSpaceSummary } from "./roomTypes";
 
 type DirectAccountData = Record<string, string[]>;
@@ -199,8 +199,7 @@ function getSpaceChildIds(space: Room): string[] {
 
   for (const ev of events) {
     const stateKey = ev.getStateKey();
-    const content = ev.getContent() as { via?: string[] };
-    if (stateKey && Array.isArray(content.via)) childIds.push(stateKey);
+    if (stateKey) childIds.push(stateKey);
   }
 
   return childIds;
@@ -213,5 +212,5 @@ function spaceLabel(name: string): string {
 }
 
 function formatTime(timestamp: number): string {
-  return formatDisplayTime(timestamp);
+  return formatRoomListTime(timestamp);
 }

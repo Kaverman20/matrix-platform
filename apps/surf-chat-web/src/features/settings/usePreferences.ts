@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
-import { formatDisplayTime } from "@matrix-platform/matrix-core";
+import { formatDisplayTime, formatRoomListTime } from "@matrix-platform/matrix-core";
 import {
   isDarkPreset,
   normalizeThemePreset,
@@ -223,6 +223,16 @@ export function usePreferences(): PreferencesStore {
   const ctx = useContext(PreferencesContext);
   if (!ctx) throw new Error("usePreferences must be used within PreferencesProvider");
   return ctx;
+}
+
+/** Formats a sidebar row timestamp with relative day labels. */
+export function useRoomListTimeFormatter(): (timestamp: number) => string {
+  const { preferences } = usePreferences();
+  return useCallback(
+    (timestamp: number) =>
+      formatRoomListTime(timestamp, { hour24: preferences.use24HourTime }),
+    [preferences.use24HourTime],
+  );
 }
 
 /** Formats a timestamp as HH:MM honouring the current 12/24-hour preference.
