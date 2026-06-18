@@ -1,5 +1,7 @@
 import { EventType, RelationType, RoomEvent, type MatrixClient, type MatrixEvent } from "matrix-js-sdk";
 
+import { isPendingRingId } from "./incomingRing";
+
 /** Custom decline reason — not in MSC4310 yet; Surf Chat clients read this. */
 export const RTC_DECLINE_REASON_KEY = "run.foxhound.decline_reason";
 
@@ -17,6 +19,7 @@ export async function declineIncomingCall(
   notificationEventId: string,
   reason: DeclineReason = "declined",
 ): Promise<void> {
+  if (isPendingRingId(notificationEventId)) return;
   const content: Record<string, unknown> = {
     "m.relates_to": {
       event_id: notificationEventId,

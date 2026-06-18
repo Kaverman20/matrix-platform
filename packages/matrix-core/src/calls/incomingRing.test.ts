@@ -118,6 +118,39 @@ describe("subscribeIncomingCallSignals", () => {
 
     expect(onRingEnded).toHaveBeenCalledWith({
       roomId: "!dm:hs",
+      notificationEventId: "$ring",
     });
+  });
+
+  it("invokes onRing with a pending id when the caller joins the RTC session", () => {
+    const rtcHandlers = new Map<string, (oldM: CallMembership[], newM: CallMembership[]) => void>();
+    const session = {
+      memberships: [membership("@alice:hs")],
+      on: vi.fn((event: string, handler: (o: CallMembership[], n: CallMembership[]) => void) => {
+        rtcHandlers.set(event, handler);
+      }),
+      off: vi.fn(),
+    };
+    const client = {
+      getUserId: () => "@me:hs",
+      getRoom: () => ({ getMember: () => ({ rawDisplayName: "Alice", name: "Alice" }) }),
+      matrixRTC: { getRoomSession: () => session },
+      on: vi.fn(),
+      off: vi.fn(),
+    } as unknown as MatrixClient;
+
+    const onRing = vi.fn();
+    subscribeIncomingCallSignals(client, ["!dm:hs"], { onRing, onRingEnded: vi.fn() });
+
+    const onChanged = rtcHandlers.get(MatrixRTCSessionEvent.MembershipsChanged);
+    onChanged!([], [membership("@alice:hs")]);
+
+    expect(onRing).toHaveBeenCalledWith(
+      expect.objectContaining({
+        roomId: "!dm:hs",
+        callerId: "@alice:hs",
+        notificationEventId: "pending:!dm:hs:@alice:hs",
+      }),
+    );
   });
 });

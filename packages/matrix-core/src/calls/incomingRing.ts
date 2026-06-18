@@ -20,13 +20,57 @@ export type IncomingRingEnded = {
   roomId: string;
   /** Omitted when any incoming ring in the room should clear (e.g. rtc.decline). */
   callerId?: string;
+  /** When set, only clear if the current incoming ring matches this event id. */
+  notificationEventId?: string;
 };
+
+export const PENDING_RING_PREFIX = "pending:";
+
+export function isPendingRingId(notificationEventId: string): boolean {
+  return notificationEventId.startsWith(PENDING_RING_PREFIX);
+}
+
+export function pendingRingId(roomId: string, callerId: string): string {
+  return `${PENDING_RING_PREFIX}${roomId}:${callerId}`;
+}
 
 export type IncomingCallSignalHandlers = {
   onRing: (ring: IncomingRing) => void;
   /** Caller hung up, declined, or left the RTC session before answer. */
   onRingEnded: (ended: IncomingRingEnded) => void;
 };
+
+function callersWhoJoined(
+  previous: CallMembership[],
+  next: CallMembership[],
+  myId: string | null,
+): string[] {
+  const prevIds = activeCallerIds(previous);
+  const joined: string[] = [];
+  for (const membership of next) {
+    const callerId = membership.userId;
+    if (callerId === myId || membership.isExpired() || prevIds.has(callerId)) continue;
+    joined.push(callerId);
+  }
+  return joined;
+}
+
+function ringFromCaller(
+  client: MatrixClient,
+  roomId: string,
+  callerId: string,
+  memberships: CallMembership[],
+  notificationEventId: string,
+  expiresAt: number,
+): IncomingRing {
+  const matrixRoom = client.getRoom(roomId);
+  const member = matrixRoom?.getMember(callerId);
+  const callerName = member?.rawDisplayName ?? member?.name ?? callerId;
+  let callIntent: CallIntent = "audio";
+  const callerMembership = memberships.find((m) => m.userId === callerId);
+  if (callerMembership?.callIntent === "video") callIntent = "video";
+  return { roomId, callerId, callerName, notificationEventId, callIntent, expiresAt };
+}
 
 function activeCallerIds(memberships: CallMembership[]): Set<string> {
   const ids = new Set<string>();
@@ -81,49 +125,16 @@ function tryParseRing(
     const notificationEventId = event.getId();
     if (!notificationEventId) return null;
 
-    const matrixRoom = client.getRoom(roomId);
-    const member = matrixRoom?.getMember(sender);
-    const callerName = member?.rawDisplayName ?? member?.name ?? sender;
-
-    let callIntent: CallIntent = "audio";
-    if (matrixRoom) {
-      const session = client.matrixRTC.getRoomSession(matrixRoom);
-      const callerMembership = session.memberships.find((m) => m.userId === sender);
-      if (callerMembership?.callIntent === "video") callIntent = "video";
-    }
-
-    return {
+    return ringFromCaller(
+      client,
       roomId,
-      callerId: sender,
-      callerName,
+      sender,
+      client.getRoom(roomId) ? client.matrixRTC.getRoomSession(client.getRoom(roomId)!).memberships : [],
       notificationEventId,
-      callIntent,
       expiresAt,
-    };
+    );
   } catch {
     return null;
-  }
-}
-
-/** Catch rings that arrived before the listener was attached. */
-function scanRecentRings(
-  client: MatrixClient,
-  roomIds: readonly string[],
-  myId: string | null,
-  onRing: (ring: IncomingRing) => void,
-): void {
-  for (const roomId of roomIds) {
-    const room = client.getRoom(roomId);
-    if (!room?.getLiveTimeline) continue;
-    const events = room.getLiveTimeline().getEvents();
-    for (let i = events.length - 1; i >= 0; i -= 1) {
-      const event = events[i];
-      const ring = tryParseRing(client, event, roomId, myId);
-      if (ring) {
-        onRing(ring);
-        break;
-      }
-    }
   }
 }
 
@@ -159,7 +170,7 @@ export function subscribeIncomingCallSignals(
 
       const sender = event.getSender();
       if (!sender || sender === myId) return;
-      handlers.onRingEnded({ roomId: room.roomId });
+      handlers.onRingEnded({ roomId: room.roomId, notificationEventId: relation.event_id });
     }
   };
 
@@ -175,6 +186,19 @@ export function subscribeIncomingCallSignals(
     const onMembershipsChanged = (oldMemberships: CallMembership[], newMemberships: CallMembership[]) => {
       const ended = callersWhoLeft(roomId, oldMemberships, newMemberships, myId);
       for (const item of ended) handlers.onRingEnded(item);
+
+      for (const callerId of callersWhoJoined(oldMemberships, newMemberships, myId)) {
+        handlers.onRing(
+          ringFromCaller(
+            client,
+            roomId,
+            callerId,
+            newMemberships,
+            pendingRingId(roomId, callerId),
+            Date.now() + 30_000,
+          ),
+        );
+      }
     };
 
     session.on(MatrixRTCSessionEvent.MembershipsChanged, onMembershipsChanged);
@@ -182,8 +206,6 @@ export function subscribeIncomingCallSignals(
       session.off(MatrixRTCSessionEvent.MembershipsChanged, onMembershipsChanged);
     });
   }
-
-  scanRecentRings(client, dmRoomIds, myId, handlers.onRing);
 
   return () => {
     for (const cleanup of cleanups) cleanup();

@@ -8,7 +8,7 @@ import {
   leaveCall,
   sendCallSummary,
   subscribePeerDeclined,
-  userHasActiveRtcMembership,
+  userIsInActiveCall,
   type CallIntent,
 } from "@matrix-platform/matrix-core";
 import { fetchLiveKitCredentials } from "./fetchLiveKitJwt";
@@ -179,7 +179,7 @@ export function useRoomCall(client: MatrixClient | null, roomId: string | null):
 
       if (isOutgoing) {
         const peerId = getDmPeerUserId(client, targetRoomId);
-        if (peerId && userHasActiveRtcMembership(client, peerId)) {
+        if (peerId && userIsInActiveCall(client, peerId)) {
           outgoingRef.current = true;
           callRoomIdRef.current = targetRoomId;
           callIntentRef.current = options?.intent ?? "audio";

@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { MatrixClient } from "matrix-js-sdk";
 import {
   declineIncomingCall,
+  isPendingRingId,
   subscribeIncomingCallSignals,
   type IncomingRing,
   type IncomingRingEnded,
@@ -10,6 +11,21 @@ import type { CallStatus } from "./useRoomCall";
 import { startRingtone } from "./ringtone";
 
 export type IncomingCall = IncomingRing;
+
+function ringKey(ring: IncomingRing): string {
+  return `${ring.roomId}:${ring.callerId}`;
+}
+
+function shouldClearIncoming(current: IncomingCall, ended: IncomingRingEnded): boolean {
+  if (current.roomId !== ended.roomId) return false;
+  if (ended.callerId && current.callerId !== ended.callerId) return false;
+  if (ended.notificationEventId) {
+    if (current.notificationEventId === ended.notificationEventId) return true;
+    if (isPendingRingId(current.notificationEventId)) return true;
+    return false;
+  }
+  return true;
+}
 
 /**
  * Listens for MatrixRTC ring notifications in DM rooms and surfaces a floating
@@ -22,54 +38,106 @@ export function useIncomingCall(
   callStatus: CallStatus,
 ): { incoming: IncomingCall | null; dismiss: () => void; decline: (ring: IncomingCall) => Promise<void> } {
   const [incoming, setIncoming] = useState<IncomingCall | null>(null);
+  const callStatusRef = useRef(callStatus);
+  useEffect(() => {
+    callStatusRef.current = callStatus;
+  }, [callStatus]);
 
-  const dismiss = useCallback(() => setIncoming(null), []);
+  const handledRingsRef = useRef(new Set<string>());
+
+  const markHandled = useCallback((ring: IncomingCall | null) => {
+    if (!ring) return;
+    handledRingsRef.current.add(ring.notificationEventId);
+    handledRingsRef.current.add(ringKey(ring));
+  }, []);
+
+  const dismiss = useCallback(() => {
+    setIncoming((current) => {
+      markHandled(current);
+      return null;
+    });
+  }, [markHandled]);
 
   const decline = useCallback(
     async (ring: IncomingCall) => {
       if (!client) return;
+      markHandled(ring);
       try {
-        await declineIncomingCall(client, ring.roomId, ring.notificationEventId, "declined");
+        if (!isPendingRingId(ring.notificationEventId)) {
+          await declineIncomingCall(client, ring.roomId, ring.notificationEventId, "declined");
+        }
       } finally {
         setIncoming(null);
       }
     },
-    [client],
+    [client, markHandled],
   );
 
-  const clearIfMatches = useCallback((ended: IncomingRingEnded) => {
-    setIncoming((current) => {
-      if (!current || current.roomId !== ended.roomId) return current;
-      if (ended.callerId && current.callerId !== ended.callerId) return current;
-      return null;
-    });
-  }, []);
+  const clearIfMatches = useCallback(
+    (ended: IncomingRingEnded) => {
+      setIncoming((current) => {
+        if (!current || !shouldClearIncoming(current, ended)) return current;
+        markHandled(current);
+        return null;
+      });
+    },
+    [markHandled],
+  );
+
+  const acceptRing = useCallback(
+    (ring: IncomingRing) => {
+      const key = ringKey(ring);
+      if (handledRingsRef.current.has(ring.notificationEventId) || handledRingsRef.current.has(key)) {
+        return;
+      }
+
+      if (callStatusRef.current !== "idle") {
+        handledRingsRef.current.add(ring.notificationEventId);
+        handledRingsRef.current.add(key);
+        if (!isPendingRingId(ring.notificationEventId)) {
+          void declineIncomingCall(client!, ring.roomId, ring.notificationEventId, "busy");
+        }
+        return;
+      }
+
+      setIncoming((current) => {
+        if (current && current.roomId === ring.roomId && current.callerId === ring.callerId) {
+          if (isPendingRingId(current.notificationEventId) && !isPendingRingId(ring.notificationEventId)) {
+            return ring;
+          }
+          return current;
+        }
+        return ring;
+      });
+    },
+    [client],
+  );
 
   useEffect(() => {
     if (!client) return;
     return subscribeIncomingCallSignals(client, dmRoomIds, {
-      onRing: (ring) => {
-        if (callStatus !== "idle") {
-          void declineIncomingCall(client, ring.roomId, ring.notificationEventId, "busy");
-          return;
-        }
-        setIncoming(ring);
-      },
+      onRing: acceptRing,
       onRingEnded: clearIfMatches,
     });
-  }, [callStatus, clearIfMatches, client, dmRoomIds]);
+  }, [acceptRing, clearIfMatches, client, dmRoomIds]);
 
   useEffect(() => {
     if (!incoming) return;
     const remaining = Math.max(0, incoming.expiresAt - Date.now());
-    const timer = window.setTimeout(() => setIncoming(null), remaining);
+    const timer = window.setTimeout(() => {
+      setIncoming((current) => {
+        if (current?.notificationEventId === incoming.notificationEventId) {
+          markHandled(current);
+          return null;
+        }
+        return current;
+      });
+    }, remaining);
     return () => window.clearTimeout(timer);
-  }, [incoming]);
+  }, [incoming, markHandled]);
 
   const visibleIncoming = incoming && callStatus === "idle" ? incoming : null;
 
-  // Ringtone while the incoming window is shown — stops on answer (status leaves
-  // idle), decline/dismiss/cancel (incoming cleared), or ring expiry.
   const ringActive = Boolean(visibleIncoming);
   useEffect(() => {
     if (!ringActive) return;
