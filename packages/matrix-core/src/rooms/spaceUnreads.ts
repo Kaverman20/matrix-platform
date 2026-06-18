@@ -35,15 +35,16 @@ function findTopLevelSpaceId(
   return current && topLevelIds.has(current) ? current : null;
 }
 
-/** Sums room unreads onto their top-level space rail ancestor. */
-export function computeTopLevelSpaceUnreads(
+function aggregateTopLevelSpaceCounts(
   spaces: readonly MatrixSpaceSummary[],
   roomGroups: Pick<MatrixRoomGroups, "favourites" | "channels" | "dms">,
+  pickCount: (room: MatrixRoomSummary) => number,
 ): Readonly<Record<string, number>> {
   const counts: Record<string, number> = {};
 
   for (const room of collectAllRooms(roomGroups)) {
-    if (room.unread <= 0) continue;
+    const amount = pickCount(room);
+    if (amount <= 0) continue;
 
     const spaceId = findSpaceIdForRoom(spaces, room.id);
     if (!spaceId) continue;
@@ -51,23 +52,53 @@ export function computeTopLevelSpaceUnreads(
     const topLevelId = findTopLevelSpaceId(spaces, spaceId);
     if (!topLevelId) continue;
 
-    counts[topLevelId] = (counts[topLevelId] ?? 0) + room.unread;
+    counts[topLevelId] = (counts[topLevelId] ?? 0) + amount;
   }
 
   return counts;
+}
+
+function sumRoomCounts(
+  roomGroups: Pick<MatrixRoomGroups, "favourites" | "channels" | "dms">,
+  pickCount: (room: MatrixRoomSummary) => number,
+  filter?: (room: MatrixRoomSummary) => boolean,
+): number {
+  let total = 0;
+  for (const room of collectAllRooms(roomGroups)) {
+    if (filter && !filter(room)) continue;
+    total += pickCount(room);
+  }
+  return total;
+}
+
+/** Sums room unreads onto their top-level space rail ancestor. */
+export function computeTopLevelSpaceUnreads(
+  spaces: readonly MatrixSpaceSummary[],
+  roomGroups: Pick<MatrixRoomGroups, "favourites" | "channels" | "dms">,
+): Readonly<Record<string, number>> {
+  return aggregateTopLevelSpaceCounts(spaces, roomGroups, (room) => room.unread);
+}
+
+/** Sums mention/highlight unreads onto their top-level space rail ancestor. */
+export function computeTopLevelSpaceMentions(
+  spaces: readonly MatrixSpaceSummary[],
+  roomGroups: Pick<MatrixRoomGroups, "favourites" | "channels" | "dms">,
+): Readonly<Record<string, number>> {
+  return aggregateTopLevelSpaceCounts(spaces, roomGroups, (room) => room.mentions);
 }
 
 /** Sums unread counts across all direct-message rooms. */
 export function computeDmUnreads(
   roomGroups: Pick<MatrixRoomGroups, "favourites" | "channels" | "dms">,
 ): number {
-  let total = 0;
-  for (const room of collectAllRooms(roomGroups)) {
-    if (room.kind === "dm") {
-      total += room.unread;
-    }
-  }
-  return total;
+  return sumRoomCounts(roomGroups, (room) => room.unread, (room) => room.kind === "dm");
+}
+
+/** Sums mention/highlight counts across all direct-message rooms. */
+export function computeDmMentions(
+  roomGroups: Pick<MatrixRoomGroups, "favourites" | "channels" | "dms">,
+): number {
+  return sumRoomCounts(roomGroups, (room) => room.mentions, (room) => room.kind === "dm");
 }
 
 /** Compact badge label for sidebar / rail unread counts. */

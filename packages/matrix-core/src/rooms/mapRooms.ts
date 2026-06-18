@@ -1,4 +1,5 @@
 import type { MatrixClient, Room } from "matrix-js-sdk";
+import { NotificationCountType } from "matrix-js-sdk";
 import { colorForId } from "./colors";
 import { formatRoomListTime } from "../time/formatTime";
 import type { MatrixRoomGroups, MatrixRoomSummary, MatrixSpaceSummary } from "./roomTypes";
@@ -65,6 +66,7 @@ function mapRoom(
     color: colorForId(room.roomId),
     avatarUrl: getRoomAvatarUrl(room, client, isDm),
     unread: room.getUnreadNotificationCount() ?? 0,
+    mentions: room.getUnreadNotificationCount(NotificationCountType.Highlight) ?? 0,
     kind: isDm ? "dm" : "channel",
     favourite: Boolean(favTag),
     favouriteOrder: typeof favTag?.order === "number" ? favTag.order : 0,

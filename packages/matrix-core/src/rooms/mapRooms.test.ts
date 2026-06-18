@@ -54,7 +54,7 @@ function fakeChannelRoom(opts: { roomId: string; lastTs: number }): Room {
     tags: undefined,
     getMyMembership: () => "join",
     isSpaceRoom: () => false,
-    getUnreadNotificationCount: () => 0,
+    getUnreadNotificationCount: (type?: string) => (type === "highlight" ? 0 : 0),
     getInvitedAndJoinedMemberCount: () => 3,
     getCanonicalAlias: () => "#general:server",
     getLastActiveTimestamp: () => opts.lastTs,

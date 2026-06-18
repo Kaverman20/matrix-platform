@@ -749,6 +749,10 @@
   background: transparent;
 }
 
+.room-row--mentioned .room-row__top strong {
+  font-weight: 800;
+}
+
 .room-row__bg {
   position: absolute;
   inset: 0;
@@ -985,6 +989,10 @@
   font-size: 11px;
   line-height: 18px;
   box-shadow: 0 0 0 2px var(--color-bg-subtle);
+}
+
+.room-row__badge--mention {
+  background: #e05252;
 }
 
 .room-list__tip {

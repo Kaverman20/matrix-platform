@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { computeDmUnreads, computeTopLevelSpaceUnreads, formatUnreadCount } from "./spaceUnreads";
+import {
+  computeDmMentions,
+  computeDmUnreads,
+  computeTopLevelSpaceMentions,
+  computeTopLevelSpaceUnreads,
+  formatUnreadCount,
+} from "./spaceUnreads";
 import type { MatrixRoomGroups, MatrixRoomSummary, MatrixSpaceSummary } from "./roomTypes";
 
 function space(
@@ -19,7 +25,7 @@ function space(
   };
 }
 
-function room(id: string, unread: number): MatrixRoomSummary {
+function room(id: string, unread: number, mentions = 0): MatrixRoomSummary {
   return {
     id,
     name: id,
@@ -28,6 +34,7 @@ function room(id: string, unread: number): MatrixRoomSummary {
     timestamp: 0,
     color: "#000",
     unread,
+    mentions,
     kind: "channel",
     favourite: false,
     favouriteOrder: 0,
@@ -74,10 +81,22 @@ describe("computeTopLevelSpaceUnreads", () => {
     const groups = {
       favourites: [],
       channels: [room("!orphan:hs", 7)],
-      dms: [{ ...room("!dm:hs", 2), kind: "dm" as const }],
+      dms: [{ ...room("!dm:hs", 2, 1), kind: "dm" as const }],
     };
     expect(computeTopLevelSpaceUnreads([], groups)).toEqual({});
     expect(computeDmUnreads(groups)).toBe(2);
+    expect(computeDmMentions(groups)).toBe(1);
+  });
+
+  it("aggregates mention counts separately from unreads", () => {
+    const groups = {
+      favourites: [],
+      channels: [room("!general:hs", 0, 2), room("!random:hs", 5, 0)],
+      dms: [],
+    };
+    const spaces = [space("!team:hs", ["!general:hs", "!random:hs"])];
+    expect(computeTopLevelSpaceUnreads(spaces, groups)).toEqual({ "!team:hs": 5 });
+    expect(computeTopLevelSpaceMentions(spaces, groups)).toEqual({ "!team:hs": 2 });
   });
 });
 

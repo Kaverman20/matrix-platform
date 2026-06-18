@@ -140,6 +140,10 @@
   z-index: 1;
 }
 
+.space-rail__badge--mention {
+  background: #e05252;
+}
+
 .space-rail__account {
   color: var(--color-rail-text);
   background: var(--color-rail-item-hover);

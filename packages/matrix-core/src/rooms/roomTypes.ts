@@ -9,6 +9,8 @@ export type MatrixRoomSummary = {
   color: string;
   avatarUrl?: string;
   unread: number;
+  /** Unread highlight notifications (mentions, keywords, etc.). */
+  mentions: number;
   kind: MatrixRoomKind;
   favourite: boolean;
   favouriteOrder: number;

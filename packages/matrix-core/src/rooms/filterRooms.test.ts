@@ -11,6 +11,7 @@ function room(overrides: Partial<MatrixRoomSummary> = {}): MatrixRoomSummary {
     timestamp: 1,
     color: "#000",
     unread: 0,
+    mentions: 0,
     kind: "channel",
     favourite: false,
     favouriteOrder: 0,

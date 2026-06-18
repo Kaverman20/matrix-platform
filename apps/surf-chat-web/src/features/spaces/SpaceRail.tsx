@@ -1,5 +1,8 @@
-import { MessageCircle, MessagesSquare, Plus } from "lucide-react";
-import { formatUnreadCount, type MatrixSpaceSummary } from "@matrix-platform/matrix-core";
+import { Home, MessageCircle, MessagesSquare, Plus } from "lucide-react";
+import {
+  formatUnreadCount,
+  type MatrixSpaceSummary,
+} from "@matrix-platform/matrix-core";
 import type { SidebarView } from "../../app/chatUrl";
 import { HelpMenu } from "../help/HelpMenu";
 import { AuthedImage } from "../media/AuthedImage";
@@ -8,7 +11,9 @@ import "./space-rail.css";
 type Props = {
   spaces: MatrixSpaceSummary[];
   spaceUnreads: Readonly<Record<string, number>>;
+  spaceMentions: Readonly<Record<string, number>>;
   dmUnreads: number;
+  dmMentions: number;
   sidebarView: SidebarView;
   activeSpaceId: string | null;
   onSelectHome: () => void;
@@ -23,7 +28,9 @@ type Props = {
 export function SpaceRail({
   spaces,
   spaceUnreads,
+  spaceMentions,
   dmUnreads,
+  dmMentions,
   sidebarView,
   activeSpaceId,
   onSelectHome,
@@ -34,25 +41,29 @@ export function SpaceRail({
   onOpenSettings,
   onLogout,
 }: Props) {
-  const dmBadge = sidebarView !== "dms" && dmUnreads > 0 ? formatUnreadCount(dmUnreads) : "";
+  const dmBadge = sidebarView !== "dms"
+    ? railBadgeLabel(dmMentions, dmUnreads)
+    : "";
 
   return (
     <nav className="space-rail">
       <button
         className={`space-rail__home${sidebarView === "home" ? " is-active" : ""}`}
         title="Все чаты"
+        aria-label="Все чаты"
         onClick={onSelectHome}
       >
         {sidebarView === "home" && <span className="space-rail__indicator" />}
-        S
+        <Home size={22} />
       </button>
       <button
         className={`space-rail__item space-rail__item--dms${sidebarView === "dms" ? " is-active" : ""}`}
-        title={dmBadge ? `Личные сообщения (${dmUnreads} непрочитанных)` : "Личные сообщения"}
+        title={dmBadge ? `Личные сообщения (${dmBadge})` : "Личные сообщения"}
+        aria-label="Личные сообщения"
         onClick={onSelectDms}
       >
         {sidebarView === "dms" && <span className="space-rail__indicator" />}
-        {dmBadge && <span className="space-rail__badge">{dmBadge}</span>}
+        <RailBadge mentions={dmMentions} unread={dmUnreads} active={sidebarView === "dms"} />
         <MessageCircle size={22} />
       </button>
       <div className="space-rail__spaces">
@@ -61,6 +72,7 @@ export function SpaceRail({
             key={space.id}
             space={space}
             unread={spaceUnreads[space.id] ?? 0}
+            mentions={spaceMentions[space.id] ?? 0}
             active={sidebarView === "space" && activeSpaceId === space.id}
             onSelect={() => onSelectSpace(space.id)}
           />
@@ -90,27 +102,66 @@ export function SpaceRail({
 function SpaceRailItem({
   space,
   unread,
+  mentions,
   active,
   onSelect,
 }: {
   space: MatrixSpaceSummary;
   unread: number;
+  mentions: number;
   active: boolean;
   onSelect: () => void;
 }) {
-  const badge = !active && unread > 0 ? formatUnreadCount(unread) : "";
+  const badge = !active ? railBadgeLabel(mentions, unread) : "";
 
   return (
     <button
       className={`space-rail__item${active ? " is-active" : ""}`}
       style={{ background: space.color }}
-      title={badge ? `${space.name} (${unread} непрочитанных)` : space.name}
+      title={badge ? `${space.name} (${badge})` : space.name}
+      aria-label={space.name}
       onClick={onSelect}
     >
       {active && <span className="space-rail__indicator" />}
-      {badge && <span className="space-rail__badge">{badge}</span>}
+      <RailBadge mentions={mentions} unread={unread} active={active} />
       {space.label}
       <AuthedImage url={space.avatarUrl} className="space-rail__avatar" />
     </button>
   );
+}
+
+function RailBadge({
+  mentions,
+  unread,
+  active,
+}: {
+  mentions: number;
+  unread: number;
+  active: boolean;
+}) {
+  if (active) return null;
+
+  if (mentions > 0) {
+    return (
+      <span className="space-rail__badge space-rail__badge--mention">
+        {formatUnreadCount(mentions)}
+      </span>
+    );
+  }
+
+  if (unread > 0) {
+    return <span className="space-rail__badge">{formatUnreadCount(unread)}</span>;
+  }
+
+  return null;
+}
+
+function railBadgeLabel(mentions: number, unread: number): string {
+  if (mentions > 0) {
+    return `${mentions} упоминаний`;
+  }
+  if (unread > 0) {
+    return `${unread} непрочитанных`;
+  }
+  return "";
 }

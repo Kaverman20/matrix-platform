@@ -27,6 +27,7 @@ function makeRoom(overrides: Partial<MatrixRoomSummary> = {}): MatrixRoomSummary
     timestamp: 1_700_000_000_000,
     color: "#2f6f6d",
     unread: 0,
+    mentions: 0,
     kind: "channel",
     favourite: false,
     favouriteOrder: 0,

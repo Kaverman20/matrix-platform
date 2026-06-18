@@ -1,15 +1,20 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion, Reorder } from "framer-motion";
 import { Boxes, ChevronDown, ChevronLeft, ChevronRight, Hash, Loader2, LogOut, MessageCircle, MoreHorizontal, PanelLeftClose, PanelLeftOpen, Plus, Search, Settings, Star, UserPlus } from "lucide-react";
 import type { MatrixRoomSummary, MatrixSpaceSummary, UserDirectoryEntry } from "@matrix-platform/matrix-core";
-import { colorForId, filterRoomSummaries } from "@matrix-platform/matrix-core";
+import { colorForId, filterRoomSummaries, formatUnreadCount } from "@matrix-platform/matrix-core";
 import { fadeUp, transition } from "@matrix-platform/ui";
 import type { SidebarView } from "../../app/chatUrl";
 import { useMatrix } from "../../app/providers/MatrixContext";
 import { AuthedImage } from "../media/AuthedImage";
 import { useRoomListTimeFormatter } from "../settings/usePreferences";
+import { searchShortcutLabel } from "./searchShortcut";
 import { useSidebarUserSearch } from "./useSidebarUserSearch";
 import "./room-list.css";
+
+export type RoomListHandle = {
+  focusSearch: () => void;
+};
 
 type Props = {
   favourites: MatrixRoomSummary[];
@@ -37,7 +42,7 @@ type Props = {
   onLeaveRoom: (roomId: string) => void;
 };
 
-export function RoomList({
+export const RoomList = forwardRef<RoomListHandle, Props>(function RoomList({
   favourites,
   channels,
   dms,
@@ -61,9 +66,25 @@ export function RoomList({
   onLeaveSpace,
   onOpenSettings,
   onLeaveRoom,
-}: Props) {
+}, ref) {
   const { client } = useMatrix();
   const [query, setQuery] = useState("");
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const searchPlaceholder = useMemo(
+    () => `Комнаты и люди (${searchShortcutLabel()})`,
+    [],
+  );
+
+  useImperativeHandle(ref, () => ({
+    focusSearch: () => {
+      if (collapsed) onToggleCollapsed();
+      window.requestAnimationFrame(() => {
+        const input = searchInputRef.current;
+        input?.focus();
+        input?.select();
+      });
+    },
+  }), [collapsed, onToggleCollapsed]);
   const [tip, setTip] = useState<{ left: number; text: string; top: number } | null>(null);
   const [favouriteOrderIds, setFavouriteOrderIds] = useState<string[]>([]);
   const [spaceMenuOpen, setSpaceMenuOpen] = useState(false);
@@ -286,9 +307,17 @@ export function RoomList({
             <label className="room-list__search">
               <Search size={16} />
               <input
+                ref={searchInputRef}
                 value={query}
-                placeholder="Комнаты и люди"
+                placeholder={searchPlaceholder}
+                aria-label="Поиск комнат и людей"
                 onChange={(event) => setQuery(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Escape" && query) {
+                    event.stopPropagation();
+                    setQuery("");
+                  }
+                }}
               />
             </label>
           </motion.div>
@@ -551,7 +580,7 @@ export function RoomList({
       </AnimatePresence>
     </aside>
   );
-}
+});
 
 type SectionProps = {
   title: string;
@@ -570,6 +599,28 @@ type SectionProps = {
   addLabel?: string;
   onOpenRowMenu: (room: MatrixRoomSummary, x: number, y: number) => void;
 };
+
+function RoomRowBadge({
+  mentions,
+  unread,
+  corner = false,
+}: {
+  mentions: number;
+  unread: number;
+  corner?: boolean;
+}) {
+  const mention = mentions > 0;
+  const count = mention ? mentions : unread;
+  if (count <= 0) return null;
+
+  return (
+    <span
+      className={`room-row__badge${mention ? " room-row__badge--mention" : ""}${corner ? " room-row__badge--corner" : ""}`}
+    >
+      {formatUnreadCount(count)}
+    </span>
+  );
+}
 
 function UserSearchSection({
   users,
@@ -675,7 +726,7 @@ function RoomSection({
         key={room.id}
         role="button"
         tabIndex={0}
-        className={`room-row${isActive ? " is-active" : ""}${room.favourite ? " room-row--fav" : ""}`}
+        className={`room-row${isActive ? " is-active" : ""}${room.favourite ? " room-row--fav" : ""}${room.mentions > 0 && !isActive ? " room-row--mentioned" : ""}`}
         onClick={() => onSelectRoom(room.id)}
         onContextMenu={(event) => {
           event.preventDefault();
@@ -707,7 +758,9 @@ function RoomSection({
         <span className="room-row__avatar" style={{ background: room.color }}>
           {room.kind === "channel" ? <Hash size={17} /> : room.name.slice(0, 1).toUpperCase()}
           {room.avatarUrl && <AuthedImage url={room.avatarUrl} className="room-row__avatar-img" />}
-          {collapsed && room.unread > 0 && <span className="room-row__badge room-row__badge--corner">{room.unread}</span>}
+          {collapsed && (room.mentions > 0 || room.unread > 0) && (
+            <RoomRowBadge mentions={room.mentions} unread={room.unread} corner />
+          )}
         </span>
         <span className="room-row__main">
           <span className="room-row__top">
@@ -717,7 +770,9 @@ function RoomSection({
           <span className="room-row__preview">{room.preview || room.topic || "Нет сообщений"}</span>
         </span>
         <span className="room-row__meta">
-          {!collapsed && room.unread > 0 && <span className="room-row__badge">{room.unread}</span>}
+          {!collapsed && (room.mentions > 0 || room.unread > 0) && (
+            <RoomRowBadge mentions={room.mentions} unread={room.unread} />
+          )}
           <button
             type="button"
             className="room-row__more"

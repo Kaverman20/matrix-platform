@@ -1,6 +1,8 @@
 import { useMemo } from "react";
 import {
+  computeDmMentions,
   computeDmUnreads,
+  computeTopLevelSpaceMentions,
   computeTopLevelSpaceUnreads,
   type MatrixRoomGroups,
   type MatrixSpaceSummary,
@@ -56,7 +58,13 @@ export function useSpaceNavigation(
     [roomGroups],
   );
 
+  const topLevelSpaceMentions = useMemo(
+    () => computeTopLevelSpaceMentions(roomGroups.spaces, roomGroups),
+    [roomGroups],
+  );
+
   const dmUnreads = useMemo(() => computeDmUnreads(roomGroups), [roomGroups]);
+  const dmMentions = useMemo(() => computeDmMentions(roomGroups), [roomGroups]);
 
   const subspaces = useMemo(
     () =>
@@ -108,7 +116,9 @@ export function useSpaceNavigation(
     spaceParentId,
     topLevelSpaces,
     topLevelSpaceUnreads,
+    topLevelSpaceMentions,
     dmUnreads,
+    dmMentions,
     subspaces,
     railActiveSpaceId,
     parentSpace,

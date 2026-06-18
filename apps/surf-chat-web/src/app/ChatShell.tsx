@@ -33,7 +33,7 @@ import {
   MessageContextMenu,
   type MessageAction,
 } from "../features/message-actions/MessageContextMenu";
-import { RoomList } from "../features/room-list/RoomList";
+import { RoomList, type RoomListHandle } from "../features/room-list/RoomList";
 import { useRoomGroups } from "../features/room-list/useRoomGroups";
 import { useRoomListLayout } from "../features/room-list/useRoomListLayout";
 import { RoomRightPanel } from "../features/room-settings/RoomRightPanel";
@@ -118,6 +118,7 @@ export function ChatShell() {
   } = shell;
   const roomListLayout = useRoomListLayout();
   const composerRef = useRef<ComposerHandle | null>(null);
+  const roomListRef = useRef<RoomListHandle | null>(null);
 
   const allRooms = useMemo(
     () => [
@@ -201,7 +202,7 @@ export function ChatShell() {
     resolveIsDmRoom,
   });
   useDeepLink(client, chatNavigation.selectRoom);
-  useChatShellKeyboard({ state: shell, activeRoom, chatNavigation, composerRef });
+  useChatShellKeyboard({ state: shell, activeRoom, chatNavigation, composerRef, roomListRef });
   const creation = useRoomCreation({
     client,
     activeSpaceId: spaceNavigation.effectiveActiveSpaceId,
@@ -475,7 +476,9 @@ export function ChatShell() {
       <SpaceRail
         spaces={spaceNavigation.topLevelSpaces}
         spaceUnreads={spaceNavigation.topLevelSpaceUnreads}
+        spaceMentions={spaceNavigation.topLevelSpaceMentions}
         dmUnreads={spaceNavigation.dmUnreads}
+        dmMentions={spaceNavigation.dmMentions}
         sidebarView={sidebarView}
         activeSpaceId={spaceNavigation.railActiveSpaceId}
         onSelectHome={() => {
@@ -505,6 +508,7 @@ export function ChatShell() {
         }}
       >
         <RoomList
+          ref={roomListRef}
           favourites={spaceNavigation.visibleRoomGroups.favourites}
           channels={spaceNavigation.visibleRoomGroups.channels}
           dms={spaceNavigation.visibleRoomGroups.dms}

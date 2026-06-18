@@ -1,5 +1,7 @@
 import { useEffect, useRef, type RefObject } from "react";
 import type { ComposerHandle } from "../features/composer/Composer";
+import type { RoomListHandle } from "../features/room-list/RoomList";
+import { isSearchShortcut } from "../features/room-list/searchShortcut";
 import type { useChatNavigation } from "./useChatNavigation";
 import type { ChatShellState } from "./useChatShellState";
 
@@ -10,10 +12,17 @@ type Options = {
   activeRoom: RoomSummary;
   chatNavigation: ReturnType<typeof useChatNavigation>;
   composerRef: RefObject<ComposerHandle | null>;
+  roomListRef: RefObject<RoomListHandle | null>;
 };
 
 /** Global Escape stack: overlays close one layer at a time before leaving the room. */
-export function useChatShellKeyboard({ state, activeRoom, chatNavigation, composerRef }: Options): void {
+export function useChatShellKeyboard({
+  state,
+  activeRoom,
+  chatNavigation,
+  composerRef,
+  roomListRef,
+}: Options): void {
   const activeRoomRef = useRef(activeRoom);
   const forwardingRef = useRef(state.forwarding);
   const lightboxRef = useRef(state.lightbox);
@@ -45,6 +54,12 @@ export function useChatShellKeyboard({ state, activeRoom, chatNavigation, compos
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
+      if (isSearchShortcut(event)) {
+        event.preventDefault();
+        roomListRef.current?.focusSearch();
+        return;
+      }
+
       if (event.key !== "Escape") return;
 
       if (forwardingRef.current) {
@@ -94,5 +109,5 @@ export function useChatShellKeyboard({ state, activeRoom, chatNavigation, compos
 
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [chatNavigation, composerRef, state]);
+  }, [chatNavigation, composerRef, roomListRef, state]);
 }
