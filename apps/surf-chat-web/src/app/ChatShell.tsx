@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from "framer-motion";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { pageCrossfade, transition } from "@matrix-platform/ui";
 import {
   buildForwardData,
@@ -19,10 +19,8 @@ import {
   listIncomingCallRoomIds,
   subscribePinnedEvents,
   togglePinnedEventId,
-  type MatrixForwardData,
   type MatrixMedia,
   type MatrixMessage,
-  type MatrixMessageReference,
 } from "@matrix-platform/matrix-core";
 import { useMatrix } from "./providers/MatrixContext";
 import { useChatNavigation } from "./useChatNavigation";
@@ -37,7 +35,7 @@ import {
 import { RoomList } from "../features/room-list/RoomList";
 import { useRoomGroups } from "../features/room-list/useRoomGroups";
 import { useRoomListLayout } from "../features/room-list/useRoomListLayout";
-import { RoomRightPanel, type RightPanelSection } from "../features/room-settings/RoomRightPanel";
+import { RoomRightPanel } from "../features/room-settings/RoomRightPanel";
 import { RoomSettingsModal } from "../features/room-settings/RoomSettingsModal";
 import { useRoomSettings } from "../features/room-settings/useRoomSettings";
 import { CreateModals } from "../features/spaces/CreateModals";
@@ -66,55 +64,57 @@ import { useIncomingCall } from "../features/calls/useIncomingCall";
 import { useRoomCall } from "../features/calls/useRoomCall";
 import { SettingsPage } from "../features/settings/SettingsModal";
 import { usePreferences } from "../features/settings/usePreferences";
-import { resolveInitialActiveRoomId } from "./chatUrl";
 import { useChatRoomUrl } from "./useChatRoomUrl";
+import { useChatShellKeyboard } from "./useChatShellKeyboard";
+import { useChatShellState } from "./useChatShellState";
+import { useDeepLink } from "./useDeepLink";
 import "./chat-shell.css";
 
 const RIGHT_PANEL_WIDTH = 320;
-const ACTIVE_ROOM_STORAGE_KEY = "surf-chat:active-room";
-
-type ChatView = "flat" | "bubbles";
 
 export function ChatShell() {
   const { client, logout } = useMatrix();
   const { preferences, setPreference } = usePreferences();
   const roomGroups = useRoomGroups(client);
-  const [activeRoomId, setActiveRoomId] = useState<string | null>(() =>
-    resolveInitialActiveRoomId(ACTIVE_ROOM_STORAGE_KEY),
-  );
-  const [forwarding, setForwarding] = useState<MatrixForwardData[] | null>(null);
-  const [lightbox, setLightbox] = useState<string | null>(null);
-  const [chatView, setChatView] = useState<ChatView>(() => preferences.defaultChatView);
-  const [showRightPanel, setShowRightPanel] = useState(false);
-  const [rightPanelSection, setRightPanelSection] = useState<RightPanelSection>("overview");
-  const [activeSpaceId, setActiveSpaceId] = useState<string | null>(null);
-  const [activeThreadRootId, setActiveThreadRootId] = useState<string | null>(null);
-  const [showThreadsList, setShowThreadsList] = useState(false);
-  const [showAllThreads, setShowAllThreads] = useState(false);
-  const [threadEditing, setThreadEditing] = useState<MatrixMessageReference | null>(null);
-  const [threadReplyTo, setThreadReplyTo] = useState<MatrixMessageReference | null>(null);
+  const shell = useChatShellState(preferences);
+  const {
+    activeRoomId,
+    setActiveRoomId,
+    forwarding,
+    setForwarding,
+    lightbox,
+    setLightbox,
+    chatView,
+    setChatView,
+    showRightPanel,
+    setShowRightPanel,
+    rightPanelSection,
+    setRightPanelSection,
+    activeSpaceId,
+    setActiveSpaceId,
+    activeThreadRootId,
+    setActiveThreadRootId,
+    showThreadsList,
+    setShowThreadsList,
+    showAllThreads,
+    setShowAllThreads,
+    threadEditing,
+    setThreadEditing,
+    threadReplyTo,
+    setThreadReplyTo,
+    messageMenu,
+    setMessageMenu,
+    pinnedIndex,
+    setPinnedIndex,
+    highlightMessageId,
+    setHighlightMessageId,
+    optimisticPinnedIds,
+    setOptimisticPinnedIds,
+    favouritePersistTimerRef,
+    highlightTimerRef,
+  } = shell;
   const roomListLayout = useRoomListLayout();
-  const [messageMenu, setMessageMenu] = useState<{
-    message: MatrixMessage;
-    x: number;
-    y: number;
-    source: "main" | "thread";
-  } | null>(null);
-  const [pinnedIndex, setPinnedIndex] = useState(0);
-  const [highlightMessageId, setHighlightMessageId] = useState<string | null>(null);
-  const [optimisticPinnedIds, setOptimisticPinnedIds] = useState<string[] | null>(null);
-  const favouritePersistTimer = useRef<number | null>(null);
   const composerRef = useRef<ComposerHandle | null>(null);
-  const highlightTimer = useRef<number | null>(null);
-
-
-  useEffect(() => {
-    if (activeRoomId) {
-      window.localStorage.setItem(ACTIVE_ROOM_STORAGE_KEY, activeRoomId);
-    } else {
-      window.localStorage.removeItem(ACTIVE_ROOM_STORAGE_KEY);
-    }
-  }, [activeRoomId]);
 
   const allRooms = useMemo(
     () => [
@@ -147,12 +147,12 @@ export function ChatShell() {
 
     node.scrollIntoView({ block: "center", behavior: "smooth" });
     setHighlightMessageId(messageId);
-    if (highlightTimer.current) {
-      window.clearTimeout(highlightTimer.current);
+    if (highlightTimerRef.current) {
+      window.clearTimeout(highlightTimerRef.current);
     }
-    highlightTimer.current = window.setTimeout(() => setHighlightMessageId(null), 1700);
-  }, []);
-  const clearMessageMenu = useCallback(() => setMessageMenu(null), []);
+    highlightTimerRef.current = window.setTimeout(() => setHighlightMessageId(null), 1700);
+  }, [highlightTimerRef, setHighlightMessageId]);
+  const clearMessageMenu = useCallback(() => setMessageMenu(null), [setMessageMenu]);
   const chatNavigation = useChatNavigation({
     client,
     activeRoomId,
@@ -174,6 +174,8 @@ export function ChatShell() {
     startForward: composerMode.startForward,
     focusPinnedMessage,
   });
+  useDeepLink(client, chatNavigation.selectRoom);
+  useChatShellKeyboard({ state: shell, activeRoom, chatNavigation, composerRef });
   const creation = useRoomCreation({
     client,
     activeSpaceId: spaceNavigation.effectiveActiveSpaceId,
@@ -374,41 +376,13 @@ export function ChatShell() {
 
   const reorderFavouriteRooms = (rooms: typeof roomGroups.favourites) => {
     if (!client) return;
-    if (favouritePersistTimer.current) {
-      window.clearTimeout(favouritePersistTimer.current);
+    if (favouritePersistTimerRef.current) {
+      window.clearTimeout(favouritePersistTimerRef.current);
     }
-    favouritePersistTimer.current = window.setTimeout(() => {
+    favouritePersistTimerRef.current = window.setTimeout(() => {
       void reorderFavourites(client, rooms.map((room) => room.id));
     }, 180);
   };
-
-  const activeRoomRef = useRef(activeRoom);
-  const forwardingRef = useRef(forwarding);
-  const lightboxRef = useRef(lightbox);
-  const messageMenuRef = useRef(messageMenu);
-  const activeThreadRootIdRef = useRef(activeThreadRootId);
-  const showThreadsListRef = useRef(showThreadsList);
-  const showAllThreadsRef = useRef(showAllThreads);
-  const showRightPanelRef = useRef(showRightPanel);
-
-  useEffect(() => {
-    activeRoomRef.current = activeRoom;
-    forwardingRef.current = forwarding;
-    lightboxRef.current = lightbox;
-    messageMenuRef.current = messageMenu;
-    activeThreadRootIdRef.current = activeThreadRootId;
-    showThreadsListRef.current = showThreadsList;
-    showAllThreadsRef.current = showAllThreads;
-    showRightPanelRef.current = showRightPanel;
-  }, [activeRoom, forwarding, lightbox, messageMenu, activeThreadRootId, showThreadsList, showAllThreads, showRightPanel]);
-
-  useEffect(() => {
-    return () => {
-      if (highlightTimer.current) {
-        window.clearTimeout(highlightTimer.current);
-      }
-    };
-  }, []);
 
   // Once the real m.room.pinned_events state lands (our own echo or another
   // member's change), drop the optimistic override so live state wins again.
@@ -444,60 +418,6 @@ export function ChatShell() {
     }, 450);
     return () => window.clearTimeout(timer);
   }, [client, activeRoomId]);
-
-  useEffect(() => {
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return;
-
-      if (forwardingRef.current) {
-        event.preventDefault();
-        setForwarding(null);
-        return;
-      }
-      if (lightboxRef.current) {
-        event.preventDefault();
-        setLightbox(null);
-        return;
-      }
-      if (messageMenuRef.current) {
-        event.preventDefault();
-        setMessageMenu(null);
-        return;
-      }
-      // Close overlays/panels one layer at a time before leaving the room.
-      if (showAllThreadsRef.current) {
-        event.preventDefault();
-        setShowAllThreads(false);
-        return;
-      }
-      if (activeThreadRootIdRef.current) {
-        event.preventDefault();
-        setActiveThreadRootId(null);
-        return;
-      }
-      if (showThreadsListRef.current) {
-        event.preventDefault();
-        setShowThreadsList(false);
-        return;
-      }
-      if (showRightPanelRef.current) {
-        event.preventDefault();
-        setShowRightPanel(false);
-        return;
-      }
-      if (composerRef.current?.escape()) {
-        event.preventDefault();
-        return;
-      }
-      if (activeRoomRef.current) {
-        event.preventDefault();
-        chatNavigation.closeActiveRoom();
-      }
-    };
-
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [chatNavigation]);
 
   const showSettings = accountSettings.open && accountSettings.profile;
 

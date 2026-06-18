@@ -19,6 +19,7 @@ export * from "./crypto/uia";
 export * from "./discovery/resolveBaseUrl";
 export * from "./rooms/avatar";
 export * from "./rooms/colors";
+export * from "./rooms/deepLink";
 export * from "./rooms/createRoom";
 export * from "./rooms/favourites";
 export * from "./rooms/mapRooms";
