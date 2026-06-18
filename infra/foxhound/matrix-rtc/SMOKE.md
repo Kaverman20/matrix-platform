@@ -20,8 +20,9 @@ Use the exact ports from your `livekit.yaml` (`rtc.port_range_start` /
 - [ ] `docker compose ps` (in `matrix-rtc/`) — `livekit` and `lk-jwt-service` are `running`
 - [ ] Caddy has `extra_hosts: host.docker.internal:host-gateway` (synapse-test compose)
 - [ ] `curl -fsS https://matrix-rtc.foxhound.run/healthz` → 200 (lk-jwt alive)
-- [ ] `curl -fsS -o /dev/null -w '%{http_code}' https://matrix-rtc.foxhound.run/get_token` → 405
-      (endpoint exists; POST-only — 405 is expected for GET)
+- [ ] `curl -s -o /dev/null -w '%{http_code}' https://matrix-rtc.foxhound.run/sfu/get` → 405
+      (lk-jwt 0.3.0 JWT endpoint; POST-only, so GET = 405 means alive. NOTE:
+      /get_token returns 404 on 0.3.0 — expected, the working endpoint is /sfu/get.)
 
 ## 2. Discovery (.well-known)
 

@@ -39,7 +39,12 @@ services:
       # Pin to our server; use * only if you understand the security trade-off.
       LIVEKIT_FULL_ACCESS_HOMESERVERS: matrix.foxhound.run
     ports:
-      - "127.0.0.1:8080:8080" # Caddy (in synapse-test) proxies via host.docker.internal:8080
+      # Must be reachable from the synapse-test Caddy container via
+      # host.docker.internal, which resolves to the docker bridge gateway — NOT
+      # loopback. So publish on all interfaces (8080:8080), not 127.0.0.1:8080,
+      # otherwise Caddy gets connection-refused. Restrict public :8080 at the
+      # firewall; real clients go through Caddy/TLS on matrix-rtc.foxhound.run.
+      - "8080:8080"
 
   # Plan B — only if a participant behind strict NAT has no audio after the
   # smoke test. First try TURN inside livekit.yaml (rtc.turn_servers); a

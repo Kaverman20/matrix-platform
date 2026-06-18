@@ -30,7 +30,8 @@ Two compose stacks run on the same VPS:
 | **matrix-rtc** | `infra/foxhound/matrix-rtc/` | LiveKit (host network), lk-jwt |
 
 LiveKit uses `network_mode: host` so UDP media ports are reachable directly.
-lk-jwt publishes `127.0.0.1:8080` on the **host**.
+lk-jwt publishes **`8080:8080`** on the host (не `127.0.0.1:8080` — иначе Caddy
+через `host.docker.internal` не достучится).
 
 Caddy runs **inside** the synapse-test compose network. It cannot resolve
 `livekit:7880` or `lk-jwt-service:8080` from the matrix-rtc stack.
@@ -52,7 +53,8 @@ the caddy container: `docker compose up -d caddy`.
 2. Open `rtc.port_range_start`–`rtc.port_range_end` and `rtc.tcp_port` on host
    **and** cloud firewall.
 3. Merge `homeserver.snippet.yaml` → live `homeserver.yaml`, restart Synapse.
-4. Merge `well-known.example.json` → live `/.well-known/matrix/client`.
+4. Настроить `/.well-known/matrix/client` — см. комментарий в
+   `well-known.example.json` (на foxhound: статический `respond` в Caddy, не Synapse).
 5. Add `Caddyfile.fragment` blocks to synapse-test `Caddyfile`; apply the
    `chat.foxhound.run` header changes from the fragment comments.
 6. Confirm caddy `extra_hosts` (see Networking above).
@@ -62,5 +64,6 @@ the caddy container: `docker compose up -d caddy`.
 > Pin image tags. MatrixRTC is unstable — LiveKit, lk-jwt-service and
 > `matrix-js-sdk` must be upgraded together with regression tests.
 >
-> Before deploying lk-jwt `0.3.0`, run `docker pull` and skim release notes.
-> `/get_token` (MSC4195) is the primary JWT endpoint; `/sfu/get` is legacy.
+> На **lk-jwt 0.3.0** JWT выдаётся через **`POST /sfu/get`** (`/get_token` в этой
+> версии отвечает 404). В более новых версиях lk-jwt появится MSC4195 `/get_token` —
+> при апгрейде сверяй release notes и обновляй клиент.

@@ -32,8 +32,10 @@ export function useRoomCall(client: MatrixClient | null, roomId: string | null):
     setStatus("connecting");
     try {
       sessionRef.current = await joinCall(client, roomId);
-      // TODO(Stage 2): fetch LiveKit JWT from lk-jwt-service and
-      // `await room.connect(wsUrl, token)` via livekit-client, then publish the
+      // TODO(Stage 2): fetch a LiveKit JWT from lk-jwt-service
+      // (POST https://matrix-rtc.foxhound.run/sfu/get with a Matrix OpenID
+      // token — NOT /get_token, which 404s on lk-jwt 0.3.0; see ADR 0002), then
+      // `await room.connect(wsUrl, token)` via livekit-client and publish the
       // local audio track. Until then we only announce Matrix membership.
       setStatus("connected");
     } catch (err) {

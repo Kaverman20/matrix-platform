@@ -1,5 +1,5 @@
 {
-  "_comment": "Merge org.matrix.msc4143.rtc_foci into the LIVE /.well-known/matrix/client served for matrix.foxhound.run. Keep existing m.homeserver etc. — this only adds the RTC focus so MatrixRTC clients discover the LiveKit SFU.",
+  "_comment": "org.matrix.msc4143.rtc_foci lets MatrixRTC clients discover the LiveKit SFU. NOTE (foxhound VPS): Synapse served an EMPTY body for /.well-known/matrix/client, so this JSON is served as a static Caddy block — `handle /.well-known/matrix/client { respond \"<this json>\" 200 }` placed BEFORE `reverse_proxy /_matrix/*` in the matrix.foxhound.run site — rather than via Synapse extra_well_known_client_content.",
   "m.homeserver": {
     "base_url": "https://matrix.foxhound.run"
   },

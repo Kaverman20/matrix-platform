@@ -78,3 +78,23 @@ We will need group conferences eventually, but want **1:1 calls first**.
 - **CI:** MatrixRTC is mocked in vitest; LiveKit is never started in CI.
 - **Deploy:** infra files live in the repo as templates; the live `homeserver.yaml`
   and filled secrets stay on the VPS and are applied by hand over SSH.
+
+## Deployment notes (Stage 0, foxhound VPS, 2026-06-17)
+
+Stage 0 is deployed on `109.172.38.60` (`/opt/synapse-test`, `/opt/matrix-rtc`),
+images `livekit/livekit-server:v1.8.0` + `ghcr.io/element-hq/lk-jwt-service:0.3.0`.
+Realities that differ from the first templates (now corrected in the repo):
+
+- **JWT endpoint is `POST /sfu/get`** on lk-jwt 0.3.0. `/get_token` (MSC4195)
+  returns 404 in this version. **Stage 2 client code must call `/sfu/get`.**
+- **lk-jwt published on `8080:8080`** (not `127.0.0.1:8080`) so the Caddy
+  container can reach it via `host.docker.internal`. Public `:8080` should be
+  firewalled.
+- **`.well-known/matrix/client` is served by a static Caddy `respond` block**
+  (Synapse returned an empty body for it).
+- **End-to-end audio is NOT yet verified.** ufw is inactive and the cloud
+  firewall wasn't checked separately; the real media smoke (two participants
+  hearing each other) happens via Surf Chat in Stage 2/3. If a call connects but
+  has no audio, suspect the LiveKit UDP range / cloud firewall first.
+- **Secrets hygiene:** LiveKit API key/secret were shown in chat during setup —
+  rotate them before any production use.

@@ -12,7 +12,9 @@
 # 1) MatrixRTC backend: LiveKit WS + lk-jwt-service on one subdomain.
 matrix-rtc.foxhound.run {
     # lk-jwt-service issues LiveKit JWTs from a Matrix OpenID token.
-    # /get_token = MSC4195 primary; /sfu/get = legacy transitional.
+    # On lk-jwt 0.3.0 the JWT endpoint is POST /sfu/get (verified on the VPS).
+    # /get_token (MSC4195) does NOT exist in 0.3.0 (returns 404) — kept in the
+    # matcher only for forward-compat with newer lk-jwt versions.
     @lk_jwt path /sfu/get /sfu/get/* /healthz /healthz/* /get_token /get_token/*
     handle @lk_jwt {
         reverse_proxy host.docker.internal:8080
