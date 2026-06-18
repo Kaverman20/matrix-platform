@@ -1,5 +1,4 @@
 import { Mic, MicOff, PhoneOff } from "lucide-react";
-import { useState } from "react";
 import type { RoomCall } from "./useRoomCall";
 import "./call-panel.css";
 
@@ -15,14 +14,8 @@ type Props = {
   peerName: string;
 };
 
-/**
- * Minimal in-call surface for a 1:1 audio call. Skeleton — controls render and
- * drive the Matrix session, but mute is local-only until the LiveKit media
- * track is wired in Stage 2 (see useRoomCall TODO).
- */
+/** Compact in-call bar for a 1:1 audio call (MatrixRTC + LiveKit). */
 export function CallPanel({ call, peerName }: Props) {
-  const [muted, setMuted] = useState(false);
-
   if (call.status === "idle") return null;
 
   return (
@@ -37,11 +30,12 @@ export function CallPanel({ call, peerName }: Props) {
         <button
           type="button"
           className="call-panel__btn"
-          aria-pressed={muted}
-          title={muted ? "Включить микрофон" : "Выключить микрофон"}
-          onClick={() => setMuted((m) => !m)}
+          aria-pressed={call.muted}
+          disabled={call.status !== "connected"}
+          title={call.muted ? "Включить микрофон" : "Выключить микрофон"}
+          onClick={call.toggleMute}
         >
-          {muted ? <MicOff size={18} /> : <Mic size={18} />}
+          {call.muted ? <MicOff size={18} /> : <Mic size={18} />}
         </button>
         <button
           type="button"

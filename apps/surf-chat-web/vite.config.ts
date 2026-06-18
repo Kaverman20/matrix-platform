@@ -10,6 +10,7 @@ function manualChunks(id: string): string | undefined {
   if (!id.includes("node_modules")) return undefined;
   if (/[\\/]node_modules[\\/](react|react-dom|scheduler)[\\/]/.test(id)) return "react";
   if (id.includes("matrix-js-sdk")) return "matrix-sdk";
+  if (id.includes("livekit-client")) return "livekit";
   if (id.includes("framer-motion")) return "motion";
   return undefined;
 }

@@ -1,55 +1,94 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { MatrixClient } from "matrix-js-sdk";
 import type { MatrixRTCSession } from "matrix-js-sdk/lib/matrixrtc";
+import type { Room } from "livekit-client";
 import { joinCall, leaveCall } from "@matrix-platform/matrix-core";
+import { fetchLiveKitCredentials } from "./fetchLiveKitJwt";
+import {
+  connectLiveKitRoom,
+  disconnectLiveKitRoom,
+  setLiveKitMicrophoneMuted,
+} from "./livekitSession";
 
 export type CallStatus = "idle" | "connecting" | "connected" | "error";
 
 export type RoomCall = {
   status: CallStatus;
   error: string | null;
+  muted: boolean;
   start: () => Promise<void>;
   hangup: () => Promise<void>;
+  toggleMute: () => void;
 };
 
 /**
- * Orchestrates a 1:1 room call: Matrix signalling (via matrix-core's
- * MatrixRTCSession glue) plus — once Stage 2 lands — the LiveKit media room.
- *
- * Skeleton: the Matrix membership side is wired; the LiveKit media connection
- * (`livekit-client` Room.connect with a token from lk-jwt-service) is a TODO
- * gated behind the smoke-tested Stage 0 backend. Keeping it stubbed avoids
- * pulling in `livekit-client` before the infra exists to test it against.
+ * Orchestrates a 1:1 room call: MatrixRTC membership (matrix-core) plus LiveKit
+ * media (livekit-client). Stage 2 — real audio; UI wire-up in ChatShell is Stage 3.
  */
 export function useRoomCall(client: MatrixClient | null, roomId: string | null): RoomCall {
   const [status, setStatus] = useState<CallStatus>("idle");
   const [error, setError] = useState<string | null>(null);
+  const [muted, setMuted] = useState(false);
   const sessionRef = useRef<MatrixRTCSession | null>(null);
+  const liveKitRef = useRef<Room | null>(null);
+
+  const cleanup = useCallback(async () => {
+    const liveKit = liveKitRef.current;
+    const session = sessionRef.current;
+    liveKitRef.current = null;
+    sessionRef.current = null;
+    setMuted(false);
+    await disconnectLiveKitRoom(liveKit);
+    if (session) await leaveCall(session);
+  }, []);
 
   const start = useCallback(async () => {
     if (!client || !roomId) return;
     setError(null);
     setStatus("connecting");
+
+    let session: MatrixRTCSession | null = null;
+    let liveKit: Room | null = null;
+
     try {
-      sessionRef.current = await joinCall(client, roomId);
-      // TODO(Stage 2): fetch a LiveKit JWT from lk-jwt-service
-      // (POST https://matrix-rtc.foxhound.run/sfu/get with a Matrix OpenID
-      // token — NOT /get_token, which 404s on lk-jwt 0.3.0; see ADR 0002), then
-      // `await room.connect(wsUrl, token)` via livekit-client and publish the
-      // local audio track. Until then we only announce Matrix membership.
+      session = await joinCall(client, roomId);
+      sessionRef.current = session;
+
+      const { wsUrl, jwt } = await fetchLiveKitCredentials(client, roomId);
+      liveKit = await connectLiveKitRoom(wsUrl, jwt);
+      liveKitRef.current = liveKit;
+
+      setMuted(false);
       setStatus("connected");
     } catch (err) {
+      await disconnectLiveKitRoom(liveKit);
+      if (session) await leaveCall(session);
+      sessionRef.current = null;
+      liveKitRef.current = null;
       setError(err instanceof Error ? err.message : "Не удалось начать звонок");
       setStatus("error");
     }
   }, [client, roomId]);
 
   const hangup = useCallback(async () => {
-    const session = sessionRef.current;
-    sessionRef.current = null;
     setStatus("idle");
-    if (session) await leaveCall(session);
+    setError(null);
+    await cleanup();
+  }, [cleanup]);
+
+  const toggleMute = useCallback(() => {
+    setMuted((prev) => {
+      const next = !prev;
+      setLiveKitMicrophoneMuted(liveKitRef.current, next);
+      return next;
+    });
   }, []);
 
-  return { status, error, start, hangup };
+  useEffect(() => {
+    return () => {
+      void cleanup();
+    };
+  }, [cleanup]);
+
+  return { status, error, muted, start, hangup, toggleMute };
 }
