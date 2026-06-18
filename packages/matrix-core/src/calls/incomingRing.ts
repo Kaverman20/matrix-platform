@@ -5,6 +5,9 @@ import { parseCallNotificationContent } from "matrix-js-sdk/lib/matrixrtc";
 
 import type { CallIntent } from "./rtcSession";
 
+/** Rings older than this are ignored when replayed from timeline sync on page load. */
+export const RING_MAX_AGE_MS = 8_000;
+
 export type IncomingRing = {
   roomId: string;
   callerId: string;
@@ -105,6 +108,7 @@ function tryParseRing(
   event: MatrixEvent,
   roomId: string,
   myId: string | null,
+  options?: { liveEvent?: boolean },
 ): IncomingRing | null {
   if (event.getType() !== EventType.RTCNotification) return null;
   if (event.getSender() === myId) return null;
@@ -119,8 +123,19 @@ function tryParseRing(
     const expiresAt = content.sender_ts + content.lifetime;
     if (Date.now() >= expiresAt) return null;
 
+    if (!options?.liveEvent && Date.now() - content.sender_ts > RING_MAX_AGE_MS) return null;
+
     const sender = event.getSender();
     if (!sender) return null;
+
+    if (!options?.liveEvent) {
+      const room = client.getRoom(roomId);
+      const session = room ? client.matrixRTC.getRoomSession(room) : null;
+      const callerStillPresent = session?.memberships.some(
+        (m) => m.userId === sender && !m.isExpired(),
+      );
+      if (!callerStillPresent) return null;
+    }
 
     const notificationEventId = event.getId();
     if (!notificationEventId) return null;
@@ -153,16 +168,23 @@ export function subscribeIncomingCallSignals(
   const myId = client.getUserId();
   const cleanups: Array<() => void> = [];
 
-  const onTimeline = (event: MatrixEvent, room: { roomId: string } | undefined) => {
+  const onTimeline = (
+    event: MatrixEvent,
+    room: { roomId: string } | undefined,
+    _toStartOfTimeline?: boolean,
+    _removed?: boolean,
+    data?: { liveEvent?: boolean },
+  ) => {
     if (!room || !dmSet.has(room.roomId)) return;
 
-    const ring = tryParseRing(client, event, room.roomId, myId);
+    const ring = tryParseRing(client, event, room.roomId, myId, { liveEvent: data?.liveEvent });
     if (ring) {
       handlers.onRing(ring);
       return;
     }
 
     if (event.getType() === EventType.RTCDecline && event.getSender() !== myId) {
+      if (!data?.liveEvent) return;
       const relation = event.getContent()?.["m.relates_to"] as
         | { rel_type?: string; event_id?: string }
         | undefined;
@@ -182,12 +204,17 @@ export function subscribeIncomingCallSignals(
     if (!room) continue;
 
     const session = client.matrixRTC.getRoomSession(room);
+    /** Baseline prevents treating pre-existing RTC memberships as a new incoming call on page load. */
+    let knownMemberships: CallMembership[] = [...session.memberships];
 
-    const onMembershipsChanged = (oldMemberships: CallMembership[], newMemberships: CallMembership[]) => {
-      const ended = callersWhoLeft(roomId, oldMemberships, newMemberships, myId);
+    const onMembershipsChanged = (_oldMemberships: CallMembership[], newMemberships: CallMembership[]) => {
+      const previous = knownMemberships;
+      knownMemberships = newMemberships;
+
+      const ended = callersWhoLeft(roomId, previous, newMemberships, myId);
       for (const item of ended) handlers.onRingEnded(item);
 
-      for (const callerId of callersWhoJoined(oldMemberships, newMemberships, myId)) {
+      for (const callerId of callersWhoJoined(previous, newMemberships, myId)) {
         handlers.onRing(
           ringFromCaller(
             client,

@@ -3,16 +3,24 @@ import { EventType, RelationType, RoomEvent } from "matrix-js-sdk";
 import { MatrixRTCSessionEvent } from "matrix-js-sdk/lib/matrixrtc/MatrixRTCSession";
 import type { MatrixClient, MatrixEvent } from "matrix-js-sdk";
 import type { CallMembership } from "matrix-js-sdk/lib/matrixrtc/CallMembership";
-import { subscribeIncomingCallSignals } from "./incomingRing";
+import { RING_MAX_AGE_MS, subscribeIncomingCallSignals } from "./incomingRing";
 
-function ringEvent(sender: string): MatrixEvent {
+type TimelineHandler = (
+  event: MatrixEvent,
+  room?: { roomId: string },
+  toStartOfTimeline?: boolean,
+  removed?: boolean,
+  data?: { liveEvent?: boolean },
+) => void;
+
+function ringEvent(sender: string, senderTs = Date.now()): MatrixEvent {
   return {
     getId: () => "$ring",
     getType: () => EventType.RTCNotification,
     getSender: () => sender,
     getContent: () => ({
       notification_type: "ring",
-      sender_ts: Date.now(),
+      sender_ts: senderTs,
       lifetime: 60_000,
       "m.mentions": { user_ids: ["@me:hs"] },
     }),
@@ -31,25 +39,26 @@ afterEach(() => {
 });
 
 describe("subscribeIncomingCallSignals", () => {
-  it("invokes onRing for a ring from another user in a DM", () => {
-    const handlers = new Map<string, (event: MatrixEvent, room?: { roomId: string }) => void>();
+  it("invokes onRing for a live ring from another user in a DM", () => {
+    const handlers = new Map<string, TimelineHandler>();
     const client = {
       getUserId: () => "@me:hs",
       getRoom: () => ({
         getMember: () => ({ rawDisplayName: "Alice", name: "Alice" }),
       }),
       matrixRTC: { getRoomSession: () => ({ memberships: [], on: vi.fn(), off: vi.fn() }) },
-      on: vi.fn((event: string, handler: (e: MatrixEvent, room?: { roomId: string }) => void) => {
+      on: vi.fn((event: string, handler: TimelineHandler) => {
         handlers.set(event, handler);
       }),
       off: vi.fn(),
     } as unknown as MatrixClient;
 
     const onRing = vi.fn();
-    const onRingEnded = vi.fn();
-    subscribeIncomingCallSignals(client, ["!dm:hs"], { onRing, onRingEnded });
+    subscribeIncomingCallSignals(client, ["!dm:hs"], { onRing, onRingEnded: vi.fn() });
 
-    handlers.get(RoomEvent.Timeline)!(ringEvent("@alice:hs"), { roomId: "!dm:hs" });
+    handlers.get(RoomEvent.Timeline)!(ringEvent("@alice:hs"), { roomId: "!dm:hs" }, false, false, {
+      liveEvent: true,
+    });
 
     expect(onRing).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -59,7 +68,65 @@ describe("subscribeIncomingCallSignals", () => {
         notificationEventId: "$ring",
       }),
     );
-    expect(onRingEnded).not.toHaveBeenCalled();
+  });
+
+  it("ignores stale rings replayed from timeline sync on page load", () => {
+    const handlers = new Map<string, TimelineHandler>();
+    const client = {
+      getUserId: () => "@me:hs",
+      getRoom: () => ({
+        getMember: () => ({ rawDisplayName: "Alice", name: "Alice" }),
+      }),
+      matrixRTC: {
+        getRoomSession: () => ({
+          memberships: [membership("@alice:hs")],
+          on: vi.fn(),
+          off: vi.fn(),
+        }),
+      },
+      on: vi.fn((event: string, handler: TimelineHandler) => {
+        handlers.set(event, handler);
+      }),
+      off: vi.fn(),
+    } as unknown as MatrixClient;
+
+    const onRing = vi.fn();
+    subscribeIncomingCallSignals(client, ["!dm:hs"], { onRing, onRingEnded: vi.fn() });
+
+    handlers.get(RoomEvent.Timeline)!(
+      ringEvent("@alice:hs", Date.now() - RING_MAX_AGE_MS - 1_000),
+      { roomId: "!dm:hs" },
+    );
+
+    expect(onRing).not.toHaveBeenCalled();
+  });
+
+  it("ignores timeline rings when the caller already left the RTC session", () => {
+    const handlers = new Map<string, TimelineHandler>();
+    const client = {
+      getUserId: () => "@me:hs",
+      getRoom: () => ({
+        getMember: () => ({ rawDisplayName: "Alice", name: "Alice" }),
+      }),
+      matrixRTC: {
+        getRoomSession: () => ({
+          memberships: [],
+          on: vi.fn(),
+          off: vi.fn(),
+        }),
+      },
+      on: vi.fn((event: string, handler: TimelineHandler) => {
+        handlers.set(event, handler);
+      }),
+      off: vi.fn(),
+    } as unknown as MatrixClient;
+
+    const onRing = vi.fn();
+    subscribeIncomingCallSignals(client, ["!dm:hs"], { onRing, onRingEnded: vi.fn() });
+
+    handlers.get(RoomEvent.Timeline)!(ringEvent("@alice:hs"), { roomId: "!dm:hs" });
+
+    expect(onRing).not.toHaveBeenCalled();
   });
 
   it("invokes onRingEnded when the caller leaves the RTC session", () => {
@@ -91,13 +158,13 @@ describe("subscribeIncomingCallSignals", () => {
     });
   });
 
-  it("invokes onRingEnded on rtc.decline from the caller", () => {
-    const handlers = new Map<string, (event: MatrixEvent, room?: { roomId: string }) => void>();
+  it("invokes onRingEnded on live rtc.decline from the caller", () => {
+    const handlers = new Map<string, TimelineHandler>();
     const client = {
       getUserId: () => "@me:hs",
       getRoom: () => null,
       matrixRTC: { getRoomSession: () => ({ memberships: [], on: vi.fn(), off: vi.fn() }) },
-      on: vi.fn((event: string, handler: (e: MatrixEvent, room?: { roomId: string }) => void) => {
+      on: vi.fn((event: string, handler: TimelineHandler) => {
         handlers.set(event, handler);
       }),
       off: vi.fn(),
@@ -114,7 +181,9 @@ describe("subscribeIncomingCallSignals", () => {
       }),
     } as unknown as MatrixEvent;
 
-    handlers.get(RoomEvent.Timeline)!(decline, { roomId: "!dm:hs" });
+    handlers.get(RoomEvent.Timeline)!(decline, { roomId: "!dm:hs" }, false, false, {
+      liveEvent: true,
+    });
 
     expect(onRingEnded).toHaveBeenCalledWith({
       roomId: "!dm:hs",
@@ -122,7 +191,7 @@ describe("subscribeIncomingCallSignals", () => {
     });
   });
 
-  it("invokes onRing with a pending id when the caller joins the RTC session", () => {
+  it("does not treat pre-existing RTC memberships as a new incoming call on subscribe", () => {
     const rtcHandlers = new Map<string, (oldM: CallMembership[], newM: CallMembership[]) => void>();
     const session = {
       memberships: [membership("@alice:hs")],
@@ -143,6 +212,33 @@ describe("subscribeIncomingCallSignals", () => {
     subscribeIncomingCallSignals(client, ["!dm:hs"], { onRing, onRingEnded: vi.fn() });
 
     const onChanged = rtcHandlers.get(MatrixRTCSessionEvent.MembershipsChanged);
+    onChanged!([], [membership("@alice:hs")]);
+
+    expect(onRing).not.toHaveBeenCalled();
+  });
+
+  it("invokes onRing with a pending id when the caller joins after subscribe", () => {
+    const rtcHandlers = new Map<string, (oldM: CallMembership[], newM: CallMembership[]) => void>();
+    const session = {
+      memberships: [] as CallMembership[],
+      on: vi.fn((event: string, handler: (o: CallMembership[], n: CallMembership[]) => void) => {
+        rtcHandlers.set(event, handler);
+      }),
+      off: vi.fn(),
+    };
+    const client = {
+      getUserId: () => "@me:hs",
+      getRoom: () => ({ getMember: () => ({ rawDisplayName: "Alice", name: "Alice" }) }),
+      matrixRTC: { getRoomSession: () => session },
+      on: vi.fn(),
+      off: vi.fn(),
+    } as unknown as MatrixClient;
+
+    const onRing = vi.fn();
+    subscribeIncomingCallSignals(client, ["!dm:hs"], { onRing, onRingEnded: vi.fn() });
+
+    const onChanged = rtcHandlers.get(MatrixRTCSessionEvent.MembershipsChanged);
+    session.memberships = [membership("@alice:hs")];
     onChanged!([], [membership("@alice:hs")]);
 
     expect(onRing).toHaveBeenCalledWith(
