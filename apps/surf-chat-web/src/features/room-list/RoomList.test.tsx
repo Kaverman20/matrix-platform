@@ -30,6 +30,7 @@ function renderRoomList(overrides: Partial<Parameters<typeof RoomList>[0]> = {})
     dms: [] as MatrixRoomSummary[],
     activeRoomId: null,
     collapsed: false,
+    sidebarView: "home" as const,
     activeSpaceId: null,
     activeSpace: null,
     subspaces: [],

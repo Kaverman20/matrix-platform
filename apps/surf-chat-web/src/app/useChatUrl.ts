@@ -1,7 +1,14 @@
 import { useEffect, useRef } from "react";
 import type { MatrixClient } from "matrix-js-sdk";
 import { findSpaceIdForRoom, type MatrixSpaceSummary } from "@matrix-platform/matrix-core";
-import { pushChatToHistory, readChatUrlFromLocation } from "./chatUrl";
+import {
+  DM_VIEW,
+  chatUrlFromSidebar,
+  pushChatToHistory,
+  readChatUrlFromLocation,
+  sidebarViewFromChatUrl,
+  type SidebarView,
+} from "./chatUrl";
 
 type Options = {
   client: MatrixClient | null;
@@ -9,13 +16,15 @@ type Options = {
   setActiveRoomId: (roomId: string | null) => void;
   activeSpaceId: string | null;
   setActiveSpaceId: (spaceId: string | null) => void;
+  sidebarView: SidebarView;
+  setSidebarView: (view: SidebarView) => void;
+  dmRoomIds: readonly string[];
   spaces: readonly MatrixSpaceSummary[];
-  /** All joined room ids once sync has populated the client. */
   knownRoomIds: readonly string[];
 };
 
 /**
- * Keeps `?room=` and `?space=` in sync with the active chat and handles browser back/forward.
+ * Keeps `?room=`, `?space=`, and `?view=dms` in sync with sidebar navigation.
  */
 export function useChatUrl({
   client,
@@ -23,22 +32,26 @@ export function useChatUrl({
   setActiveRoomId,
   activeSpaceId,
   setActiveSpaceId,
+  sidebarView,
+  setSidebarView,
+  dmRoomIds,
   spaces,
   knownRoomIds,
 }: Options): void {
   const skipUrlWriteRef = useRef(false);
-  const inferredSpaceRef = useRef(false);
+  const inferredSidebarRef = useRef(false);
 
   useEffect(() => {
     const onPopState = () => {
       skipUrlWriteRef.current = true;
-      const { roomId, spaceId } = readChatUrlFromLocation(window.location);
-      setActiveRoomId(roomId);
-      setActiveSpaceId(spaceId);
+      const url = readChatUrlFromLocation(window.location);
+      setActiveRoomId(url.roomId);
+      setActiveSpaceId(url.spaceId);
+      setSidebarView(sidebarViewFromChatUrl(url));
     };
     window.addEventListener("popstate", onPopState);
     return () => window.removeEventListener("popstate", onPopState);
-  }, [setActiveRoomId, setActiveSpaceId]);
+  }, [setActiveRoomId, setActiveSpaceId, setSidebarView]);
 
   useEffect(() => {
     if (skipUrlWriteRef.current) {
@@ -46,11 +59,18 @@ export function useChatUrl({
       return;
     }
 
+    const next = chatUrlFromSidebar(activeRoomId, activeSpaceId, sidebarView);
     const url = readChatUrlFromLocation(window.location);
-    if (activeRoomId === url.roomId && activeSpaceId === url.spaceId) return;
+    if (
+      activeRoomId === url.roomId &&
+      next.spaceId === url.spaceId &&
+      next.view === url.view
+    ) {
+      return;
+    }
 
-    pushChatToHistory({ roomId: activeRoomId, spaceId: activeSpaceId });
-  }, [activeRoomId, activeSpaceId]);
+    pushChatToHistory(next);
+  }, [activeRoomId, activeSpaceId, sidebarView]);
 
   useEffect(() => {
     if (!client || !activeRoomId) return;
@@ -62,28 +82,42 @@ export function useChatUrl({
   }, [activeRoomId, client, knownRoomIds, setActiveRoomId]);
 
   useEffect(() => {
-    if (!client || !activeSpaceId) return;
+    if (!client || sidebarView !== "space" || !activeSpaceId) return;
     if (spaces.length === 0) return;
     if (spaces.some((space) => space.id === activeSpaceId)) return;
 
     setActiveSpaceId(null);
-  }, [activeSpaceId, client, setActiveSpaceId, spaces]);
+    setSidebarView("home");
+  }, [activeSpaceId, client, setActiveSpaceId, setSidebarView, sidebarView, spaces]);
 
-  // Legacy links and cold starts with only ?room= — infer the parent space once.
+  // Legacy links with only ?room= — infer sidebar context once.
   useEffect(() => {
-    if (inferredSpaceRef.current) return;
-    if (!activeRoomId || spaces.length === 0) return;
+    if (inferredSidebarRef.current) return;
+    if (!activeRoomId) return;
 
-    const { spaceId: urlSpaceId } = readChatUrlFromLocation(window.location);
-    if (urlSpaceId) {
-      inferredSpaceRef.current = true;
+    const url = readChatUrlFromLocation(window.location);
+    if (url.view === DM_VIEW || url.spaceId) {
+      inferredSidebarRef.current = true;
       return;
     }
 
-    const inferred = findSpaceIdForRoom(spaces, activeRoomId);
-    if (inferred !== activeSpaceId) {
-      setActiveSpaceId(inferred);
+    if (dmRoomIds.includes(activeRoomId)) {
+      setSidebarView("dms");
+      setActiveSpaceId(null);
+    } else if (spaces.length > 0) {
+      const inferred = findSpaceIdForRoom(spaces, activeRoomId);
+      if (inferred) {
+        setActiveSpaceId(inferred);
+        setSidebarView("space");
+      }
     }
-    inferredSpaceRef.current = true;
-  }, [activeRoomId, activeSpaceId, setActiveSpaceId, spaces]);
+
+    inferredSidebarRef.current = true;
+  }, [
+    activeRoomId,
+    dmRoomIds,
+    setActiveSpaceId,
+    setSidebarView,
+    spaces,
+  ]);
 }

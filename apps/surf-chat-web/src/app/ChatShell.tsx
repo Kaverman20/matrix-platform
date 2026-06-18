@@ -93,6 +93,8 @@ export function ChatShell() {
     setRightPanelSection,
     activeSpaceId,
     setActiveSpaceId,
+    sidebarView,
+    setSidebarView,
     activeThreadRootId,
     setActiveThreadRootId,
     showThreadsList,
@@ -126,17 +128,21 @@ export function ChatShell() {
     [roomGroups.channels, roomGroups.dms, roomGroups.favourites],
   );
   const allRoomIds = useMemo(() => allRooms.map((room) => room.id), [allRooms]);
+  const dmRoomIds = useMemo(() => roomGroups.dms.map((room) => room.id), [roomGroups.dms]);
   useChatUrl({
     client,
     activeRoomId,
     setActiveRoomId,
     activeSpaceId,
     setActiveSpaceId,
+    sidebarView,
+    setSidebarView,
+    dmRoomIds,
     spaces: roomGroups.spaces,
     knownRoomIds: allRoomIds,
   });
   usePreloadTimelineMessages(client, allRoomIds);
-  const spaceNavigation = useSpaceNavigation(roomGroups, activeSpaceId, setActiveSpaceId);
+  const spaceNavigation = useSpaceNavigation(roomGroups, activeSpaceId, sidebarView, setActiveSpaceId);
   const roomSettings = useRoomSettings({ client });
   const accountSettings = useAccountSettings({ client });
   const encryption = useEncryption({ client });
@@ -166,6 +172,10 @@ export function ChatShell() {
     (roomId: string) => findSpaceIdForRoom(roomGroups.spaces, roomId),
     [roomGroups.spaces],
   );
+  const resolveIsDmRoom = useCallback(
+    (roomId: string) => dmRoomIds.includes(roomId),
+    [dmRoomIds],
+  );
   const chatNavigation = useChatNavigation({
     client,
     activeRoomId,
@@ -173,6 +183,7 @@ export function ChatShell() {
     spaceNavigation,
     setActiveRoomId,
     setActiveSpaceId,
+    setSidebarView,
     setRightPanelSection,
     setPinnedIndex,
     setHighlightMessageId,
@@ -187,6 +198,7 @@ export function ChatShell() {
     startForward: composerMode.startForward,
     focusPinnedMessage,
     resolveSpaceForRoom,
+    resolveIsDmRoom,
   });
   useDeepLink(client, chatNavigation.selectRoom);
   useChatShellKeyboard({ state: shell, activeRoom, chatNavigation, composerRef });
@@ -463,9 +475,21 @@ export function ChatShell() {
       <SpaceRail
         spaces={spaceNavigation.topLevelSpaces}
         spaceUnreads={spaceNavigation.topLevelSpaceUnreads}
+        dmUnreads={spaceNavigation.dmUnreads}
+        sidebarView={sidebarView}
         activeSpaceId={spaceNavigation.railActiveSpaceId}
-        onSelectHome={() => setActiveSpaceId(null)}
-        onSelectSpace={setActiveSpaceId}
+        onSelectHome={() => {
+          setSidebarView("home");
+          setActiveSpaceId(null);
+        }}
+        onSelectDms={() => {
+          setSidebarView("dms");
+          setActiveSpaceId(null);
+        }}
+        onSelectSpace={(spaceId) => {
+          setSidebarView("space");
+          setActiveSpaceId(spaceId);
+        }}
         onCreateSpace={creation.openCreateSpace}
         onOpenAllThreads={() => setShowAllThreads(true)}
         onOpenSettings={accountSettings.openSettings}
@@ -486,12 +510,16 @@ export function ChatShell() {
           dms={spaceNavigation.visibleRoomGroups.dms}
           activeRoomId={activeRoomId}
           collapsed={roomListLayout.collapsed}
+          sidebarView={sidebarView}
           activeSpaceId={spaceNavigation.effectiveActiveSpaceId}
           activeSpace={spaceNavigation.activeSpace}
           subspaces={spaceNavigation.subspaces}
           parentSpaceName={spaceNavigation.parentSpace?.name ?? null}
           onBack={() => spaceNavigation.parentSpace && setActiveSpaceId(spaceNavigation.parentSpace.id)}
-          onSelectSpace={setActiveSpaceId}
+          onSelectSpace={(spaceId) => {
+            setSidebarView("space");
+            setActiveSpaceId(spaceId);
+          }}
           onToggleCollapsed={roomListLayout.toggleCollapse}
           onSelectRoom={chatNavigation.selectRoom}
           onToggleFavourite={toggleFavouriteRoom}

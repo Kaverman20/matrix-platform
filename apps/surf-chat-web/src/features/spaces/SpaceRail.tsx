@@ -1,5 +1,6 @@
-import { MessagesSquare, Plus } from "lucide-react";
+import { MessageCircle, MessagesSquare, Plus } from "lucide-react";
 import { formatUnreadCount, type MatrixSpaceSummary } from "@matrix-platform/matrix-core";
+import type { SidebarView } from "../../app/chatUrl";
 import { HelpMenu } from "../help/HelpMenu";
 import { AuthedImage } from "../media/AuthedImage";
 import "./space-rail.css";
@@ -7,9 +8,11 @@ import "./space-rail.css";
 type Props = {
   spaces: MatrixSpaceSummary[];
   spaceUnreads: Readonly<Record<string, number>>;
-  /** The currently active space id, or null for the "all chats" home. */
+  dmUnreads: number;
+  sidebarView: SidebarView;
   activeSpaceId: string | null;
   onSelectHome: () => void;
+  onSelectDms: () => void;
   onSelectSpace: (spaceId: string) => void;
   onCreateSpace: () => void;
   onOpenAllThreads: () => void;
@@ -20,23 +23,37 @@ type Props = {
 export function SpaceRail({
   spaces,
   spaceUnreads,
+  dmUnreads,
+  sidebarView,
   activeSpaceId,
   onSelectHome,
+  onSelectDms,
   onSelectSpace,
   onCreateSpace,
   onOpenAllThreads,
   onOpenSettings,
   onLogout,
 }: Props) {
+  const dmBadge = sidebarView !== "dms" && dmUnreads > 0 ? formatUnreadCount(dmUnreads) : "";
+
   return (
     <nav className="space-rail">
       <button
-        className={`space-rail__home${activeSpaceId === null ? " is-active" : ""}`}
+        className={`space-rail__home${sidebarView === "home" ? " is-active" : ""}`}
         title="Все чаты"
         onClick={onSelectHome}
       >
-        {activeSpaceId === null && <span className="space-rail__indicator" />}
+        {sidebarView === "home" && <span className="space-rail__indicator" />}
         S
+      </button>
+      <button
+        className={`space-rail__item space-rail__item--dms${sidebarView === "dms" ? " is-active" : ""}`}
+        title={dmBadge ? `Личные сообщения (${dmUnreads} непрочитанных)` : "Личные сообщения"}
+        onClick={onSelectDms}
+      >
+        {sidebarView === "dms" && <span className="space-rail__indicator" />}
+        {dmBadge && <span className="space-rail__badge">{dmBadge}</span>}
+        <MessageCircle size={22} />
       </button>
       <div className="space-rail__spaces">
         {spaces.map((space) => (
@@ -44,7 +61,7 @@ export function SpaceRail({
             key={space.id}
             space={space}
             unread={spaceUnreads[space.id] ?? 0}
-            active={activeSpaceId === space.id}
+            active={sidebarView === "space" && activeSpaceId === space.id}
             onSelect={() => onSelectSpace(space.id)}
           />
         ))}

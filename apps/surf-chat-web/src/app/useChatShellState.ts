@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { MatrixForwardData, MatrixMessage, MatrixMessageReference } from "@matrix-platform/matrix-core";
 import type { RightPanelSection } from "../features/room-settings/RoomRightPanel";
 import type { usePreferences } from "../features/settings/usePreferences";
-import { resolveInitialActiveRoomId, resolveInitialActiveSpaceId } from "./chatUrl";
+import { resolveInitialActiveRoomId, resolveInitialActiveSpaceId, resolveInitialSidebarView, type SidebarView } from "./chatUrl";
 
 export const ACTIVE_ROOM_STORAGE_KEY = "surf-chat:active-room";
 export const ACTIVE_SPACE_STORAGE_KEY = "surf-chat:active-space";
@@ -29,6 +29,7 @@ export function useChatShellState(preferences: ReturnType<typeof usePreferences>
   const [activeSpaceId, setActiveSpaceId] = useState<string | null>(() =>
     resolveInitialActiveSpaceId(ACTIVE_SPACE_STORAGE_KEY),
   );
+  const [sidebarView, setSidebarView] = useState<SidebarView>(() => resolveInitialSidebarView());
   const [activeThreadRootId, setActiveThreadRootId] = useState<string | null>(null);
   const [showThreadsList, setShowThreadsList] = useState(false);
   const [showAllThreads, setShowAllThreads] = useState(false);
@@ -82,6 +83,8 @@ export function useChatShellState(preferences: ReturnType<typeof usePreferences>
     setRightPanelSection,
     activeSpaceId,
     setActiveSpaceId,
+    sidebarView,
+    setSidebarView,
     activeThreadRootId,
     setActiveThreadRootId,
     showThreadsList,

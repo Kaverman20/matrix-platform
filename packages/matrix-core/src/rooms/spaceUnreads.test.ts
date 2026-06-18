@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { computeTopLevelSpaceUnreads, formatUnreadCount } from "./spaceUnreads";
+import { computeDmUnreads, computeTopLevelSpaceUnreads, formatUnreadCount } from "./spaceUnreads";
 import type { MatrixRoomGroups, MatrixRoomSummary, MatrixSpaceSummary } from "./roomTypes";
 
 function space(
@@ -74,9 +74,10 @@ describe("computeTopLevelSpaceUnreads", () => {
     const groups = {
       favourites: [],
       channels: [room("!orphan:hs", 7)],
-      dms: [room("!dm:hs", 2)],
+      dms: [{ ...room("!dm:hs", 2), kind: "dm" as const }],
     };
     expect(computeTopLevelSpaceUnreads([], groups)).toEqual({});
+    expect(computeDmUnreads(groups)).toBe(2);
   });
 });
 

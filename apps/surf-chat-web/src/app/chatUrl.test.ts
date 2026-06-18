@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   ROOM_URL_PARAM,
   SPACE_URL_PARAM,
+  VIEW_URL_PARAM,
   buildSearchWithChatState,
   buildSearchWithRoom,
   readChatUrlFromSearch,
@@ -46,12 +47,22 @@ describe("chatUrl", () => {
 
   it("builds room and space params together", () => {
     const search = buildSearchWithChatState(
-      { roomId: "!room:hs", spaceId: "!space:hs" },
+      { roomId: "!room:hs", spaceId: "!space:hs", view: null },
       "?foo=1",
     );
     const params = new URLSearchParams(search);
     expect(params.get("foo")).toBe("1");
     expect(params.get(ROOM_URL_PARAM)).toBe("!room:hs");
     expect(params.get(SPACE_URL_PARAM)).toBe("!space:hs");
+  });
+
+  it("builds dms view param", () => {
+    const search = buildSearchWithChatState(
+      { roomId: "!dm:hs", spaceId: null, view: "dms" },
+      "",
+    );
+    const params = new URLSearchParams(search);
+    expect(params.get(VIEW_URL_PARAM)).toBe("dms");
+    expect(params.get(SPACE_URL_PARAM)).toBeNull();
   });
 });

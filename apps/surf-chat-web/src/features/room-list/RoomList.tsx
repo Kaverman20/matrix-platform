@@ -3,6 +3,7 @@ import { AnimatePresence, motion, Reorder } from "framer-motion";
 import { Boxes, ChevronDown, ChevronLeft, ChevronRight, Hash, LogOut, MessageCircle, MoreHorizontal, PanelLeftClose, PanelLeftOpen, Plus, Search, Settings, Star } from "lucide-react";
 import type { MatrixRoomSummary, MatrixSpaceSummary } from "@matrix-platform/matrix-core";
 import { fadeUp, transition } from "@matrix-platform/ui";
+import type { SidebarView } from "../../app/chatUrl";
 import { AuthedImage } from "../media/AuthedImage";
 import { useRoomListTimeFormatter } from "../settings/usePreferences";
 import "./room-list.css";
@@ -13,6 +14,7 @@ type Props = {
   dms: MatrixRoomSummary[];
   activeRoomId: string | null;
   collapsed: boolean;
+  sidebarView: SidebarView;
   activeSpaceId: string | null;
   activeSpace: MatrixSpaceSummary | null;
   subspaces: MatrixSpaceSummary[];
@@ -37,6 +39,7 @@ export function RoomList({
   dms,
   activeRoomId,
   collapsed,
+  sidebarView,
   activeSpaceId,
   activeSpace,
   subspaces,
@@ -88,6 +91,9 @@ export function RoomList({
     () => filterRooms(dms, searchValue),
     [dms, searchValue],
   );
+  const isDmsView = sidebarView === "dms";
+  const isHomeView = sidebarView === "home";
+  const canCreateDm = !searchValue && (isHomeView || isDmsView);
   const visibleTotal = visibleFavourites.length + visibleChannels.length + visibleDms.length;
   const showRoomTip = (text: string, element: HTMLElement) => {
     if (!collapsed) return;
@@ -184,7 +190,12 @@ export function RoomList({
             </button>
           </>
         )}
-        {!collapsed && !activeSpace && (
+        {!collapsed && !activeSpace && isDmsView && (
+          <div className="room-list__title">
+            <strong>Личные сообщения</strong>
+          </div>
+        )}
+        {!collapsed && !activeSpace && !isDmsView && (
           <div className="room-list__title">
             <strong>Surf Chat</strong>
           </div>
@@ -335,39 +346,43 @@ export function RoomList({
             </div>
           </section>
         )}
-        <RoomSection
-          title="Избранное"
-          icon={<Star size={14} />}
-          rooms={visibleFavourites}
-          open={openSections.favourites}
-          onToggleOpen={() => setOpenSections((state) => ({ ...state, favourites: !state.favourites }))}
-          activeRoomId={activeRoomId}
-          collapsed={collapsed}
-          onSelectRoom={onSelectRoom}
-          onShowTip={showRoomTip}
-          onHideTip={() => setTip(null)}
-          onOpenRowMenu={openRowMenu}
-          reorderable={!collapsed && !searchValue && activeSpaceId === null}
-          onReorder={(rooms) => {
-            setFavouriteOrderIds(rooms.map((room) => room.id));
-            onReorderFavourites(rooms);
-          }}
-        />
-        <RoomSection
-          title="Каналы"
-          icon={<Hash size={14} />}
-          rooms={visibleChannels}
-          open={openSections.channels}
-          onToggleOpen={() => setOpenSections((state) => ({ ...state, channels: !state.channels }))}
-          activeRoomId={activeRoomId}
-          collapsed={collapsed}
-          onSelectRoom={onSelectRoom}
-          onShowTip={showRoomTip}
-          onHideTip={() => setTip(null)}
-          onOpenRowMenu={openRowMenu}
-          onAdd={!searchValue ? onCreateChannel : undefined}
-          addLabel="Создать канал"
-        />
+        {!isDmsView && (
+          <RoomSection
+            title="Избранное"
+            icon={<Star size={14} />}
+            rooms={visibleFavourites}
+            open={openSections.favourites}
+            onToggleOpen={() => setOpenSections((state) => ({ ...state, favourites: !state.favourites }))}
+            activeRoomId={activeRoomId}
+            collapsed={collapsed}
+            onSelectRoom={onSelectRoom}
+            onShowTip={showRoomTip}
+            onHideTip={() => setTip(null)}
+            onOpenRowMenu={openRowMenu}
+            reorderable={!collapsed && !searchValue && isHomeView}
+            onReorder={(rooms) => {
+              setFavouriteOrderIds(rooms.map((room) => room.id));
+              onReorderFavourites(rooms);
+            }}
+          />
+        )}
+        {!isDmsView && (
+          <RoomSection
+            title="Каналы"
+            icon={<Hash size={14} />}
+            rooms={visibleChannels}
+            open={openSections.channels}
+            onToggleOpen={() => setOpenSections((state) => ({ ...state, channels: !state.channels }))}
+            activeRoomId={activeRoomId}
+            collapsed={collapsed}
+            onSelectRoom={onSelectRoom}
+            onShowTip={showRoomTip}
+            onHideTip={() => setTip(null)}
+            onOpenRowMenu={openRowMenu}
+            onAdd={!searchValue ? onCreateChannel : undefined}
+            addLabel="Создать канал"
+          />
+        )}
         <RoomSection
           title="Личные сообщения"
           icon={<MessageCircle size={14} />}
@@ -380,7 +395,7 @@ export function RoomList({
           onShowTip={showRoomTip}
           onHideTip={() => setTip(null)}
           onOpenRowMenu={openRowMenu}
-          onAdd={!searchValue && activeSpaceId === null ? onCreateDm : undefined}
+          onAdd={canCreateDm ? onCreateDm : undefined}
           addLabel="Создать личный чат"
         />
       </div>

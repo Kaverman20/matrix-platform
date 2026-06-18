@@ -41,6 +41,8 @@ function setup(overrides: Record<string, unknown> = {}) {
     startForward: vi.fn(),
     focusPinnedMessage: vi.fn(),
     resolveSpaceForRoom: vi.fn(() => null),
+    resolveIsDmRoom: vi.fn(() => false),
+    setSidebarView: vi.fn(),
     ...overrides,
   };
 
@@ -71,6 +73,16 @@ describe("useChatNavigation", () => {
     act(() => result.current.selectRoom("!next:server"));
 
     expect(options.setActiveSpaceId).toHaveBeenCalledWith("!space:server");
+    expect(options.setSidebarView).toHaveBeenCalledWith("space");
+  });
+
+  it("selectRoom opens the dms sidebar for direct chats", () => {
+    const resolveIsDmRoom = vi.fn(() => true);
+    const { result, options } = setup({ resolveIsDmRoom });
+    act(() => result.current.selectRoom("!dm:server"));
+
+    expect(options.setActiveSpaceId).toHaveBeenCalledWith(null);
+    expect(options.setSidebarView).toHaveBeenCalledWith("dms");
   });
 
   it("closeActiveRoom clears the open room and side state", () => {

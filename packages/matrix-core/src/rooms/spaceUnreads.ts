@@ -57,6 +57,19 @@ export function computeTopLevelSpaceUnreads(
   return counts;
 }
 
+/** Sums unread counts across all direct-message rooms. */
+export function computeDmUnreads(
+  roomGroups: Pick<MatrixRoomGroups, "favourites" | "channels" | "dms">,
+): number {
+  let total = 0;
+  for (const room of collectAllRooms(roomGroups)) {
+    if (room.kind === "dm") {
+      total += room.unread;
+    }
+  }
+  return total;
+}
+
 /** Compact badge label for sidebar / rail unread counts. */
 export function formatUnreadCount(count: number): string {
   if (count <= 0) return "";

@@ -1,18 +1,26 @@
 import { useMemo } from "react";
 import {
+  computeDmUnreads,
   computeTopLevelSpaceUnreads,
   type MatrixRoomGroups,
   type MatrixSpaceSummary,
 } from "@matrix-platform/matrix-core";
+import type { SidebarView } from "../../app/chatUrl";
 
 export function useSpaceNavigation(
   roomGroups: MatrixRoomGroups,
   activeSpaceId: string | null,
+  sidebarView: SidebarView,
   setActiveSpaceId: (spaceId: string | null) => void,
 ) {
   const effectiveActiveSpaceId = useMemo(
-    () => (activeSpaceId && roomGroups.spaces.some((space) => space.id === activeSpaceId) ? activeSpaceId : null),
-    [activeSpaceId, roomGroups.spaces],
+    () =>
+      sidebarView === "space" &&
+      activeSpaceId &&
+      roomGroups.spaces.some((space) => space.id === activeSpaceId)
+        ? activeSpaceId
+        : null,
+    [activeSpaceId, roomGroups.spaces, sidebarView],
   );
 
   const activeSpace = useMemo(
@@ -48,6 +56,8 @@ export function useSpaceNavigation(
     [roomGroups],
   );
 
+  const dmUnreads = useMemo(() => computeDmUnreads(roomGroups), [roomGroups]);
+
   const subspaces = useMemo(
     () =>
       (activeSpace?.childSpaceIds ?? [])
@@ -56,8 +66,9 @@ export function useSpaceNavigation(
     [activeSpace, spacesById],
   );
 
-  // Highlight the top-level ancestor in the rail even when a nested space is open.
   const railActiveSpaceId = useMemo(() => {
+    if (sidebarView !== "space" || !effectiveActiveSpaceId) return null;
+
     let id: string | null = effectiveActiveSpaceId;
     const seen = new Set<string>();
     while (id && spaceParentId.has(id) && !seen.has(id)) {
@@ -65,7 +76,7 @@ export function useSpaceNavigation(
       id = spaceParentId.get(id) ?? null;
     }
     return id;
-  }, [effectiveActiveSpaceId, spaceParentId]);
+  }, [effectiveActiveSpaceId, sidebarView, spaceParentId]);
 
   const parentSpace = useMemo(() => {
     if (!effectiveActiveSpaceId) return null;
@@ -73,14 +84,21 @@ export function useSpaceNavigation(
     return parentId ? spacesById.get(parentId) ?? null : null;
   }, [effectiveActiveSpaceId, spaceParentId, spacesById]);
 
-  const visibleRoomGroups = useMemo(
-    () => ({
+  const visibleRoomGroups = useMemo(() => {
+    if (sidebarView === "dms") {
+      return {
+        favourites: [] as typeof roomGroups.favourites,
+        channels: [] as typeof roomGroups.channels,
+        dms: roomGroups.dms,
+      };
+    }
+
+    return {
       favourites: roomGroups.favourites.filter((room) => !activeSpaceChildSet || activeSpaceChildSet.has(room.id)),
       channels: roomGroups.channels.filter((room) => !activeSpaceChildSet || activeSpaceChildSet.has(room.id)),
       dms: roomGroups.dms.filter((room) => !activeSpaceChildSet || activeSpaceChildSet.has(room.id)),
-    }),
-    [roomGroups.channels, roomGroups.dms, roomGroups.favourites, activeSpaceChildSet],
-  );
+    };
+  }, [activeSpaceChildSet, roomGroups.channels, roomGroups.dms, roomGroups.favourites, sidebarView]);
 
   return {
     effectiveActiveSpaceId,
@@ -90,6 +108,7 @@ export function useSpaceNavigation(
     spaceParentId,
     topLevelSpaces,
     topLevelSpaceUnreads,
+    dmUnreads,
     subspaces,
     railActiveSpaceId,
     parentSpace,

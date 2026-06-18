@@ -1,11 +1,36 @@
 /** Query params used to deep-link into a Matrix room or space. */
 export const ROOM_URL_PARAM = "room";
 export const SPACE_URL_PARAM = "space";
+export const VIEW_URL_PARAM = "view";
+export const DM_VIEW = "dms";
+
+export type SidebarView = "home" | "dms" | "space";
 
 export type ChatUrlState = {
   roomId: string | null;
   spaceId: string | null;
+  view: typeof DM_VIEW | null;
 };
+
+export function sidebarViewFromChatUrl(state: ChatUrlState): SidebarView {
+  if (state.view === DM_VIEW) return "dms";
+  if (state.spaceId) return "space";
+  return "home";
+}
+
+export function chatUrlFromSidebar(
+  roomId: string | null,
+  spaceId: string | null,
+  sidebarView: SidebarView,
+): ChatUrlState {
+  if (sidebarView === "dms") {
+    return { roomId, spaceId: null, view: DM_VIEW };
+  }
+  if (sidebarView === "space") {
+    return { roomId, spaceId, view: null };
+  }
+  return { roomId, spaceId: null, view: null };
+}
 
 function readMatrixIdParam(params: URLSearchParams, key: string): string | null {
   const raw = params.get(key);
@@ -21,9 +46,11 @@ function readMatrixIdParam(params: URLSearchParams, key: string): string | null 
 
 export function readChatUrlFromSearch(search: string): ChatUrlState {
   const params = new URLSearchParams(search);
+  const view = params.get(VIEW_URL_PARAM);
   return {
     roomId: readMatrixIdParam(params, ROOM_URL_PARAM),
     spaceId: readMatrixIdParam(params, SPACE_URL_PARAM),
+    view: view === DM_VIEW ? DM_VIEW : null,
   };
 }
 
@@ -59,13 +86,18 @@ export function buildSearchWithChatState(state: ChatUrlState, currentSearch: str
   } else {
     params.delete(SPACE_URL_PARAM);
   }
+  if (state.view) {
+    params.set(VIEW_URL_PARAM, state.view);
+  } else {
+    params.delete(VIEW_URL_PARAM);
+  }
   const query = params.toString();
   return query ? `?${query}` : "";
 }
 
 export function buildSearchWithRoom(roomId: string | null, currentSearch: string): string {
   const current = readChatUrlFromSearch(currentSearch);
-  return buildSearchWithChatState({ roomId, spaceId: current.spaceId }, currentSearch);
+  return buildSearchWithChatState({ ...current, roomId }, currentSearch);
 }
 
 function historyUrl(search: string): string {
@@ -85,12 +117,12 @@ export function replaceChatInHistory(state: ChatUrlState): void {
 
 export function pushRoomToHistory(roomId: string | null): void {
   const current = readChatUrlFromLocation(window.location);
-  pushChatToHistory({ roomId, spaceId: current.spaceId });
+  pushChatToHistory({ ...current, roomId });
 }
 
 export function replaceRoomInHistory(roomId: string | null): void {
   const current = readChatUrlFromLocation(window.location);
-  replaceChatInHistory({ roomId, spaceId: current.spaceId });
+  replaceChatInHistory({ ...current, roomId });
 }
 
 export function resolveInitialActiveRoomId(storageKey: string): string | null {
@@ -100,7 +132,12 @@ export function resolveInitialActiveRoomId(storageKey: string): string | null {
 }
 
 export function resolveInitialActiveSpaceId(storageKey: string): string | null {
-  const fromUrl = readChatUrlFromLocation(window.location).spaceId;
-  if (fromUrl) return fromUrl;
+  const url = readChatUrlFromLocation(window.location);
+  if (url.view === DM_VIEW) return null;
+  if (url.spaceId) return url.spaceId;
   return window.localStorage.getItem(storageKey);
+}
+
+export function resolveInitialSidebarView(): SidebarView {
+  return sidebarViewFromChatUrl(readChatUrlFromLocation(window.location));
 }
