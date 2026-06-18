@@ -253,20 +253,25 @@ export function useRoomCreation({ client, activeSpaceId, onOpenRoom, onOpenSpace
     }
   };
 
-  const createDirectChat = async () => {
-    if (!client || !selectedDmUserId || creatingDmPending) return;
+  const openDirectChatWithUser = async (targetUserId: string) => {
+    if (!client || creatingDmPending) return;
 
     setCreatingDmPending(true);
     try {
-      const roomId = await createOrFindDirectRoom(client, selectedDmUserId);
+      const roomId = await createOrFindDirectRoom(client, targetUserId);
       closeCreateDm();
       onOpenRoom(roomId);
     } catch (error) {
-      console.error("[create-dm]", error);
-      window.alert("Не удалось создать личный чат.");
+      console.error("[open-direct-chat]", error);
+      window.alert("Не удалось открыть личный чат.");
     } finally {
       setCreatingDmPending(false);
     }
+  };
+
+  const createDirectChat = async () => {
+    if (!selectedDmUserId) return;
+    await openDirectChatWithUser(selectedDmUserId);
   };
 
   const onDmQueryChange = (value: string) => {
@@ -396,6 +401,7 @@ export function useRoomCreation({ client, activeSpaceId, onOpenRoom, onOpenSpace
     openCreateDm,
     closeCreateDm,
     createDirectChat,
+    openDirectChatWithUser,
   };
 }
 

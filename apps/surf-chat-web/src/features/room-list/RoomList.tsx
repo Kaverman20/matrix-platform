@@ -1,11 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion, Reorder } from "framer-motion";
-import { Boxes, ChevronDown, ChevronLeft, ChevronRight, Hash, LogOut, MessageCircle, MoreHorizontal, PanelLeftClose, PanelLeftOpen, Plus, Search, Settings, Star } from "lucide-react";
-import type { MatrixRoomSummary, MatrixSpaceSummary } from "@matrix-platform/matrix-core";
+import { Boxes, ChevronDown, ChevronLeft, ChevronRight, Hash, Loader2, LogOut, MessageCircle, MoreHorizontal, PanelLeftClose, PanelLeftOpen, Plus, Search, Settings, Star, UserPlus } from "lucide-react";
+import type { MatrixRoomSummary, MatrixSpaceSummary, UserDirectoryEntry } from "@matrix-platform/matrix-core";
+import { colorForId, filterRoomSummaries } from "@matrix-platform/matrix-core";
 import { fadeUp, transition } from "@matrix-platform/ui";
 import type { SidebarView } from "../../app/chatUrl";
+import { useMatrix } from "../../app/providers/MatrixContext";
 import { AuthedImage } from "../media/AuthedImage";
 import { useRoomListTimeFormatter } from "../settings/usePreferences";
+import { useSidebarUserSearch } from "./useSidebarUserSearch";
 import "./room-list.css";
 
 type Props = {
@@ -27,6 +30,7 @@ type Props = {
   onReorderFavourites: (rooms: MatrixRoomSummary[]) => void;
   onCreateChannel: () => void;
   onCreateDm: () => void;
+  onStartDmWithUser: (userId: string) => void | Promise<void>;
   onCreateSubspace: () => void;
   onLeaveSpace: () => void;
   onOpenSettings: (roomId: string) => void;
@@ -52,11 +56,13 @@ export function RoomList({
   onReorderFavourites,
   onCreateChannel,
   onCreateDm,
+  onStartDmWithUser,
   onCreateSubspace,
   onLeaveSpace,
   onOpenSettings,
   onLeaveRoom,
 }: Props) {
+  const { client } = useMatrix();
   const [query, setQuery] = useState("");
   const [tip, setTip] = useState<{ left: number; text: string; top: number } | null>(null);
   const [favouriteOrderIds, setFavouriteOrderIds] = useState<string[]>([]);
@@ -74,27 +80,50 @@ export function RoomList({
   const subMenuRef = useRef<HTMLDivElement | null>(null);
   const total = favourites.length + channels.length + dms.length;
   const searchValue = query.trim().toLowerCase();
+  const existingDmUserIds = useMemo(
+    () => dms.map((room) => room.directUserId),
+    [dms],
+  );
+  const userSearch = useSidebarUserSearch({
+    client,
+    query,
+    existingDmUserIds,
+  });
+  const visibleSubspaces = useMemo(
+    () => (searchValue
+      ? subspaces.filter((space) => space.name.toLowerCase().includes(searchValue))
+      : subspaces),
+    [subspaces, searchValue],
+  );
   const orderedFavourites = useMemo(
     () => reconcileRoomsByIds(favourites, favouriteOrderIds),
     [favourites, favouriteOrderIds],
   );
 
   const visibleFavourites = useMemo(
-    () => filterRooms(orderedFavourites, searchValue),
+    () => filterRoomSummaries(orderedFavourites, searchValue),
     [orderedFavourites, searchValue],
   );
   const visibleChannels = useMemo(
-    () => filterRooms(channels, searchValue),
+    () => filterRoomSummaries(channels, searchValue),
     [channels, searchValue],
   );
   const visibleDms = useMemo(
-    () => filterRooms(dms, searchValue),
+    () => filterRoomSummaries(dms, searchValue),
     [dms, searchValue],
   );
   const isDmsView = sidebarView === "dms";
   const isHomeView = sidebarView === "home";
   const canCreateDm = !searchValue && (isHomeView || isDmsView);
   const visibleTotal = visibleFavourites.length + visibleChannels.length + visibleDms.length;
+  const showUserResults = !collapsed && userSearch.active;
+  const hasSearchResults = visibleTotal > 0 || userSearch.users.length > 0;
+
+  const handleStartDmWithUser = (userId: string) => {
+    void Promise.resolve(onStartDmWithUser(userId)).then(() => {
+      setQuery("");
+    });
+  };
   const showRoomTip = (text: string, element: HTMLElement) => {
     if (!collapsed) return;
     const rect = element.getBoundingClientRect();
@@ -258,7 +287,7 @@ export function RoomList({
               <Search size={16} />
               <input
                 value={query}
-                placeholder="Поиск"
+                placeholder="Комнаты и люди"
                 onChange={(event) => setQuery(event.target.value)}
               />
             </label>
@@ -273,7 +302,7 @@ export function RoomList({
             <span>{parentSpaceName}</span>
           </button>
         )}
-        {!collapsed && activeSpaceId && (
+        {!collapsed && activeSpaceId && visibleSubspaces.length > 0 && (
           <section className="room-section">
             <div className="room-section__head">
               <button
@@ -303,7 +332,7 @@ export function RoomList({
             </div>
             <div className={`room-section__body${openSections.subspaces ? " is-open" : ""}`}>
               <div className="room-section__body-inner">
-                {subspaces.map((space) => (
+                {visibleSubspaces.map((space) => (
                   <div
                     key={space.id}
                     role="button"
@@ -345,6 +374,13 @@ export function RoomList({
               </div>
             </div>
           </section>
+        )}
+        {showUserResults && (
+          <UserSearchSection
+            users={userSearch.users}
+            searching={userSearch.searching}
+            onStartDm={handleStartDmWithUser}
+          />
         )}
         {!isDmsView && (
           <RoomSection
@@ -405,8 +441,14 @@ export function RoomList({
           Комнат пока нет или sync ещё не принёс список.
         </div>
       )}
-      {total > 0 && visibleTotal === 0 && (
+      {total > 0 && searchValue && !hasSearchResults && !userSearch.searching && (
         <div className="room-list__empty">Ничего не найдено.</div>
+      )}
+      {total > 0 && searchValue && userSearch.searching && !hasSearchResults && (
+        <div className="room-list__empty room-list__empty--searching">
+          <Loader2 size={16} className="room-list__searchSpinner" />
+          <span>Ищем...</span>
+        </div>
       )}
       <AnimatePresence>
         {tip && (
@@ -528,6 +570,82 @@ type SectionProps = {
   addLabel?: string;
   onOpenRowMenu: (room: MatrixRoomSummary, x: number, y: number) => void;
 };
+
+function UserSearchSection({
+  users,
+  searching,
+  onStartDm,
+}: {
+  users: UserDirectoryEntry[];
+  searching: boolean;
+  onStartDm: (userId: string) => void;
+}) {
+  if (searching && users.length === 0) {
+    return (
+      <section className="room-section room-section--search">
+        <div className="room-section__head">
+          <div className="room-section__title room-section__title--static">
+            <span className="room-section__icon"><UserPlus size={14} /></span>
+            <span>Люди</span>
+          </div>
+        </div>
+        <div className="room-section__body is-open">
+          <div className="room-section__body-inner">
+            <div className="room-list__searchHint">
+              <Loader2 size={16} className="room-list__searchSpinner" />
+              <span>Ищем пользователей...</span>
+            </div>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  if (users.length === 0) return null;
+
+  return (
+    <section className="room-section room-section--search">
+      <div className="room-section__head">
+        <div className="room-section__title room-section__title--static">
+          <span className="room-section__icon"><UserPlus size={14} /></span>
+          <span>Люди</span>
+        </div>
+      </div>
+      <div className="room-section__body is-open">
+        <div className="room-section__body-inner">
+          <div className="room-section__items">
+            {users.map((entry) => {
+              const label = entry.display_name || entry.user_id;
+              return (
+                <button
+                  key={entry.user_id}
+                  type="button"
+                  className="sidebar-user-row"
+                  onClick={() => onStartDm(entry.user_id)}
+                >
+                  <span
+                    className="sidebar-user-row__avatar"
+                    style={{ background: colorForId(entry.user_id) }}
+                  >
+                    {label.slice(0, 1).toUpperCase()}
+                    {entry.avatar_url && (
+                      <AuthedImage url={entry.avatar_url} className="sidebar-user-row__avatar-img" />
+                    )}
+                  </span>
+                  <span className="sidebar-user-row__main">
+                    <strong>{label}</strong>
+                    {entry.display_name && <span>{entry.user_id}</span>}
+                    {!entry.display_name && <span>Начать личный чат</span>}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
 
 function RoomSection({
   title,
@@ -717,14 +835,6 @@ function RoomSection({
       </div>
     </section>
   );
-}
-
-function filterRooms(rooms: MatrixRoomSummary[], query: string): MatrixRoomSummary[] {
-  if (!query) return rooms;
-  return rooms.filter((room) => {
-    const preview = room.preview || room.topic || "";
-    return `${room.name} ${preview}`.toLowerCase().includes(query);
-  });
 }
 
 function reconcileRoomsByIds(

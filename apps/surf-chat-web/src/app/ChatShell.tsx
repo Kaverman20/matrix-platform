@@ -526,6 +526,7 @@ export function ChatShell() {
           onReorderFavourites={reorderFavouriteRooms}
           onCreateChannel={creation.openCreateChannel}
           onCreateDm={creation.openCreateDm}
+          onStartDmWithUser={(userId) => creation.openDirectChatWithUser(userId)}
           onCreateSubspace={creation.openCreateSubspace}
           onLeaveSpace={() => void chatNavigation.leaveActiveSpace()}
           onOpenSettings={roomSettings.openSettings}

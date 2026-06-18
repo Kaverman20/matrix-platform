@@ -1,9 +1,22 @@
-import { fireEvent, render } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MotionConfig } from "framer-motion";
 import { describe, expect, it, vi } from "vitest";
 import type { MatrixRoomSummary } from "@matrix-platform/matrix-core";
 import { PreferencesProvider } from "../../app/providers/PreferencesProvider";
 import { RoomList } from "./RoomList";
+
+vi.mock("../../app/providers/MatrixContext", () => ({
+  useMatrix: () => ({
+    client: {
+      getUserId: () => "@me:server",
+      searchUserDirectory: vi.fn(async ({ term }: { term: string }) => ({
+        results: term.includes("alice")
+          ? [{ user_id: "@alice:server", display_name: "Alice" }]
+          : [],
+      })),
+    },
+  }),
+}));
 
 function makeRoom(overrides: Partial<MatrixRoomSummary> = {}): MatrixRoomSummary {
   return {
@@ -18,7 +31,7 @@ function makeRoom(overrides: Partial<MatrixRoomSummary> = {}): MatrixRoomSummary
     favourite: false,
     favouriteOrder: 0,
     memberCount: 2,
-    topic: "",
+    topic: "team updates",
     ...overrides,
   };
 }
@@ -43,6 +56,7 @@ function renderRoomList(overrides: Partial<Parameters<typeof RoomList>[0]> = {})
     onReorderFavourites: vi.fn(),
     onCreateChannel: vi.fn(),
     onCreateDm: vi.fn(),
+    onStartDmWithUser: vi.fn(),
     onCreateSubspace: vi.fn(),
     onLeaveSpace: vi.fn(),
     onOpenSettings: vi.fn(),
@@ -110,5 +124,48 @@ describe("RoomList section collapse", () => {
 
     expect(toggle?.getAttribute("aria-expanded")).toBe("true");
     expect(channelsSection(container)?.querySelector(".room-section__body.is-open")).toBeTruthy();
+  });
+});
+
+describe("RoomList search", () => {
+  function searchInput(container: HTMLElement) {
+    return container.querySelector<HTMLInputElement>(".room-list__search input");
+  }
+
+  it("filters rooms by topic and preview", () => {
+    const { container } = renderRoomList({
+      channels: [
+        makeRoom({ name: "general", preview: "hello" }),
+        makeRoom({ id: "!ops:server", name: "ops", preview: "deploy", topic: "on-call" }),
+      ],
+    });
+
+    fireEvent.change(searchInput(container)!, {
+      target: { value: "on-call" },
+    });
+
+    const visibleNames = [...container.querySelectorAll(".room-row__top strong")].map(
+      (node) => node.textContent,
+    );
+    expect(visibleNames).toEqual(["ops"]);
+  });
+
+  it("shows directory users and starts a DM from the sidebar", async () => {
+    const onStartDmWithUser = vi.fn().mockResolvedValue(undefined);
+    const { container } = renderRoomList({ onStartDmWithUser });
+
+    fireEvent.change(searchInput(container)!, {
+      target: { value: "alice" },
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText("Alice")).toBeTruthy();
+    });
+
+    fireEvent.click(screen.getByText("Alice"));
+
+    await waitFor(() => {
+      expect(onStartDmWithUser).toHaveBeenCalledWith("@alice:server");
+    });
   });
 });
