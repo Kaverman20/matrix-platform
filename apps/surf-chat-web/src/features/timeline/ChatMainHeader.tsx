@@ -1,4 +1,4 @@
-import { AlignLeft, Hash, MessageSquare, MessagesSquare, PanelRight, Phone } from "lucide-react";
+import { AlignLeft, Hash, MessageSquare, MessagesSquare, PanelRight, Phone, Video } from "lucide-react";
 import type { MatrixRoomSummary } from "@matrix-platform/matrix-core";
 
 type Props = {
@@ -14,6 +14,7 @@ type Props = {
   callsEnabled?: boolean;
   callActive?: boolean;
   onStartCall?: () => void;
+  onStartVideoCall?: () => void;
 };
 
 /** Header bar of the open chat: room title, typing indicator, and the
@@ -30,6 +31,7 @@ export function ChatMainHeader({
   callsEnabled = false,
   callActive = false,
   onStartCall,
+  onStartVideoCall,
 }: Props) {
   const showCallButton = callsEnabled && room.kind === "dm";
 
@@ -68,6 +70,17 @@ export function ChatMainHeader({
             onClick={onStartCall}
           >
             <Phone size={18} />
+          </button>
+        )}
+        {showCallButton && (
+          <button
+            type="button"
+            className="icon-button"
+            title="Видеозвонок"
+            disabled={callActive}
+            onClick={onStartVideoCall}
+          >
+            <Video size={18} />
           </button>
         )}
         <button

@@ -51,21 +51,31 @@ describe("joinCall", () => {
     await expect(joinCall(client, "!room:server")).rejects.toBeInstanceOf(CallUnavailableError);
   });
 
-  it("joins the session with the discovered foci", async () => {
+  it("joins with audio intent by default (no ring)", async () => {
     const { client, session } = fakeClient();
     const result = await joinCall(client, "!room:server");
     expect(result).toBe(session);
-    expect(session.joinRoomSession).toHaveBeenCalledWith([LIVEKIT_FOCUS], undefined, undefined);
+    expect(session.joinRoomSession).toHaveBeenCalledWith([LIVEKIT_FOCUS], undefined, {
+      callIntent: "audio",
+    });
   });
 
   it("passes ring notification config when requested", async () => {
     const { client, session } = fakeClient();
     await joinCall(client, "!room:server", { ring: true });
-    expect(session.joinRoomSession).toHaveBeenCalledWith(
-      [LIVEKIT_FOCUS],
-      undefined,
-      { notificationType: "ring", callIntent: "audio" },
-    );
+    expect(session.joinRoomSession).toHaveBeenCalledWith([LIVEKIT_FOCUS], undefined, {
+      notificationType: "ring",
+      callIntent: "audio",
+    });
+  });
+
+  it("announces video intent for a video call", async () => {
+    const { client, session } = fakeClient();
+    await joinCall(client, "!room:server", { ring: true, intent: "video" });
+    expect(session.joinRoomSession).toHaveBeenCalledWith([LIVEKIT_FOCUS], undefined, {
+      notificationType: "ring",
+      callIntent: "video",
+    });
   });
 });
 

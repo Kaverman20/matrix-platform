@@ -1,12 +1,18 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { MatrixClient } from "matrix-js-sdk";
 import type { MatrixRTCSession } from "matrix-js-sdk/lib/matrixrtc";
-import type { Room } from "livekit-client";
-import { joinCall, leaveCall, subscribePeerDeclined } from "@matrix-platform/matrix-core";
+import type { LocalVideoTrack, RemoteVideoTrack, Room } from "livekit-client";
+import {
+  joinCall,
+  leaveCall,
+  subscribePeerDeclined,
+  type CallIntent,
+} from "@matrix-platform/matrix-core";
 import { fetchLiveKitCredentials } from "./fetchLiveKitJwt";
 import {
   connectLiveKitRoom,
   disconnectLiveKitRoom,
+  setLiveKitCameraEnabled,
   setLiveKitMicrophoneMuted,
 } from "./livekitSession";
 import { mapCallError } from "./mapCallError";
@@ -19,10 +25,19 @@ export type CallStatus =
   | "connected" // peer is in the call — duration ticks
   | "error";
 
+/** Current media surface of the call (can change mid-call without re-dialling). */
+export type CallMediaMode = "audio" | "video" | "screen";
+
+/** Remote/local media tracks the CallPanel attaches to <video> elements. */
+export type CallMedia = {
+  localCamera: LocalVideoTrack | null;
+  remoteCamera: RemoteVideoTrack | null;
+  remoteScreen: RemoteVideoTrack | null;
+};
+
 /** How long an outgoing call rings before giving up (no answer / declined). */
 const RING_TIMEOUT_MS = 30_000;
-
-/** How long to show a terminal error (declined, no answer, connection failed) before closing. */
+/** How long to show a terminal error before closing. */
 const ERROR_DISMISS_MS = 4_000;
 
 export type StartCallOptions = {
@@ -30,12 +45,18 @@ export type StartCallOptions = {
   ring?: boolean;
   /** Override the hook's default room (e.g. answer from incoming banner). */
   roomId?: string;
+  /** Audio or video call (default "audio"). */
+  intent?: CallIntent;
 };
 
 export type RoomCall = {
   status: CallStatus;
   error: string | null;
   muted: boolean;
+  cameraEnabled: boolean;
+  reconnecting: boolean;
+  mediaMode: CallMediaMode;
+  media: CallMedia;
   /** Seconds since the peer joined; only meaningful while `connected`. */
   durationSec: number;
   /** Room the active call belongs to — independent of the chat being viewed. */
@@ -43,17 +64,24 @@ export type RoomCall = {
   start: (options?: StartCallOptions) => Promise<void>;
   hangup: () => Promise<void>;
   toggleMute: () => void;
+  toggleCamera: () => Promise<void>;
 };
+
+const NO_MEDIA: CallMedia = { localCamera: null, remoteCamera: null, remoteScreen: null };
 
 /**
  * Orchestrates a 1:1 room call: MatrixRTC membership (matrix-core) plus LiveKit
  * media (livekit-client). Phone-like UX — ringback while waiting, an in-call
- * timer once the peer joins, a no-answer timeout, and auto-end when they leave.
+ * timer, no-answer timeout, auto-end when the peer leaves — and now audio↔video.
  */
 export function useRoomCall(client: MatrixClient | null, roomId: string | null): RoomCall {
   const [status, setStatus] = useState<CallStatus>("idle");
   const [error, setError] = useState<string | null>(null);
   const [muted, setMuted] = useState(false);
+  const [cameraEnabled, setCameraEnabled] = useState(false);
+  const [reconnecting, setReconnecting] = useState(false);
+  const [mediaMode, setMediaMode] = useState<CallMediaMode>("audio");
+  const [media, setMedia] = useState<CallMedia>(NO_MEDIA);
   const [durationSec, setDurationSec] = useState(0);
   const [outgoing, setOutgoing] = useState(false);
   const [callRoomId, setCallRoomId] = useState<string | null>(null);
@@ -61,11 +89,13 @@ export function useRoomCall(client: MatrixClient | null, roomId: string | null):
   const liveKitRef = useRef<Room | null>(null);
   const liveKitUnwatchRef = useRef<(() => void) | null>(null);
   const wasConnectedRef = useRef(false);
+  const cameraEnabledRef = useRef(false);
 
   const cleanup = useCallback(async () => {
     liveKitUnwatchRef.current?.();
     liveKitUnwatchRef.current = null;
     wasConnectedRef.current = false;
+    cameraEnabledRef.current = false;
     const liveKit = liveKitRef.current;
     const session = sessionRef.current;
     liveKitRef.current = null;
@@ -74,18 +104,27 @@ export function useRoomCall(client: MatrixClient | null, roomId: string | null):
     if (session) await leaveCall(session);
   }, []);
 
+  const resetMediaState = useCallback(() => {
+    setMuted(false);
+    setCameraEnabled(false);
+    setReconnecting(false);
+    setMediaMode("audio");
+    setMedia(NO_MEDIA);
+    cameraEnabledRef.current = false;
+  }, []);
+
   /** Ends the call. With a reason it surfaces as an error (e.g. "Не отвечает"). */
   const endCall = useCallback(
     async (reason?: string) => {
       setStatus(reason ? "error" : "idle");
       setError(reason ?? null);
-      setMuted(false);
       setDurationSec(0);
       setOutgoing(false);
+      resetMediaState();
       if (!reason) setCallRoomId(null);
       await cleanup();
     },
-    [cleanup],
+    [cleanup, resetMediaState],
   );
 
   const hangup = useCallback(() => endCall(), [endCall]);
@@ -100,39 +139,58 @@ export function useRoomCall(client: MatrixClient | null, roomId: string | null):
       const targetRoomId = options?.roomId ?? roomId;
       if (!client || !targetRoomId) return;
       const isOutgoing = options?.ring === true;
+      const isVideo = options?.intent === "video";
       setError(null);
       setDurationSec(0);
       setOutgoing(isOutgoing);
       setCallRoomId(targetRoomId);
       setStatus("connecting");
+      resetMediaState();
+      setMediaMode(isVideo ? "video" : "audio");
+      setCameraEnabled(isVideo);
+      cameraEnabledRef.current = isVideo;
       wasConnectedRef.current = false;
 
       let session: MatrixRTCSession | null = null;
       let liveKit: Room | null = null;
 
       try {
-        session = await joinCall(client, targetRoomId, { ring: options?.ring });
+        session = await joinCall(client, targetRoomId, {
+          ring: options?.ring,
+          intent: options?.intent,
+        });
         sessionRef.current = session;
 
         const { wsUrl, jwt } = await fetchLiveKitCredentials(client, targetRoomId);
         const connected = await connectLiveKitRoom(wsUrl, jwt, {
-          onDisconnect: () => void endCallRef.current(),
-          onRemotePresence: (present) => {
-            if (present) {
-              wasConnectedRef.current = true;
-              setStatus("connected");
-            } else if (wasConnectedRef.current) {
-              // Peer left an established 1:1 call → end it.
-              void endCallRef.current();
-            } else {
-              setStatus("ringing");
-            }
+          intent: options?.intent,
+          handlers: {
+            onDisconnect: () => void endCallRef.current(),
+            onRemotePresence: (present) => {
+              if (present) {
+                wasConnectedRef.current = true;
+                setStatus("connected");
+              } else if (wasConnectedRef.current) {
+                void endCallRef.current();
+              } else {
+                setStatus("ringing");
+              }
+            },
+            onRemoteVideo: (source, track) => {
+              setMedia((prev) =>
+                source === "screen"
+                  ? { ...prev, remoteScreen: track }
+                  : { ...prev, remoteCamera: track },
+              );
+            },
+            onReconnecting: () => setReconnecting(true),
+            onReconnected: () => setReconnecting(false),
           },
         });
         liveKit = connected.room;
         liveKitUnwatchRef.current = connected.unwatch;
         liveKitRef.current = liveKit;
-
+        setMedia((prev) => ({ ...prev, localCamera: connected.localCameraTrack }));
         setMuted(false);
       } catch (err) {
         liveKitUnwatchRef.current?.();
@@ -144,9 +202,10 @@ export function useRoomCall(client: MatrixClient | null, roomId: string | null):
         setError(mapCallError(err));
         setStatus("error");
         setOutgoing(false);
+        resetMediaState();
       }
     },
-    [client, roomId],
+    [client, resetMediaState, roomId],
   );
 
   const toggleMute = useCallback(() => {
@@ -157,9 +216,27 @@ export function useRoomCall(client: MatrixClient | null, roomId: string | null):
     });
   }, []);
 
-  // Ringback tone for an outgoing call, from the moment of dialling until the
-  // peer joins — starts immediately (during "connecting") so there's no silent
-  // gap while the LiveKit connection is set up.
+  const toggleCamera = useCallback(async () => {
+    const room = liveKitRef.current;
+    if (!room) return;
+    const next = !cameraEnabledRef.current;
+    cameraEnabledRef.current = next;
+    setCameraEnabled(next);
+    try {
+      const track = await setLiveKitCameraEnabled(room, next);
+      setMedia((prev) => ({ ...prev, localCamera: track }));
+      setMediaMode(next ? "video" : "audio");
+    } catch {
+      // Permission denied / no camera — revert to audio, call continues.
+      cameraEnabledRef.current = false;
+      setCameraEnabled(false);
+      setMedia((prev) => ({ ...prev, localCamera: null }));
+      setMediaMode("audio");
+      setError("Нет доступа к камере");
+    }
+  }, []);
+
+  // Ringback tone for an outgoing call until the peer joins — starts immediately.
   const shouldRing = outgoing && (status === "connecting" || status === "ringing");
   useEffect(() => {
     if (!shouldRing) return;
@@ -177,17 +254,16 @@ export function useRoomCall(client: MatrixClient | null, roomId: string | null):
     return () => window.clearTimeout(id);
   }, [shouldRing]);
 
-  // Callee declined via MSC4310 rtc.decline — stop dialling immediately.
+  // Callee declined via rtc.decline — stop dialling immediately.
   useEffect(() => {
     if (!client || !callRoomId || !outgoing) return;
     if (status !== "connecting" && status !== "ringing") return;
-
     return subscribePeerDeclined(client, callRoomId, () => {
       void endCallRef.current("Абонент сбросил");
     });
   }, [callRoomId, client, outgoing, status]);
 
-  // Brief error toast (Telegram-style) then return to idle.
+  // Brief error toast then return to idle.
   useEffect(() => {
     if (status !== "error" || !error) return;
     const id = window.setTimeout(() => {
@@ -198,8 +274,7 @@ export function useRoomCall(client: MatrixClient | null, roomId: string | null):
     return () => window.clearTimeout(id);
   }, [error, status]);
 
-  // In-call timer. durationSec is reset in start()/endCall() (callbacks), so the
-  // effect only ticks while connected — no synchronous setState here.
+  // In-call timer. durationSec reset in start()/endCall(), so the effect only ticks.
   useEffect(() => {
     if (status !== "connected") return;
     const startedAt = Date.now();
@@ -209,15 +284,26 @@ export function useRoomCall(client: MatrixClient | null, roomId: string | null):
     return () => window.clearInterval(id);
   }, [status]);
 
-  // Tear the call down only when the whole chat unmounts (logout) — NOT when the
-  // viewed room changes. The call is bound to the room captured at start(), so
-  // navigating to another chat keeps it alive (Telegram-style). `cleanup` is
-  // stable, so this effect runs its teardown once, on unmount.
+  // Tear down only when the chat unmounts (logout) — NOT on viewed-room change.
   useEffect(() => {
     return () => {
       void cleanup();
     };
   }, [cleanup]);
 
-  return { status, error, muted, durationSec, callRoomId, start, hangup, toggleMute };
+  return {
+    status,
+    error,
+    muted,
+    cameraEnabled,
+    reconnecting,
+    mediaMode,
+    media,
+    durationSec,
+    callRoomId,
+    start,
+    hangup,
+    toggleMute,
+    toggleCamera,
+  };
 }

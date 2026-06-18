@@ -213,16 +213,19 @@ export function ChatShell() {
     return { name: "", avatarUrl: undefined, id: undefined };
   }, [callPeerName, callRoom, incomingCall, incomingRoom, roomCall.status]);
   const handleStartCall = useCallback(() => {
-    void roomCall.start({ ring: true });
+    void roomCall.start({ ring: true, intent: "audio" });
+  }, [roomCall]);
+  const handleStartVideoCall = useCallback(() => {
+    void roomCall.start({ ring: true, intent: "video" });
   }, [roomCall]);
   const handleAnswerCall = useCallback(() => {
     if (!incomingCall) return;
-    const { roomId } = incomingCall;
+    const { roomId, callIntent } = incomingCall;
     dismissIncomingCall();
     if (activeRoomId !== roomId) {
       chatNavigation.selectRoom(roomId);
     }
-    void roomCall.start({ ring: false, roomId });
+    void roomCall.start({ ring: false, roomId, intent: callIntent });
   }, [activeRoomId, chatNavigation, dismissIncomingCall, incomingCall, roomCall]);
   const handleDeclineCall = useCallback(() => {
     if (!incomingCall) return;
@@ -583,6 +586,7 @@ export function ChatShell() {
               callsEnabled={CALLS_ENABLED}
               callActive={callActive}
               onStartCall={handleStartCall}
+              onStartVideoCall={handleStartVideoCall}
             />
             <AnimatePresence initial={false}>
               {pinnedMessages.length > 0 && (() => {

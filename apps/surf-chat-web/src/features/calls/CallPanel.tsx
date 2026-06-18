@@ -1,4 +1,5 @@
-import { GripHorizontal, Mic, MicOff, Phone, PhoneOff } from "lucide-react";
+import { GripHorizontal, Mic, MicOff, Phone, PhoneOff, Video, VideoOff } from "lucide-react";
+import { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { colorForId } from "@matrix-platform/matrix-core";
 import type { IncomingCall } from "./useIncomingCall";
@@ -8,8 +9,11 @@ import { AuthedImage } from "../media/AuthedImage";
 import { useDraggablePanel } from "./useDraggablePanel";
 import "./call-panel.css";
 
-const PANEL_WIDTH = 300;
-const PANEL_HEIGHT = 196;
+const LAYOUT = {
+  audio: { width: 300, height: 196 },
+  video: { width: 400, height: 320 },
+  screen: { width: 560, height: 400 },
+} as const;
 
 const STATUS_LABEL: Record<RoomCall["status"], string> = {
   idle: "",
@@ -31,11 +35,12 @@ type Props = {
 
 function statusText(call: RoomCall): string {
   if (call.status === "error") return call.error ?? STATUS_LABEL.error;
+  if (call.reconnecting) return "Переподключение…";
   if (call.status === "connected") return formatCallDuration(call.durationSec);
   return STATUS_LABEL[call.status];
 }
 
-/** Floating draggable 1:1 call window — active call or incoming ring (Telegram desktop). */
+/** Floating draggable 1:1 call window — audio or video (Telegram desktop style). */
 export function CallPanel({
   call,
   incoming = null,
@@ -47,22 +52,58 @@ export function CallPanel({
 }: Props) {
   const isIncoming = Boolean(incoming && call.status === "idle");
   const isActive = call.status !== "idle";
+
+  const mainTrack = call.media.remoteScreen ?? call.media.remoteCamera;
+  const localTrack = call.media.localCamera;
+  const showVideoStage = !isIncoming && (call.mediaMode !== "audio" || Boolean(mainTrack));
+
+  const layout = LAYOUT[isIncoming ? "audio" : call.mediaMode];
   const { position, onDragPointerDown, onDragPointerMove, onDragPointerUp } = useDraggablePanel(
-    PANEL_WIDTH,
-    PANEL_HEIGHT,
+    layout.width,
+    layout.height,
   );
+
+  const mainVideoRef = useRef<HTMLVideoElement>(null);
+  const pipVideoRef = useRef<HTMLVideoElement>(null);
+
+  useEffect(() => {
+    const el = mainVideoRef.current;
+    if (!el || !mainTrack) return;
+    mainTrack.attach(el);
+    return () => void mainTrack.detach(el);
+  }, [mainTrack]);
+
+  useEffect(() => {
+    const el = pipVideoRef.current;
+    if (!el || !localTrack) return;
+    localTrack.attach(el);
+    return () => void localTrack.detach(el);
+  }, [localTrack]);
 
   if (!isIncoming && !isActive) return null;
 
   const fallbackColor = colorForId((peerId ?? peerName) || "call");
   const initial = (peerName.trim()[0] ?? "?").toUpperCase();
 
+  const avatar = (
+    <div
+      className={`call-panel__avatar${isIncoming ? " call-panel__avatar--ringing" : ""}`}
+      style={peerAvatarUrl ? undefined : { background: fallbackColor }}
+    >
+      {peerAvatarUrl ? (
+        <AuthedImage url={peerAvatarUrl} className="call-panel__avatar-img" alt="" />
+      ) : (
+        <span>{initial}</span>
+      )}
+    </div>
+  );
+
   return createPortal(
     <div
-      className="call-panel"
+      className={`call-panel${showVideoStage ? " call-panel--video" : ""}`}
       role="dialog"
       aria-label={isIncoming ? `Входящий звонок от ${peerName}` : `Звонок с ${peerName}`}
-      style={{ left: position.x, top: position.y, width: PANEL_WIDTH }}
+      style={{ left: position.x, top: position.y, width: layout.width }}
     >
       <div
         className="call-panel__drag"
@@ -73,23 +114,38 @@ export function CallPanel({
       >
         <GripHorizontal size={16} aria-hidden />
         <span className="call-panel__drag-label">{peerName}</span>
+        {isActive && <span className="call-panel__drag-status">{statusText(call)}</span>}
       </div>
 
-      <div className="call-panel__body">
-        <div
-          className={`call-panel__avatar${isIncoming ? " call-panel__avatar--ringing" : ""}`}
-          style={peerAvatarUrl ? undefined : { background: fallbackColor }}
-        >
-          {peerAvatarUrl ? (
-            <AuthedImage url={peerAvatarUrl} className="call-panel__avatar-img" alt="" />
+      {showVideoStage ? (
+        <div className="call-panel__stage">
+          {mainTrack ? (
+            <video ref={mainVideoRef} className="call-panel__main-video" autoPlay playsInline />
           ) : (
-            <span>{initial}</span>
+            <div className="call-panel__stage-fallback">{avatar}</div>
+          )}
+          {call.cameraEnabled && localTrack && (
+            <video
+              ref={pipVideoRef}
+              className="call-panel__pip"
+              autoPlay
+              playsInline
+              muted
+            />
           )}
         </div>
-        <p className="call-panel__status">
-          {isIncoming ? "Входящий звонок…" : statusText(call)}
-        </p>
-      </div>
+      ) : (
+        <div className="call-panel__body">
+          {avatar}
+          <p className="call-panel__status">
+            {isIncoming
+              ? incoming?.callIntent === "video"
+                ? "Входящий видеозвонок…"
+                : "Входящий звонок…"
+              : statusText(call)}
+          </p>
+        </div>
+      )}
 
       <div className="call-panel__controls">
         {isIncoming ? (
@@ -122,6 +178,16 @@ export function CallPanel({
               onClick={call.toggleMute}
             >
               {call.muted ? <MicOff size={18} /> : <Mic size={18} />}
+            </button>
+            <button
+              type="button"
+              className="call-panel__btn"
+              aria-pressed={call.cameraEnabled}
+              disabled={call.status !== "connected"}
+              title={call.cameraEnabled ? "Выключить камеру" : "Включить камеру"}
+              onClick={() => void call.toggleCamera()}
+            >
+              {call.cameraEnabled ? <Video size={18} /> : <VideoOff size={18} />}
             </button>
             <button
               type="button"

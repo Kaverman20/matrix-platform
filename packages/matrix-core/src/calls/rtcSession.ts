@@ -25,9 +25,15 @@ export class CallUnavailableError extends Error {
   }
 }
 
+/** What kind of call this is — drives the callee's "звонок" vs "видеозвонок" UI
+ * and whether the camera is published on join. */
+export type CallIntent = "audio" | "video";
+
 export type JoinCallOptions = {
   /** Emit an in-room ring notification for the callee (outgoing 1:1 call). */
   ring?: boolean;
+  /** Audio or video call (default "audio"). */
+  intent?: CallIntent;
 };
 
 /**
@@ -52,9 +58,12 @@ export async function joinCall(
   }
 
   const session = client.matrixRTC.getRoomSession(room);
-  const joinConfig = options?.ring
-    ? { notificationType: "ring" as const, callIntent: "audio" as const }
-    : undefined;
+  // callIntent is always announced (so the callee knows audio vs video, even when
+  // answering); notificationType "ring" is added only for an outgoing call.
+  const joinConfig: { notificationType?: "ring"; callIntent: CallIntent } = {
+    callIntent: options?.intent ?? "audio",
+  };
+  if (options?.ring) joinConfig.notificationType = "ring";
   // joinRoomSession is fire-and-forget (void): membership is published async and
   // observed via MatrixRTCSessionEvent. The first focus is our preferred SFU.
   session.joinRoomSession(foci, undefined, joinConfig);

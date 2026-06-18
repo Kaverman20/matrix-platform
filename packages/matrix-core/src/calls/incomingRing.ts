@@ -3,12 +3,16 @@ import { MatrixRTCSessionEvent } from "matrix-js-sdk/lib/matrixrtc/MatrixRTCSess
 import type { CallMembership } from "matrix-js-sdk/lib/matrixrtc/CallMembership";
 import { parseCallNotificationContent } from "matrix-js-sdk/lib/matrixrtc";
 
+import type { CallIntent } from "./rtcSession";
+
 export type IncomingRing = {
   roomId: string;
   callerId: string;
   callerName: string;
   /** Matrix event id of the ring notification — required to send rtc.decline. */
   notificationEventId: string;
+  /** audio | video — so the callee shows the right label and answers in kind. */
+  callIntent: CallIntent;
   expiresAt: number;
 };
 
@@ -92,11 +96,21 @@ export function subscribeIncomingCallSignals(
         const member = matrixRoom?.getMember(sender);
         const callerName = member?.rawDisplayName ?? member?.name ?? sender;
 
+        // Read the caller's announced intent from their RTC membership (if present
+        // yet) so the callee can show "видеозвонок" and answer with the camera.
+        let callIntent: CallIntent = "audio";
+        if (matrixRoom) {
+          const session = client.matrixRTC.getRoomSession(matrixRoom);
+          const callerMembership = session.memberships.find((m) => m.userId === sender);
+          if (callerMembership?.callIntent === "video") callIntent = "video";
+        }
+
         handlers.onRing({
           roomId: room.roomId,
           callerId: sender,
           callerName,
           notificationEventId,
+          callIntent,
           expiresAt,
         });
       } catch {
