@@ -37,6 +37,7 @@ export * from "./rooms/settings";
 export * from "./rooms/sidebarUserSearch";
 export * from "./rooms/spaceUnreads";
 export * from "./rooms/subscribeRoomGroups";
+export * from "./search/globalSearch";
 export * from "./session/sessionStorage";
 export * from "./session/types";
 export * from "./time/formatTime";

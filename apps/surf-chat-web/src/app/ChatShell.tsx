@@ -40,6 +40,7 @@ import { useMatrix } from "./providers/MatrixContext";
 import { useChatNavigation } from "./useChatNavigation";
 import { Composer, type ComposerHandle } from "../features/composer/Composer";
 import { useComposerMode } from "../features/composer/useComposerMode";
+import { GlobalSearchModal } from "../features/search/GlobalSearchModal";
 import { ForwardModal } from "../features/forward/ForwardModal";
 import { Lightbox } from "../features/media/Lightbox";
 import {
@@ -140,6 +141,7 @@ export function ChatShell() {
   const roomListLayout = useRoomListLayout();
   const composerRef = useRef<ComposerHandle | null>(null);
   const roomListRef = useRef<RoomListHandle | null>(null);
+  const [globalSearchOpen, setGlobalSearchOpen] = useState(false);
 
   const allRooms = useMemo(
     () => [
@@ -211,12 +213,13 @@ export function ChatShell() {
     return true;
   }, [highlightTimerRef, setHighlightMessageId]);
 
-  const focusMessageWithPagination = useCallback(async (messageId: string) => {
+  const focusMessageWithPagination = useCallback(async (messageId: string, roomId?: string) => {
+    const targetRoomId = roomId ?? activeRoomId;
+    if (!client || !targetRoomId) return;
+
     if (focusMessage(messageId)) return;
 
-    if (!client || !activeRoomId) return;
-
-    const found = await paginateToEvent(client, activeRoomId, messageId);
+    const found = await paginateToEvent(client, targetRoomId, messageId);
     if (!found) return;
 
     const tryScroll = (attempt = 0) => {
@@ -267,6 +270,14 @@ export function ChatShell() {
     onOpenRoom: chatNavigation.selectRoom,
     onOpenSpace: setActiveSpaceId,
   });
+  const openGlobalSearchMessage = useCallback((roomId: string, messageId: string) => {
+    setGlobalSearchOpen(false);
+    if (activeRoomId !== roomId) {
+      chatNavigation.selectRoom(roomId);
+    }
+    const delay = activeRoomId === roomId ? 0 : 90;
+    window.setTimeout(() => void focusMessageWithPagination(messageId, roomId), delay);
+  }, [activeRoomId, chatNavigation, focusMessageWithPagination]);
   const messages = useTimelineMessages(client, activeRoomId);
   const selection = useMessageSelection(messages);
   const { clear: clearSelection } = selection;
@@ -304,6 +315,8 @@ export function ChatShell() {
     chatNavigation,
     composerRef,
     roomListRef,
+    globalSearchOpen,
+    onToggleGlobalSearch: () => setGlobalSearchOpen((value) => !value),
     onOpenTimelineSearch: () => timelineSearch.setOpen(true),
   });
   const pinnedMessages = usePinnedMessages(client, activeRoomId, optimisticPinnedIds);
@@ -943,6 +956,23 @@ export function ChatShell() {
         />
       )}
       <AnimatePresence>
+        {globalSearchOpen && (
+          <GlobalSearchModal
+            open={globalSearchOpen}
+            rooms={allRooms}
+            existingDmUserIds={roomGroups.dms.map((room) => room.directUserId)}
+            onClose={() => setGlobalSearchOpen(false)}
+            onSelectRoom={(roomId) => {
+              setGlobalSearchOpen(false);
+              chatNavigation.selectRoom(roomId);
+            }}
+            onSelectUser={(userId) => {
+              setGlobalSearchOpen(false);
+              void creation.openDirectChatWithUser(userId);
+            }}
+            onSelectMessage={openGlobalSearchMessage}
+          />
+        )}
         {forwarding && (
           <ForwardModal
             rooms={allRooms}

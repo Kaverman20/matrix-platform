@@ -98,11 +98,7 @@ export function ComposerTextMenu({
   }, [hasSelection, x, y]);
 
   useLayoutEffect(() => {
-    if (!submenuOpen) {
-      setSubmenuPos(null);
-      setSubmenuFlip(false);
-      return;
-    }
+    if (!submenuOpen) return;
 
     const trigger = triggerRef.current;
     const submenu = submenuRef.current;
