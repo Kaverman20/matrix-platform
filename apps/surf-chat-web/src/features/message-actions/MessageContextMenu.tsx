@@ -1,10 +1,10 @@
-import { useEffect, useRef, useState } from "react";
-import { ArrowLeft, ChevronRight, Copy, Forward, MessagesSquare, Pencil, Pin, Reply, Trash2 } from "lucide-react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { ArrowLeft, ChevronRight, Copy, Forward, Link2, MessagesSquare, Pencil, Pin, Reply, Trash2 } from "lucide-react";
 import type { MatrixMessage } from "@matrix-platform/matrix-core";
 import { EmojiPicker } from "../../components/EmojiPicker";
 import "./message-context-menu.css";
 
-export type MessageAction = "reply" | "thread" | "edit" | "copy" | "forward" | "pin" | "delete";
+export type MessageAction = "reply" | "thread" | "edit" | "copy" | "forward" | "pin" | "delete" | "link";
 const QUICK_REACTIONS = ["👍", "❤️", "😂", "🔥", "👏", "🤔", "👎"];
 
 type Props = {
@@ -17,19 +17,31 @@ type Props = {
   onReact: (message: MatrixMessage, key: string) => void;
 };
 
-const MENU_PICKER_WIDTH = 352;
-const MENU_HEIGHT = 288;
-const MENU_PICKER_HEIGHT = 470;
 const SAFE_OFFSET = 12;
 
 export function MessageContextMenu({ canPin, message, x, y, onAction, onClose, onReact }: Props) {
   const ref = useRef<HTMLDivElement>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
-  const left = clamp(x, SAFE_OFFSET, window.innerWidth - MENU_PICKER_WIDTH - SAFE_OFFSET);
-  const top = clamp(y, SAFE_OFFSET, window.innerHeight - MENU_HEIGHT - SAFE_OFFSET);
-  const pickerOverflow = pickerOpen
-    ? Math.max(0, top + MENU_PICKER_HEIGHT + SAFE_OFFSET - window.innerHeight)
-    : 0;
+  const [position, setPosition] = useState<{ left: number; top: number; flip: boolean } | null>(null);
+
+  useLayoutEffect(() => {
+    const menu = ref.current;
+    if (!menu) return;
+
+    const width = menu.offsetWidth;
+    const height = menu.offsetHeight;
+    const left = clamp(x, SAFE_OFFSET, window.innerWidth - width - SAFE_OFFSET);
+
+    let top = y;
+    let flip = false;
+    if (top + height + SAFE_OFFSET > window.innerHeight) {
+      top = y - height;
+      flip = true;
+    }
+    top = clamp(top, SAFE_OFFSET, window.innerHeight - height - SAFE_OFFSET);
+
+    setPosition({ left, top, flip });
+  }, [canPin, message.own, message.pinned, pickerOpen, x, y]);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -54,13 +66,14 @@ export function MessageContextMenu({ canPin, message, x, y, onAction, onClose, o
     onClose();
   };
 
+  const anchorStyle = position
+    ? { left: position.left, top: position.top }
+    : { left: x, top: y, visibility: "hidden" as const };
+
   return (
-    // Anchor handles position + the (compositor-only) vertical shift when the
-    // emoji picker would overflow the viewport. The menu itself animates in via
-    // a CSS keyframe — kept off the main thread so it stays smooth on battery.
     <div
-      className="message-menu-anchor"
-      style={{ left, top, transform: `translateY(${-pickerOverflow}px)` }}
+      className={`message-menu-anchor${position?.flip ? " message-menu-anchor--flip" : ""}`}
+      style={anchorStyle}
     >
       <div
         ref={ref}
@@ -142,6 +155,12 @@ export function MessageContextMenu({ canPin, message, x, y, onAction, onClose, o
                 <button type="button" role="menuitem" className="message-menu__action" onClick={() => runAction("copy")}>
                   <Copy size={16} />
                   <span>Копировать текст</span>
+                </button>
+              </li>
+              <li>
+                <button type="button" role="menuitem" className="message-menu__action" onClick={() => runAction("link")}>
+                  <Link2 size={16} />
+                  <span>Копировать ссылку</span>
                 </button>
               </li>
               <li>

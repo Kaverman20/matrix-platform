@@ -1,6 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { MatrixClient } from "matrix-js-sdk";
-import { markThreadRead, sendThreadReply } from "./threads";
+import { EventTimeline } from "matrix-js-sdk";
+import { canPaginateThreadBackwards, markThreadRead, paginateThreadBackwards, sendThreadReply } from "./threads";
 
 type SentEvent = { roomId: string; type: string; content: Record<string, unknown> };
 
@@ -81,5 +82,61 @@ describe("markThreadRead", () => {
     const { client, receipts } = fakeClient({ lastReplyId: "$last" });
     await markThreadRead(client, "!r", "$root");
     expect(receipts).toHaveLength(1);
+  });
+});
+
+describe("thread backwards pagination", () => {
+  function paginationClient(opts: {
+    token?: string | null;
+    messageCount?: number;
+    growOnPaginate?: number;
+  } = {}) {
+    let messageCount = opts.messageCount ?? 2;
+    const paginate = vi.fn(async () => {
+      messageCount += opts.growOnPaginate ?? 1;
+    });
+    const thread = {
+      liveTimeline: {
+        getPaginationToken: (direction: string) => {
+          if (direction !== EventTimeline.BACKWARDS) return null;
+          if (opts.token === null) return null;
+          return opts.token ?? "tok";
+        },
+      },
+      get events() {
+        return Array.from({ length: messageCount }, () => ({
+          getType: () => "m.room.message",
+          isRedacted: () => false,
+        }));
+      },
+      lastReply: () => null,
+      rootEvent: { getId: () => "$root" },
+    };
+    const client = {
+      getRoom: () => ({ getThread: () => thread }),
+      paginateEventTimeline: paginate,
+    } as unknown as MatrixClient;
+    return { client, paginate };
+  }
+
+  it("reports when older thread pages exist", () => {
+    const { client } = paginationClient({ token: "tok" });
+    expect(canPaginateThreadBackwards(client, "!r", "$root")).toBe(true);
+  });
+
+  it("returns false when the thread has no backwards token", () => {
+    const { client } = paginationClient({ token: null });
+    expect(canPaginateThreadBackwards(client, "!r", "$root")).toBe(false);
+  });
+
+  it("loads an older page and returns true when new messages appear", async () => {
+    const { client, paginate } = paginationClient({ messageCount: 2 });
+    await expect(paginateThreadBackwards(client, "!r", "$root")).resolves.toBe(true);
+    expect(paginate).toHaveBeenCalledOnce();
+  });
+
+  it("returns false when pagination does not add messages", async () => {
+    const { client } = paginationClient({ messageCount: 2, growOnPaginate: 0 });
+    await expect(paginateThreadBackwards(client, "!r", "$root")).resolves.toBe(false);
   });
 });

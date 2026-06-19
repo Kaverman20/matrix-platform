@@ -50,6 +50,7 @@ export type MatrixMedia = {
   height?: number;
   durationMs?: number;
   voice?: boolean;
+  waveform?: number[];
 };
 
 export type MatrixMessageReference = {

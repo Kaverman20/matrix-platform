@@ -1,0 +1,104 @@
+.room-search {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr) auto auto auto auto;
+  align-items: center;
+  gap: 8px;
+  padding: 8px var(--space-4);
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-bg-subtle);
+}
+
+.room-search__icon {
+  color: var(--color-text-muted);
+}
+
+.room-search__input {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: var(--color-text);
+  font: inherit;
+  outline: none;
+}
+
+.room-search__count {
+  min-width: 48px;
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+  text-align: right;
+}
+
+.room-search__nav,
+.room-search__close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  color: var(--color-text-muted);
+  background: transparent;
+  cursor: pointer;
+}
+
+.room-search__nav:hover,
+.room-search__close:hover {
+  color: var(--color-text);
+  background: var(--color-bg-hover);
+}
+
+.message__hover-actions {
+  position: absolute;
+  top: -10px;
+  right: 8px;
+  display: inline-flex;
+  gap: 4px;
+  padding: 2px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+  box-shadow: var(--shadow-sm);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms ease;
+  z-index: 2;
+}
+
+.message:hover .message__hover-actions,
+.mb:hover .message__hover-actions {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.message__hover-actions button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  color: var(--color-text-muted);
+  background: transparent;
+  cursor: pointer;
+}
+
+.message__hover-actions button:hover {
+  color: var(--color-text);
+  background: var(--color-bg-hover);
+}
+
+.message,
+.mb {
+  position: relative;
+}
+
+.message-body__mark {
+  background: color-mix(in srgb, var(--color-accent) 28%, transparent);
+  border-radius: 2px;
+}
+
+.message-media--voice {
+  min-width: 220px;
+}

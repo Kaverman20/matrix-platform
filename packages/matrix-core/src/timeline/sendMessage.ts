@@ -150,25 +150,36 @@ export async function sendMediaMessage(
   file: File,
   uploadInfo: MediaUploadInfo = {},
   threadRootId?: string,
+  options: { voice?: boolean; durationMs?: number; waveform?: number[] } = {},
 ): Promise<void> {
   const upload = await client.uploadContent(file, {
     name: file.name,
     type: file.type || "application/octet-stream",
   });
   const contentUri = upload.content_uri;
-  const msgtype = msgTypeForFile(file);
+  const msgtype = options.voice ? MsgType.Audio : msgTypeForFile(file);
   const thread = client.getRoom(roomId)?.getThread(threadRootId ?? "");
 
   await client.sendEvent(roomId, EventType.RoomMessage, {
     msgtype,
-    body: file.name || "Файл",
+    body: options.voice ? "Голосовое сообщение" : file.name || "Файл",
     url: contentUri,
     info: {
       mimetype: file.type || "application/octet-stream",
       size: file.size,
       ...(uploadInfo.width ? { w: uploadInfo.width } : {}),
       ...(uploadInfo.height ? { h: uploadInfo.height } : {}),
+      ...(options.durationMs ? { duration: options.durationMs } : {}),
     },
+    ...(options.voice
+      ? {
+          "org.matrix.msc3245.voice": {},
+          "org.matrix.msc1767.audio": {
+            duration: options.durationMs ?? 0,
+            waveform: options.waveform ?? [],
+          },
+        }
+      : {}),
     ...(threadRootId
       ? {
           "m.relates_to": {
@@ -180,6 +191,25 @@ export async function sendMediaMessage(
         }
       : {}),
   } as never);
+}
+
+/** Upload and send a recorded voice message. */
+export async function sendVoiceMessage(
+  client: MatrixClient,
+  roomId: string,
+  blob: Blob,
+  durationMs: number,
+  threadRootId?: string,
+  waveform?: number[],
+): Promise<void> {
+  const type = blob.type || "audio/webm";
+  const extension = type.includes("ogg") ? "ogg" : "webm";
+  const file = new File([blob], `voice.${extension}`, { type });
+  await sendMediaMessage(client, roomId, file, {}, threadRootId, {
+    voice: true,
+    durationMs,
+    waveform,
+  });
 }
 
 export async function sendReaction(

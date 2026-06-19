@@ -5,15 +5,46 @@ const URL_PATTERN = /https?:\/\/[^\s<>"']+/g;
 type Props = {
   text: string;
   formattedBody?: string;
+  searchQuery?: string;
 };
 
 /** Renders message text with clickable URLs. Uses formatted_body links when present. */
-export function MessageBody({ text, formattedBody }: Props) {
-  if (formattedBody && /<a\s/i.test(formattedBody)) {
+export function MessageBody({ text, formattedBody, searchQuery }: Props) {
+  if (formattedBody && /<a\s/i.test(formattedBody) && !searchQuery?.trim()) {
     return <span className="message-body">{renderFormattedBody(formattedBody, text)}</span>;
   }
 
-  return <span className="message-body">{linkifyPlainText(text)}</span>;
+  return <span className="message-body">{renderText(text, searchQuery)}</span>;
+}
+
+function renderText(text: string, searchQuery?: string): ReactNode[] {
+  const query = searchQuery?.trim();
+  if (!query) return linkifyPlainText(text);
+
+  const lower = text.toLowerCase();
+  const qLower = query.toLowerCase();
+  const parts: ReactNode[] = [];
+  let start = 0;
+  let index = lower.indexOf(qLower);
+
+  while (index !== -1) {
+    if (index > start) {
+      parts.push(...linkifyPlainText(text.slice(start, index)));
+    }
+    parts.push(
+      <mark key={`${index}:${query}`} className="message-body__mark">
+        {text.slice(index, index + query.length)}
+      </mark>,
+    );
+    start = index + query.length;
+    index = lower.indexOf(qLower, start);
+  }
+
+  if (start < text.length) {
+    parts.push(...linkifyPlainText(text.slice(start)));
+  }
+
+  return parts.length > 0 ? parts : linkifyPlainText(text);
 }
 
 function linkifyPlainText(text: string): ReactNode[] {

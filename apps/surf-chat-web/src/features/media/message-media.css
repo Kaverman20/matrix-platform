@@ -58,6 +58,10 @@
   max-width: 100%;
 }
 
+.message-media--voice {
+  width: min(320px, 100%);
+}
+
 .message-media--file {
   width: 360px;
   max-width: 100%;

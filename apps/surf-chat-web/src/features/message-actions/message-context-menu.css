@@ -1,8 +1,10 @@
 .message-menu-anchor {
   position: fixed;
   z-index: 1000;
-  /* Smooth (compositor) shift when the picker would overflow the viewport. */
-  transition: transform 160ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+.message-menu-anchor--flip .message-menu {
+  transform-origin: bottom left;
 }
 
 .message-menu {
@@ -90,7 +92,6 @@
 }
 
 .message-menu__body {
-  overflow: hidden;
   border-radius: var(--radius-md);
 }
 

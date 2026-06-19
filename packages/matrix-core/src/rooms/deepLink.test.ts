@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { MatrixClient } from "matrix-js-sdk";
-import { parseLocationDeepLink, resolveDeepLink } from "./deepLink";
+import { parseLocationDeepLink, resolveDeepLink, parseMatrixDeepLink, buildMessageDeepLink } from "./deepLink";
 
 describe("parseLocationDeepLink", () => {
   it("parses a room id hash", () => {
@@ -16,6 +16,20 @@ describe("parseLocationDeepLink", () => {
       roomId: "!abc:hs",
       eventId: "$event123",
     });
+  });
+
+  it("parses matrix.to URLs", () => {
+    expect(parseMatrixDeepLink("https://matrix.to/#/!abc:hs/$event123")).toEqual({
+      type: "room",
+      roomId: "!abc:hs",
+      eventId: "$event123",
+    });
+  });
+
+  it("builds message deep links", () => {
+    expect(buildMessageDeepLink("https://chat.example", "!abc:hs", "$e1")).toBe(
+      "https://chat.example/#/!abc:hs/$e1",
+    );
   });
 
   it("parses a user id hash", () => {

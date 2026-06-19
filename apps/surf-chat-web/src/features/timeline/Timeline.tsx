@@ -9,7 +9,7 @@ import {
   type WheelEvent,
 } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { AlertCircle, Check, CheckCheck, Clock3, Forward, Hash, MessagesSquare } from "lucide-react";
+import { AlertCircle, Check, CheckCheck, Clock3, Forward, Hash, MessagesSquare, Reply, SmilePlus } from "lucide-react";
 import type { MatrixMessage, MatrixRoomSummary } from "@matrix-platform/matrix-core";
 import { MessageMedia } from "../media/MessageMedia";
 import { MessageBody } from "./MessageBody";
@@ -17,6 +17,7 @@ import { ReactionPill } from "../reactions/ReactionPill";
 import { BubbleShell } from "./BubbleShell";
 import { usePreferences, useTimeFormatter } from "../settings/usePreferences";
 import "./timeline.css";
+import "./room-timeline-search.css";
 
 type Props = {
   messages: MatrixMessage[];
@@ -26,6 +27,9 @@ type Props = {
   onToggleReaction: (message: MatrixMessage, key: string) => void;
   onOpenThread: (rootId: string) => void;
   onJumpToMessage?: (messageId: string) => void;
+  onQuickReply?: (message: MatrixMessage) => void;
+  onQuickReact?: (message: MatrixMessage, key: string) => void;
+  searchQuery?: string;
   onLoadOlder?: () => Promise<boolean>;
   hasOlder?: boolean;
   showIntro?: boolean;
@@ -110,6 +114,9 @@ export function Timeline({
   onToggleReaction,
   onOpenThread,
   onJumpToMessage,
+  onQuickReply,
+  onQuickReact,
+  searchQuery,
   onLoadOlder,
   hasOlder = false,
   showIntro = true,
@@ -430,6 +437,9 @@ export function Timeline({
                 onToggleReaction={onToggleReaction}
                 onOpenThread={onOpenThread}
                 onJumpToMessage={onJumpToMessage}
+                onQuickReply={onQuickReply}
+                onQuickReact={onQuickReact}
+                searchQuery={searchQuery}
               />
             ) : (
               <FlatMessage
@@ -441,6 +451,9 @@ export function Timeline({
                 onToggleReaction={onToggleReaction}
                 onOpenThread={onOpenThread}
                 onJumpToMessage={onJumpToMessage}
+                onQuickReply={onQuickReply}
+                onQuickReact={onQuickReact}
+                searchQuery={searchQuery}
               />
             )}
             </div>
@@ -495,6 +508,9 @@ function FlatMessage({
   onToggleReaction,
   onOpenThread,
   onJumpToMessage,
+  onQuickReply,
+  onQuickReact,
+  searchQuery,
 }: {
   compact: boolean;
   highlighted: boolean;
@@ -504,6 +520,9 @@ function FlatMessage({
   onToggleReaction: (message: MatrixMessage, key: string) => void;
   onOpenThread: (rootId: string) => void;
   onJumpToMessage?: (messageId: string) => void;
+  onQuickReply?: (message: MatrixMessage) => void;
+  onQuickReact?: (message: MatrixMessage, key: string) => void;
+  searchQuery?: string;
 }) {
   const formatTime = useTimeFormatter();
   return (
@@ -515,6 +534,11 @@ function FlatMessage({
         onOpenMessageMenu(message, event.clientX, event.clientY);
       }}
     >
+      <MessageHoverActions
+        message={message}
+        onQuickReply={onQuickReply}
+        onQuickReact={onQuickReact}
+      />
       {compact ? (
         <span className="message__avatar message__avatar--spacer" />
       ) : (
@@ -533,6 +557,7 @@ function FlatMessage({
           message={message}
           onOpenImage={onOpenImage}
           onJumpToMessage={onJumpToMessage}
+          searchQuery={searchQuery}
         />
         {message.reactions.length > 0 && (
           <motion.div className="message__reactions" layout>
@@ -567,6 +592,9 @@ function BubbleMessage({
   onToggleReaction,
   onOpenThread,
   onJumpToMessage,
+  onQuickReply,
+  onQuickReact,
+  searchQuery,
 }: {
   compact: boolean;
   groupEnd: boolean;
@@ -577,6 +605,9 @@ function BubbleMessage({
   onToggleReaction: (message: MatrixMessage, key: string) => void;
   onOpenThread: (rootId: string) => void;
   onJumpToMessage?: (messageId: string) => void;
+  onQuickReply?: (message: MatrixMessage) => void;
+  onQuickReact?: (message: MatrixMessage, key: string) => void;
+  searchQuery?: string;
 }) {
   const formatTime = useTimeFormatter();
   return (
@@ -588,6 +619,11 @@ function BubbleMessage({
         onOpenMessageMenu(message, event.clientX, event.clientY);
       }}
     >
+      <MessageHoverActions
+        message={message}
+        onQuickReply={onQuickReply}
+        onQuickReact={onQuickReact}
+      />
       {!message.own && (
         <span
           className="mb__avatar"
@@ -611,6 +647,7 @@ function BubbleMessage({
           message={message}
           onOpenImage={onOpenImage}
           onJumpToMessage={onJumpToMessage}
+          searchQuery={searchQuery}
           bubble
         />
         {message.reactions.length > 0 && (
@@ -668,11 +705,13 @@ function MessageContent({
   message,
   onOpenImage,
   onJumpToMessage,
+  searchQuery,
   bubble = false,
 }: {
   message: MatrixMessage;
   onOpenImage: (src: string) => void;
   onJumpToMessage?: (messageId: string) => void;
+  searchQuery?: string;
   bubble?: boolean;
 }) {
   return (
@@ -702,12 +741,40 @@ function MessageContent({
       {message.deleted ? (
         <span className="message__deleted">Сообщение удалено</span>
       ) : shouldShowText(message) ? (
-        <MessageBody text={message.text} formattedBody={message.formattedBody} />
+        <MessageBody text={message.text} formattedBody={message.formattedBody} searchQuery={searchQuery} />
       ) : !message.media ? (
         <span className="message__empty">Пустое сообщение</span>
       ) : null}
       {!bubble && message.edited && !message.deleted && (
         <span className="message__edited">(изменено)</span>
+      )}
+    </div>
+  );
+}
+
+function MessageHoverActions({
+  message,
+  onQuickReply,
+  onQuickReact,
+}: {
+  message: MatrixMessage;
+  onQuickReply?: (message: MatrixMessage) => void;
+  onQuickReact?: (message: MatrixMessage, key: string) => void;
+}) {
+  if (message.kind === "system" || message.deleted) return null;
+  if (!onQuickReply && !onQuickReact) return null;
+
+  return (
+    <div className="message__hover-actions">
+      {onQuickReply && (
+        <button type="button" title="Ответить" onClick={() => onQuickReply(message)}>
+          <Reply size={15} />
+        </button>
+      )}
+      {onQuickReact && (
+        <button type="button" title="Реакция" onClick={() => onQuickReact(message, "👍")}>
+          <SmilePlus size={15} />
+        </button>
       )}
     </div>
   );

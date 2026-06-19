@@ -7,6 +7,7 @@ import {
   sendEditMessage,
   sendReaction,
   sendTextMessage,
+  sendVoiceMessage,
 } from "./sendMessage";
 
 type SentEvent = { type: string; content: Record<string, unknown> };
@@ -15,6 +16,7 @@ function fakeClient() {
   const sent: SentEvent[] = [];
   const texts: string[] = [];
   const redactions: string[] = [];
+  const uploads: Array<{ file: File; opts: { name: string; type: string } }> = [];
   const client = {
     sendEvent: (_roomId: string, type: string, content: Record<string, unknown>) => {
       sent.push({ type, content });
@@ -28,8 +30,13 @@ function fakeClient() {
       redactions.push(eventId);
       return Promise.resolve({ event_id: "$x" });
     },
+    uploadContent: (file: File, opts: { name: string; type: string }) => {
+      uploads.push({ file, opts });
+      return Promise.resolve({ content_uri: "mxc://s/a" });
+    },
+    getRoom: () => null,
   } as unknown as MatrixClient;
-  return { client, sent, texts, redactions };
+  return { client, sent, texts, redactions, uploads };
 }
 
 describe("buildReplyFallback", () => {
@@ -125,5 +132,22 @@ describe("sendEditMessage", () => {
     const { client, sent } = fakeClient();
     await sendEditMessage(client, "!r", "  ", "$orig");
     expect(sent).toHaveLength(0);
+  });
+});
+
+describe("sendVoiceMessage", () => {
+  it("uploads audio and sends an MSC voice message", async () => {
+    const { client, sent, uploads } = fakeClient();
+    const blob = new Blob(["audio"], { type: "audio/webm" });
+    await sendVoiceMessage(client, "!r", blob, 4200);
+
+    expect(uploads).toHaveLength(1);
+    expect(uploads[0].file.name).toBe("voice.webm");
+    expect(sent).toHaveLength(1);
+    expect(sent[0].type).toBe("m.room.message");
+    expect(sent[0].content.msgtype).toBe("m.audio");
+    expect(sent[0].content.body).toBe("Голосовое сообщение");
+    expect(sent[0].content["org.matrix.msc3245.voice"]).toEqual({});
+    expect(sent[0].content.info).toMatchObject({ duration: 4200 });
   });
 });

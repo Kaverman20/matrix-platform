@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef } from "react";
 import { pageCrossfade, transition } from "@matrix-platform/ui";
 import {
   buildForwardData,
+  buildMessageDeepLink,
   canPinMessages as canPinMessagesInRoom,
   canPaginateBackwards,
   deleteMessage,
@@ -50,9 +51,11 @@ import { ThreadPanel } from "../features/threads/ThreadPanel";
 import { ThreadsListPanel } from "../features/threads/ThreadsListPanel";
 import { ChatMainHeader } from "../features/timeline/ChatMainHeader";
 import { PinnedBar } from "../features/timeline/PinnedBar";
+import { RoomTimelineSearch } from "../features/timeline/RoomTimelineSearch";
 import { Timeline } from "../features/timeline/Timeline";
 import { useFirstUnread } from "../features/timeline/useFirstUnread";
 import { usePinnedMessages } from "../features/timeline/usePinnedMessages";
+import { useRoomTimelineSearch } from "../features/timeline/useRoomTimelineSearch";
 import {
   usePreloadTimelineMessages,
   useTimelineMessages,
@@ -242,7 +245,6 @@ export function ChatShell() {
     resolveIsDmRoom,
   });
   useDeepLink(client, chatNavigation.selectRoom, focusMessageWithPagination);
-  useChatShellKeyboard({ state: shell, activeRoom, chatNavigation, composerRef, roomListRef });
   const creation = useRoomCreation({
     client,
     activeSpaceId: spaceNavigation.effectiveActiveSpaceId,
@@ -250,6 +252,23 @@ export function ChatShell() {
     onOpenSpace: setActiveSpaceId,
   });
   const messages = useTimelineMessages(client, activeRoomId);
+  const timelineSearch = useRoomTimelineSearch({
+    client,
+    roomId: activeRoomId,
+    messages,
+  });
+  useEffect(() => {
+    if (!timelineSearch.open || !timelineSearch.currentHitId) return;
+    void focusMessageWithPagination(timelineSearch.currentHitId);
+  }, [timelineSearch.currentHitId, timelineSearch.open, focusMessageWithPagination]);
+  useChatShellKeyboard({
+    state: shell,
+    activeRoom,
+    chatNavigation,
+    composerRef,
+    roomListRef,
+    onOpenTimelineSearch: () => timelineSearch.setOpen(true),
+  });
   const pinnedMessages = usePinnedMessages(client, activeRoomId, optimisticPinnedIds);
   const rawTypingLabel = formatTypingLabel(useTyping(client, activeRoomId));
   const typingLabel = preferences.showTypingIndicator ? rawTypingLabel : null;
@@ -376,6 +395,10 @@ export function ChatShell() {
       else composerMode.startEdit(message);
     }
     if (action === "copy" && message.text) void navigator.clipboard.writeText(message.text);
+    if (action === "link") {
+      const url = buildMessageDeepLink(window.location.origin, activeRoomId, message.id);
+      void navigator.clipboard.writeText(url);
+    }
     if (action === "forward") {
       setForwarding([buildForwardData(client, activeRoomId, message)]);
     }
@@ -624,15 +647,34 @@ export function ChatShell() {
                 );
               })()}
             </AnimatePresence>
+            {timelineSearch.open && (
+              <RoomTimelineSearch
+                query={timelineSearch.query}
+                loading={timelineSearch.loading}
+                matchCount={timelineSearch.hits.length}
+                matchIndex={timelineSearch.index}
+                onQueryChange={timelineSearch.setQuery}
+                onClose={() => timelineSearch.setOpen(false)}
+                onNext={timelineSearch.next}
+                onPrevious={timelineSearch.previous}
+              />
+            )}
             <Timeline
               key={activeRoom.id}
-              highlightMessageId={highlightMessageId}
+              highlightMessageId={
+                timelineSearch.open && timelineSearch.currentHitId
+                  ? timelineSearch.currentHitId
+                  : highlightMessageId
+              }
               messages={messages}
               onOpenImage={setLightbox}
               onOpenMessageMenu={openMessageMenu}
               onToggleReaction={toggleReaction}
               onOpenThread={openThread}
               onJumpToMessage={(messageId) => void focusMessageWithPagination(messageId)}
+              onQuickReply={(message) => composerMode.startReply(message)}
+              onQuickReact={toggleReaction}
+              searchQuery={timelineSearch.open ? timelineSearch.query : undefined}
               onLoadOlder={loadOlder}
               hasOlder={hasOlder}
               room={activeRoom}

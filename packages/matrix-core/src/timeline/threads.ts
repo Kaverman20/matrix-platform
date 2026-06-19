@@ -1,4 +1,4 @@
-import { EventType, MsgType, RelationType, type MatrixClient, type Room } from "matrix-js-sdk";
+import { EventTimeline, EventType, MsgType, RelationType, type MatrixClient, type Room } from "matrix-js-sdk";
 
 export const THREAD_REL_TYPE = "m.thread";
 
@@ -168,4 +168,45 @@ export async function markThreadRead(
   } catch (error) {
     console.error("[matrix-core] markThreadRead failed", error);
   }
+}
+
+/** Whether older thread replies can be loaded above the current window. */
+export function canPaginateThreadBackwards(
+  client: MatrixClient,
+  roomId: string,
+  rootId: string,
+): boolean {
+  const thread = client.getRoom(roomId)?.getThread(rootId);
+  if (!thread) return false;
+  return thread.liveTimeline.getPaginationToken(EventTimeline.BACKWARDS) !== null;
+}
+
+/** Load one older page of thread history. Returns true when new events appeared. */
+export async function paginateThreadBackwards(
+  client: MatrixClient,
+  roomId: string,
+  rootId: string,
+  limit = 50,
+): Promise<boolean> {
+  const thread = client.getRoom(roomId)?.getThread(rootId);
+  if (!thread) return false;
+
+  const timeline = thread.liveTimeline;
+  if (timeline.getPaginationToken(EventTimeline.BACKWARDS) === null) return false;
+
+  const before = countThreadMessages(thread);
+  try {
+    await client.paginateEventTimeline(timeline, { backwards: true, limit });
+  } catch (error) {
+    console.error("[matrix-core] paginateThreadBackwards failed", error);
+    return false;
+  }
+
+  return countThreadMessages(thread) > before;
+}
+
+function countThreadMessages(thread: NonNullable<ReturnType<Room["getThread"]>>): number {
+  return thread.events.filter(
+    (event) => event.getType() === "m.room.message" && !event.isRedacted(),
+  ).length;
 }

@@ -13,6 +13,7 @@ type Options = {
   chatNavigation: ReturnType<typeof useChatNavigation>;
   composerRef: RefObject<ComposerHandle | null>;
   roomListRef: RefObject<RoomListHandle | null>;
+  onOpenTimelineSearch?: () => void;
 };
 
 /** Global Escape stack: overlays close one layer at a time before leaving the room. */
@@ -22,6 +23,7 @@ export function useChatShellKeyboard({
   chatNavigation,
   composerRef,
   roomListRef,
+  onOpenTimelineSearch,
 }: Options): void {
   const activeRoomRef = useRef(activeRoom);
   const forwardingRef = useRef(state.forwarding);
@@ -57,6 +59,17 @@ export function useChatShellKeyboard({
       if (isSearchShortcut(event)) {
         event.preventDefault();
         roomListRef.current?.focusSearch();
+        return;
+      }
+
+      if (
+        (event.ctrlKey || event.metaKey) &&
+        event.key.toLowerCase() === "f" &&
+        activeRoomRef.current &&
+        !isEditableTarget(event.target)
+      ) {
+        event.preventDefault();
+        onOpenTimelineSearch?.();
         return;
       }
 
@@ -109,5 +122,11 @@ export function useChatShellKeyboard({
 
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [chatNavigation, composerRef, roomListRef, state]);
+  }, [chatNavigation, composerRef, onOpenTimelineSearch, roomListRef, state]);
+}
+
+function isEditableTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  const tag = target.tagName;
+  return tag === "INPUT" || tag === "TEXTAREA" || target.isContentEditable;
 }

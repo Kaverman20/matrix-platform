@@ -1,6 +1,6 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { ArrowUp, FileText, Forward, Image as ImageIcon, Mic, Paperclip, Pencil, Reply, Smile, X } from "lucide-react";
+import { ArrowUp, FileText, Forward, Image as ImageIcon, Mic, Paperclip, Pencil, Reply, Smile, Trash2, X } from "lucide-react";
 import { spring, transition } from "@matrix-platform/ui";
 import { EmojiPicker } from "../../components/EmojiPicker";
 import {
@@ -9,6 +9,7 @@ import {
   sendMediaMessage,
   sendReplyMessage,
   sendTextMessage,
+  sendVoiceMessage,
   setTyping,
   type MatrixForwardData,
   type MatrixMessageReference,
@@ -16,6 +17,9 @@ import {
 import { useMatrix } from "../../app/providers/MatrixContext";
 import { usePreferences } from "../settings/usePreferences";
 import { composerSubmitOnKeyDown } from "../settings/composerKeys";
+import { useVoiceRecorder } from "./useVoiceRecorder";
+import { RecordingWaveform } from "./RecordingWaveform";
+import { formatRecordingTime, waveformFromBlob } from "../media/waveform";
 import "./composer.css";
 
 type Props = {
@@ -57,6 +61,7 @@ export const Composer = forwardRef<ComposerHandle, Props>(function Composer({
   const emojiWrapRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const lastTypingSentRef = useRef(0);
+  const voice = useVoiceRecorder();
   const mode = editingMessage ? "edit" : pendingForward ? "forward" : replyTo ? "reply" : "plain";
   const context = editingMessage ?? replyTo ?? pendingForward?.[0] ?? null;
   const contextAuthor = context && "author" in context ? context.author : undefined;
@@ -208,8 +213,30 @@ export const Composer = forwardRef<ComposerHandle, Props>(function Composer({
     });
   };
 
+  const sendVoice = async () => {
+    if (!client || sending || uploading) return;
+    const durationMs = Math.max(voice.elapsedMs, 1);
+    const blob = await voice.stop();
+    if (!blob || blob.size === 0) return;
+
+    setSending(true);
+    try {
+      const waveform = await waveformFromBlob(blob);
+      await sendVoiceMessage(client, roomId, blob, durationMs, undefined, waveform);
+      onSent();
+    } catch (error) {
+      console.error("[send-voice]", error);
+    } finally {
+      setSending(false);
+    }
+  };
+
   useImperativeHandle(ref, () => ({
     escape() {
+      if (voice.state === "recording") {
+        voice.cancel();
+        return true;
+      }
       if (attachOpen) {
         setAttachOpen(false);
         return true;
@@ -237,7 +264,7 @@ export const Composer = forwardRef<ComposerHandle, Props>(function Composer({
       }
       return false;
     },
-  }), [attachOpen, draft, editingMessage, emojiOpen, onCancelEdit, onCancelForward, onCancelReply, pendingForward, replyTo]);
+  }), [attachOpen, draft, editingMessage, emojiOpen, onCancelEdit, onCancelForward, onCancelReply, pendingForward, replyTo, voice]);
 
   return (
     <div className="composer-wrap">
@@ -289,12 +316,29 @@ export const Composer = forwardRef<ComposerHandle, Props>(function Composer({
         )}
       </AnimatePresence>
       <form
-        className="composer"
+        className={`composer${voice.state === "recording" ? " composer--recording" : ""}`}
         onSubmit={(e) => {
           e.preventDefault();
           void send();
         }}
       >
+        {voice.state === "recording" ? (
+          <>
+            <button
+              type="button"
+              className="composer__voice-cancel"
+              title="Отменить запись"
+              onClick={voice.cancel}
+            >
+              <Trash2 size={18} />
+            </button>
+            <div className="composer__voice-panel">
+              <RecordingWaveform levels={voice.levels} />
+              <span className="composer__voice-timer">{formatRecordingTime(voice.elapsedMs)}</span>
+            </div>
+          </>
+        ) : (
+          <>
         <div className="composer__attach" ref={attachWrapRef}>
           <button
             type="button"
@@ -403,11 +447,13 @@ export const Composer = forwardRef<ComposerHandle, Props>(function Composer({
             )}
           </AnimatePresence>
         </div>
+          </>
+        )}
         {draft.trim() || pendingForward ? (
           <motion.button
             type="submit"
             className="composer__send"
-            disabled={sending || uploading}
+            disabled={sending || uploading || voice.state === "recording"}
             title="Отправить"
             whileHover={{ scale: 1.06 }}
             whileTap={{ scale: 0.94 }}
@@ -415,12 +461,23 @@ export const Composer = forwardRef<ComposerHandle, Props>(function Composer({
           >
             <ArrowUp size={18} />
           </motion.button>
+        ) : voice.state === "recording" ? (
+          <button
+            type="button"
+            className="composer__send"
+            disabled={sending || uploading}
+            title="Отправить голосовое"
+            onClick={() => void sendVoice()}
+          >
+            <ArrowUp size={18} />
+          </button>
         ) : (
           <button
             type="button"
             className="composer__tool composer__mic"
-            disabled={sending || uploading}
+            disabled={sending || uploading || mode === "edit"}
             title="Голосовое сообщение"
+            onClick={() => void voice.start()}
           >
             <Mic size={20} />
           </button>
@@ -481,3 +538,4 @@ function loadImage(src: string): Promise<HTMLImageElement> {
     image.src = src;
   });
 }
+

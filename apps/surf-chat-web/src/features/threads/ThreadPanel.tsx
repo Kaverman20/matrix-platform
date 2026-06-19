@@ -1,7 +1,9 @@
-import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { ArrowUp, MessagesSquare, Paperclip, Pencil, Reply, X } from "lucide-react";
 import {
+  canPaginateThreadBackwards,
   markThreadRead,
+  paginateThreadBackwards,
   sendEditMessage,
   sendMediaMessage,
   sendThreadReply,
@@ -55,6 +57,15 @@ export function ThreadPanel({
   const messages = useThreadMessages(client, roomId, rootId);
   const [width, setWidth] = useState(360);
   const [resizing, setResizing] = useState(false);
+  const hasOlder = useMemo(
+    () => Boolean(client && canPaginateThreadBackwards(client, roomId, rootId)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [client, roomId, rootId, messages.length],
+  );
+  const loadOlder = useCallback(async (): Promise<boolean> => {
+    if (!client) return false;
+    return paginateThreadBackwards(client, roomId, rootId, 80);
+  }, [client, roomId, rootId]);
 
   const startResize = (event: ReactPointerEvent) => {
     event.preventDefault();
@@ -101,7 +112,8 @@ export function ThreadPanel({
         room={room}
         view={view}
         showIntro={false}
-        hasOlder={false}
+        hasOlder={hasOlder}
+        onLoadOlder={loadOlder}
         onOpenImage={onOpenImage}
         onOpenMessageMenu={onOpenMessageMenu}
         onToggleReaction={onToggleReaction}

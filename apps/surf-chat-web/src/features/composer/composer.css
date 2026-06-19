@@ -185,6 +185,59 @@
   color: var(--color-accent);
 }
 
+.composer--recording {
+  align-items: center;
+  border-color: color-mix(in srgb, var(--color-accent) 35%, var(--color-border));
+}
+
+.composer__voice-cancel {
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: var(--radius-md);
+  color: var(--color-danger, #d94d4d);
+  background: color-mix(in srgb, var(--color-danger, #d94d4d) 10%, transparent);
+  cursor: pointer;
+}
+
+.composer__voice-cancel:hover {
+  background: color-mix(in srgb, var(--color-danger, #d94d4d) 16%, transparent);
+}
+
+.composer__voice-panel {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 0 4px;
+}
+
+.composer__voice-wave {
+  height: 24px;
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+}
+
+.composer__voice-bar {
+  flex: 1 1 0;
+  min-width: 2px;
+  max-width: 4px;
+  border-radius: 999px;
+  background: var(--color-accent);
+  opacity: 0.72;
+}
+
+.composer__voice-timer {
+  color: var(--color-text-strong);
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
 .composer .composer__cancel {
   width: 30px;
   height: 30px;

@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import type { MatrixClient } from "matrix-js-sdk";
-import { parseLocationDeepLink, resolveDeepLink } from "@matrix-platform/matrix-core";
+import { parseMatrixDeepLink, resolveDeepLink } from "@matrix-platform/matrix-core";
 
 /**
  * Handles matrix.to-style hash links once the Matrix client is ready.
@@ -16,7 +16,7 @@ export function useDeepLink(
   useEffect(() => {
     if (!client) return;
 
-    const target = parseLocationDeepLink(window.location);
+    const target = parseMatrixDeepLink(window.location);
     if (!target) return;
 
     const key = JSON.stringify(target);

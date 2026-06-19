@@ -48,6 +48,55 @@ function parseRoomDeepLink(fragment: string): DeepLinkTarget | null {
   return { type: "room", roomId, eventId };
 }
 
+/** Parses matrix.to URLs, raw fragments, or the current location hash. */
+export function parseMatrixDeepLink(input: string | Pick<Location, "hash" | "href">): DeepLinkTarget | null {
+  if (typeof input === "string") {
+    const trimmed = input.trim();
+    if (!trimmed) return null;
+
+    if (/^https?:\/\//i.test(trimmed)) {
+      try {
+        const url = new URL(trimmed);
+        if (url.hostname === "matrix.to" || url.hostname.endsWith(".matrix.to")) {
+          return parseLocationDeepLink({ hash: url.hash || url.pathname });
+        }
+        return parseLocationDeepLink({ hash: url.hash });
+      } catch {
+        return null;
+      }
+    }
+
+    const fragment = trimmed.startsWith("#")
+      ? trimmed
+      : trimmed.startsWith("/")
+        ? `#${trimmed}`
+        : `#/${trimmed}`;
+    return parseLocationDeepLink({ hash: fragment });
+  }
+
+  if (input.hash) {
+    const fromHash = parseLocationDeepLink({ hash: input.hash });
+    if (fromHash) return fromHash;
+  }
+
+  if (input.href) {
+    return parseMatrixDeepLink(input.href);
+  }
+
+  return null;
+}
+
+/** Builds a shareable deep link to a room or a specific message. */
+export function buildMessageDeepLink(
+  appOrigin: string,
+  roomId: string,
+  eventId?: string,
+): string {
+  const origin = appOrigin.replace(/\/$/, "");
+  const fragment = eventId ? `${roomId}/${eventId}` : roomId;
+  return `${origin}/#/${fragment}`;
+}
+
 async function ensureJoined(client: MatrixClient, roomIdOrAlias: string): Promise<string> {
   const existing = client.getRoom(roomIdOrAlias);
   if (existing?.getMyMembership() === "join") {

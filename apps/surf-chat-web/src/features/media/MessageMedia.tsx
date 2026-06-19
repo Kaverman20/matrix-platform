@@ -2,6 +2,7 @@ import { Download, FileText, ImageOff } from "lucide-react";
 import type { MatrixMedia } from "@matrix-platform/matrix-core";
 import { useMatrix } from "../../app/providers/MatrixContext";
 import { useAuthedBlob } from "./useAuthedBlob";
+import { VoiceMessagePlayer } from "./VoiceMessagePlayer";
 import "./message-media.css";
 
 type Props = {
@@ -67,13 +68,23 @@ export function MessageMedia({ media, onOpenImage }: Props) {
   }
 
   if (media.kind === "audio") {
+    if (media.voice) {
+      return (
+        <div className="message-media message-media--voice">
+          <VoiceMessagePlayer
+            src={src}
+            durationMs={media.durationMs}
+            waveform={media.waveform}
+            seed={media.url}
+          />
+        </div>
+      );
+    }
+
     return (
-      <audio
-        className="message-media message-media--audio"
-        src={src}
-        controls
-        preload="metadata"
-      />
+      <div className="message-media message-media--audio">
+        <audio src={src} controls preload="metadata" />
+      </div>
     );
   }
 
@@ -103,3 +114,4 @@ function formatSize(bytes: number): string {
   }
   return `${value.toFixed(index === 0 ? 0 : 1)} ${units[index]}`;
 }
+

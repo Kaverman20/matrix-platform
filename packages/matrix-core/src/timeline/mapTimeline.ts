@@ -429,7 +429,7 @@ function resolveMedia(
     duration?: unknown;
   };
   const mscAudio = content["org.matrix.msc1767.audio"] as
-    | { duration?: unknown }
+    | { duration?: unknown; waveform?: unknown }
     | undefined;
   const thumbMxc = typeof info.thumbnail_url === "string" ? info.thumbnail_url : undefined;
   const url = client.mxcUrlToHttp(mxc, undefined, undefined, undefined, false, true, true);
@@ -455,6 +455,9 @@ function resolveMedia(
         ? mscAudio.duration
         : undefined,
     voice: Boolean(content["org.matrix.msc3245.voice"]),
+    waveform: Array.isArray(mscAudio?.waveform)
+      ? mscAudio.waveform.filter((value): value is number => typeof value === "number")
+      : undefined,
   };
 }
 
