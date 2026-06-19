@@ -22,6 +22,7 @@ import {
   mxcThumbnailUrl,
   paginateBackwards,
   paginateToEvent,
+  isEventInTimeline,
   removeReaction,
   reorderFavourites,
   sendPollResponse,
@@ -142,6 +143,8 @@ export function ChatShell() {
   const composerRef = useRef<ComposerHandle | null>(null);
   const roomListRef = useRef<RoomListHandle | null>(null);
   const [globalSearchOpen, setGlobalSearchOpen] = useState(false);
+  const [scrollTarget, setScrollTarget] = useState<{ roomId: string; messageId: string } | null>(null);
+  const scrollToMessageId = scrollTarget?.roomId === activeRoomId ? scrollTarget.messageId : null;
 
   const allRooms = useMemo(
     () => [
@@ -198,7 +201,7 @@ export function ChatShell() {
     onRemoteNavigate: resetTransientPanels,
   });
 
-  const focusMessage = useCallback((messageId: string, scope = ".chat-main") => {
+  const focusMessage = useCallback((messageId: string, scope = ".thread-panel") => {
     const node = document.querySelector<HTMLElement>(
       `${scope} [data-mid="${CSS.escape(messageId)}"]`,
     );
@@ -213,23 +216,25 @@ export function ChatShell() {
     return true;
   }, [highlightTimerRef, setHighlightMessageId]);
 
+  const markMessageHighlight = useCallback((messageId: string) => {
+    setHighlightMessageId(messageId);
+    if (highlightTimerRef.current) {
+      window.clearTimeout(highlightTimerRef.current);
+    }
+    highlightTimerRef.current = window.setTimeout(() => setHighlightMessageId(null), 1700);
+  }, [highlightTimerRef, setHighlightMessageId]);
+
   const focusMessageWithPagination = useCallback(async (messageId: string, roomId?: string) => {
     const targetRoomId = roomId ?? activeRoomId;
     if (!client || !targetRoomId) return;
 
-    if (focusMessage(messageId)) return;
+    setScrollTarget({ roomId: targetRoomId, messageId });
+    markMessageHighlight(messageId);
 
-    const found = await paginateToEvent(client, targetRoomId, messageId);
-    if (!found) return;
+    if (isEventInTimeline(client, targetRoomId, messageId)) return;
 
-    const tryScroll = (attempt = 0) => {
-      if (focusMessage(messageId)) return;
-      if (attempt < 12) {
-        window.setTimeout(() => tryScroll(attempt + 1), 50);
-      }
-    };
-    tryScroll();
-  }, [activeRoomId, client, focusMessage]);
+    await paginateToEvent(client, targetRoomId, messageId);
+  }, [activeRoomId, client, markMessageHighlight]);
   const clearMessageMenu = useCallback(() => setMessageMenu(null), [setMessageMenu]);
   const resolveSpaceForRoom = useCallback(
     (roomId: string) => findSpaceIdForRoom(roomGroups.spaces, roomId),
@@ -272,11 +277,11 @@ export function ChatShell() {
   });
   const openGlobalSearchMessage = useCallback((roomId: string, messageId: string) => {
     setGlobalSearchOpen(false);
+    setScrollTarget({ roomId, messageId });
     if (activeRoomId !== roomId) {
       chatNavigation.selectRoom(roomId);
     }
-    const delay = activeRoomId === roomId ? 0 : 90;
-    window.setTimeout(() => void focusMessageWithPagination(messageId, roomId), delay);
+    void focusMessageWithPagination(messageId, roomId);
   }, [activeRoomId, chatNavigation, focusMessageWithPagination]);
   const messages = useTimelineMessages(client, activeRoomId);
   const selection = useMessageSelection(messages);
@@ -307,7 +312,11 @@ export function ChatShell() {
   });
   useEffect(() => {
     if (!timelineSearch.open || !timelineSearch.currentHitId) return;
-    void focusMessageWithPagination(timelineSearch.currentHitId);
+    const messageId = timelineSearch.currentHitId;
+    const timer = window.setTimeout(() => {
+      void focusMessageWithPagination(messageId);
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, [timelineSearch.currentHitId, timelineSearch.open, focusMessageWithPagination]);
   useChatShellKeyboard({
     state: shell,
@@ -796,6 +805,8 @@ export function ChatShell() {
             )}
             <Timeline
               key={activeRoom.id}
+              scrollToMessageId={scrollToMessageId}
+              onScrolledToMessage={() => setScrollTarget(null)}
               highlightMessageId={
                 timelineSearch.open && timelineSearch.currentHitId
                   ? timelineSearch.currentHitId

@@ -25,6 +25,9 @@ import "./room-timeline-search.css";
 type Props = {
   messages: MatrixMessage[];
   highlightMessageId?: string | null;
+  /** When set, scrolls the virtualized list to this message (used for search / deep links). */
+  scrollToMessageId?: string | null;
+  onScrolledToMessage?: (messageId: string) => void;
   onOpenImage: (src: string) => void;
   onOpenMessageMenu: (message: MatrixMessage, x: number, y: number) => void;
   onToggleReaction: (message: MatrixMessage, key: string) => void;
@@ -111,6 +114,8 @@ function isNearBottom(el: HTMLElement): boolean {
 export function Timeline({
   messages,
   highlightMessageId,
+  scrollToMessageId,
+  onScrolledToMessage,
   onOpenImage,
   onOpenMessageMenu,
   onToggleReaction,
@@ -232,8 +237,38 @@ export function Timeline({
     runLoad({ keepBottom: true });
   }, [messages.length, atStart, runLoad, room.id]);
 
+  const scrollToMessageById = useCallback((
+    messageId: string,
+    behavior: "auto" | "smooth" = "smooth",
+  ) => {
+    const idx = messages.findIndex((message) => message.id === messageId);
+    if (idx < 0) return false;
+
+    stick.current = false;
+    virtuosoRef.current?.scrollToIndex({
+      index: firstItemIndex + idx,
+      align: "center",
+      behavior,
+    });
+    return true;
+  }, [firstItemIndex, messages]);
+
   useLayoutEffect(() => {
     if (messages.length === 0 || didInit.current) return;
+
+    if (scrollToMessageId) {
+      const targetIndex = messages.findIndex((message) => message.id === scrollToMessageId);
+      if (targetIndex >= 0) {
+        stick.current = false;
+        didUnreadScroll.current = true;
+        didInit.current = true;
+        requestAnimationFrame(() => {
+          scrollToMessageById(scrollToMessageId, "auto");
+          onScrolledToMessage?.(scrollToMessageId);
+        });
+      }
+      return;
+    }
 
     if (firstUnreadId && !didUnreadScroll.current) {
       const unreadIndex = messages.findIndex((message) => message.id === firstUnreadId);
@@ -270,7 +305,22 @@ export function Timeline({
       }
       didInit.current = true;
     });
-  }, [firstItemIndex, firstUnreadId, messages, room.id]);
+  }, [firstItemIndex, firstUnreadId, messages, onScrolledToMessage, room.id, scrollToMessageById, scrollToMessageId]);
+
+  useEffect(() => {
+    if (!scrollToMessageId || !didInit.current) return;
+
+    const targetIndex = messages.findIndex((message) => message.id === scrollToMessageId);
+    if (targetIndex < 0) return;
+
+    const timer = window.setTimeout(() => {
+      if (scrollToMessageById(scrollToMessageId)) {
+        onScrolledToMessage?.(scrollToMessageId);
+      }
+    }, 40);
+
+    return () => window.clearTimeout(timer);
+  }, [messages, onScrolledToMessage, scrollToMessageById, scrollToMessageId]);
 
   useEffect(() => {
     const saveBeforeUnload = () => {
