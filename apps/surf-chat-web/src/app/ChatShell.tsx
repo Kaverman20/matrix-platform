@@ -64,7 +64,7 @@ import { ThreadsListPanel } from "../features/threads/ThreadsListPanel";
 import { ChatMainHeader } from "../features/timeline/ChatMainHeader";
 import { PinnedBar } from "../features/timeline/PinnedBar";
 import { RoomTimelineSearch } from "../features/timeline/RoomTimelineSearch";
-import { Timeline } from "../features/timeline/Timeline";
+import { Timeline, type TimelineHandle } from "../features/timeline/Timeline";
 import { EditHistoryModal } from "../features/timeline/EditHistoryModal";
 import { ReadReceiptsPopover } from "../features/timeline/ReadReceiptsPopover";
 import { useFirstUnread } from "../features/timeline/useFirstUnread";
@@ -141,10 +141,8 @@ export function ChatShell() {
   const roomListLayout = useRoomListLayout();
   const composerRef = useRef<ComposerHandle | null>(null);
   const roomListRef = useRef<RoomListHandle | null>(null);
+  const timelineRef = useRef<TimelineHandle | null>(null);
   const [globalSearchOpen, setGlobalSearchOpen] = useState(false);
-  const [scrollTarget, setScrollTarget] = useState<{ roomId: string; messageId: string; seq: number } | null>(null);
-  const scrollToMessageId = scrollTarget?.roomId === activeRoomId ? scrollTarget.messageId : null;
-  const scrollToMessageSeq = scrollTarget?.roomId === activeRoomId ? scrollTarget.seq : 0;
   const messages = useTimelineMessages(client, activeRoomId);
 
   const allRooms = useMemo(
@@ -202,42 +200,52 @@ export function ChatShell() {
     onRemoteNavigate: resetTransientPanels,
   });
 
-  const focusMessage = useCallback((messageId: string, scope = ".thread-panel") => {
+  const highlightMessage = useCallback((messageId: string) => {
+    setHighlightMessageId(messageId);
+    if (highlightTimerRef.current) {
+      window.clearTimeout(highlightTimerRef.current);
+    }
+    highlightTimerRef.current = window.setTimeout(() => setHighlightMessageId(null), 1700);
+  }, [highlightTimerRef, setHighlightMessageId]);
+
+  const focusMessage = useCallback((messageId: string, scope = ".chat-main") => {
     const node = document.querySelector<HTMLElement>(
       `${scope} [data-mid="${CSS.escape(messageId)}"]`,
     );
     if (!node) return false;
 
     node.scrollIntoView({ block: "center", behavior: "smooth" });
-    setHighlightMessageId(messageId);
-    if (highlightTimerRef.current) {
-      window.clearTimeout(highlightTimerRef.current);
-    }
-    highlightTimerRef.current = window.setTimeout(() => setHighlightMessageId(null), 1700);
+    highlightMessage(messageId);
     return true;
-  }, [highlightTimerRef, setHighlightMessageId]);
-
-  const markMessageHighlight = useCallback((messageId: string) => {
-    setHighlightMessageId(messageId);
-    if (highlightTimerRef.current) {
-      window.clearTimeout(highlightTimerRef.current);
-    }
-    highlightTimerRef.current = window.setTimeout(() => setHighlightMessageId(null), 1700);
-  }, [highlightTimerRef, setHighlightMessageId]);
+  }, [highlightMessage]);
 
   const focusMessageWithPagination = useCallback(async (messageId: string, roomId?: string) => {
     const targetRoomId = roomId ?? activeRoomId;
     if (!client || !targetRoomId) return;
 
-    markMessageHighlight(messageId);
-    setScrollTarget({ roomId: targetRoomId, messageId, seq: Date.now() });
+    // Fast path: message already rendered in the DOM (recent / reply / pinned).
+    if (focusMessage(messageId)) return;
 
-    const alreadyVisible = targetRoomId === activeRoomId
-      && messages.some((message) => message.id === messageId);
-    if (alreadyVisible) return;
+    // Load older history into the SDK timeline until the event surfaces.
+    const found = await paginateToEvent(client, targetRoomId, messageId);
+    if (!found) return;
 
-    await paginateToEvent(client, targetRoomId, messageId);
-  }, [activeRoomId, client, markMessageHighlight, messages]);
+    // The event is now in the timeline, but Virtuoso only renders a visible
+    // window — for off-screen messages the DOM node does not exist yet. Drive
+    // the virtualized list imperatively, then highlight; retry while React
+    // catches up with the freshly paginated `messages` array.
+    const tryScroll = (attempt = 0) => {
+      if (focusMessage(messageId)) return;
+      if (timelineRef.current?.scrollToMessage(messageId)) {
+        highlightMessage(messageId);
+        return;
+      }
+      if (attempt < 20) {
+        window.setTimeout(() => tryScroll(attempt + 1), 60);
+      }
+    };
+    tryScroll();
+  }, [activeRoomId, client, focusMessage, highlightMessage]);
   const clearMessageMenu = useCallback(() => setMessageMenu(null), [setMessageMenu]);
   const resolveSpaceForRoom = useCallback(
     (roomId: string) => findSpaceIdForRoom(roomGroups.spaces, roomId),
@@ -282,8 +290,10 @@ export function ChatShell() {
     setGlobalSearchOpen(false);
     if (activeRoomId !== roomId) {
       chatNavigation.selectRoom(roomId);
+      window.setTimeout(() => void focusMessageWithPagination(messageId, roomId), 350);
+      return;
     }
-    void focusMessageWithPagination(messageId, roomId);
+    void focusMessageWithPagination(messageId);
   }, [activeRoomId, chatNavigation, focusMessageWithPagination]);
   const selection = useMessageSelection(messages);
   const { clear: clearSelection } = selection;
@@ -806,9 +816,7 @@ export function ChatShell() {
             )}
             <Timeline
               key={activeRoom.id}
-              scrollToMessageId={scrollToMessageId}
-              scrollToMessageSeq={scrollToMessageSeq}
-              onScrolledToMessage={() => setScrollTarget(null)}
+              ref={timelineRef}
               highlightMessageId={
                 timelineSearch.open && timelineSearch.currentHitId
                   ? timelineSearch.currentHitId

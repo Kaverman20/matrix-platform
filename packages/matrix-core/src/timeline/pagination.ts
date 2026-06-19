@@ -12,14 +12,26 @@ export function canPaginateBackwards(
   );
 }
 
-/** Whether the room timeline already contains the given event id. */
+/**
+ * Whether the event is present in the *live* timeline — the same event set
+ * that `buildTimelineMessages` renders. We deliberately do NOT use
+ * `room.findEventById`, which also matches events sitting in other timeline
+ * sets (search contexts, threads). The global search loads matched events into
+ * a separate context timeline, so `findEventById` would report the event as
+ * present before it has actually been paginated into the live timeline the UI
+ * shows — making jump-to-message give up before the message is rendered.
+ */
 export function isEventInTimeline(
   client: MatrixClient,
   roomId: string,
   eventId: string,
 ): boolean {
   const room = client.getRoom(roomId);
-  return Boolean(room?.findEventById(eventId));
+  if (!room) return false;
+  return room
+    .getLiveTimeline()
+    .getEvents()
+    .some((event) => event.getId() === eventId);
 }
 
 function countMessages(room: Room): number {

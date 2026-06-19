@@ -5,6 +5,8 @@ import {
   useRef,
   useState,
   useMemo,
+  forwardRef,
+  useImperativeHandle,
   type SyntheticEvent,
   type MouseEvent as ReactMouseEvent,
 } from "react";
@@ -22,14 +24,14 @@ import { usePreferences, useTimeFormatter } from "../settings/usePreferences";
 import "./timeline.css";
 import "./room-timeline-search.css";
 
+export type TimelineHandle = {
+  /** Scroll the virtualized list to a message already present in `messages`. */
+  scrollToMessage: (messageId: string) => boolean;
+};
+
 type Props = {
   messages: MatrixMessage[];
   highlightMessageId?: string | null;
-  /** When set, scrolls the virtualized list to this message (used for search / deep links). */
-  scrollToMessageId?: string | null;
-  /** Bumped on each jump request so repeated jumps to the same id still run. */
-  scrollToMessageSeq?: number;
-  onScrolledToMessage?: (messageId: string) => void;
   onOpenImage: (src: string) => void;
   onOpenMessageMenu: (message: MatrixMessage, x: number, y: number) => void;
   onToggleReaction: (message: MatrixMessage, key: string) => void;
@@ -113,12 +115,9 @@ function isNearBottom(el: HTMLElement): boolean {
   return el.scrollHeight - el.scrollTop - el.clientHeight < BOTTOM_THRESHOLD;
 }
 
-export function Timeline({
+export const Timeline = forwardRef<TimelineHandle, Props>(function Timeline({
   messages,
   highlightMessageId,
-  scrollToMessageId,
-  scrollToMessageSeq = 0,
-  onScrolledToMessage,
   onOpenImage,
   onOpenMessageMenu,
   onToggleReaction,
@@ -141,7 +140,7 @@ export function Timeline({
   view,
   firstUnreadId,
   onReadUpTo,
-}: Props) {
+}: Props, ref) {
   const virtuosoRef = useRef<VirtuosoHandle>(null);
   const scrollerElRef = useRef<HTMLElement | null>(null);
   const loadingRef = useRef(false);
@@ -156,6 +155,20 @@ export function Timeline({
   const stick = useRef(true);
   const tailMessageId = useRef<string | null>(null);
   const readTimerRef = useRef<number | undefined>(undefined);
+
+  useImperativeHandle(ref, () => ({
+    scrollToMessage: (messageId: string) => {
+      const idx = messages.findIndex((message) => message.id === messageId);
+      if (idx < 0) return false;
+      stick.current = false;
+      virtuosoRef.current?.scrollToIndex({
+        index: firstItemIndex + idx,
+        align: "center",
+        behavior: "smooth",
+      });
+      return true;
+    },
+  }), [messages, firstItemIndex]);
 
   useEffect(() => {
     if (!hasOlder || !atStart || reachedStart.current) return;
@@ -240,79 +253,8 @@ export function Timeline({
     runLoad({ keepBottom: true });
   }, [messages.length, atStart, runLoad, room.id]);
 
-  const scrollToMessageById = useCallback((
-    messageId: string,
-    behavior: "auto" | "smooth" = "smooth",
-  ) => {
-    const idx = messages.findIndex((message) => message.id === messageId);
-    if (idx < 0) return false;
-
-    stick.current = false;
-    virtuosoRef.current?.scrollToIndex({
-      index: firstItemIndex + idx,
-      align: "center",
-      behavior,
-    });
-    return true;
-  }, [firstItemIndex, messages]);
-
-  useEffect(() => {
-    if (!scrollToMessageId) return;
-
-    let cancelled = false;
-    let attempt = 0;
-
-    const finish = (messageId: string) => {
-      if (cancelled) return;
-      onScrolledToMessage?.(messageId);
-    };
-
-    const tryScroll = () => {
-      if (cancelled) return;
-
-      const idx = messages.findIndex((message) => message.id === scrollToMessageId);
-      if (idx >= 0) {
-        scrollToMessageById(scrollToMessageId, attempt === 0 ? "auto" : "smooth");
-        window.requestAnimationFrame(() => {
-          window.requestAnimationFrame(() => {
-            const node = document.querySelector<HTMLElement>(
-              `.timeline [data-mid="${CSS.escape(scrollToMessageId)}"]`,
-            );
-            if (node) {
-              finish(scrollToMessageId);
-              return;
-            }
-            if (attempt < 30) {
-              attempt += 1;
-              window.setTimeout(tryScroll, 50);
-            }
-          });
-        });
-        return;
-      }
-
-      if (attempt < 30) {
-        attempt += 1;
-        window.setTimeout(tryScroll, 80);
-      }
-    };
-
-    tryScroll();
-    return () => {
-      cancelled = true;
-    };
-  }, [messages, onScrolledToMessage, scrollToMessageById, scrollToMessageId, scrollToMessageSeq]);
-
   useLayoutEffect(() => {
     if (messages.length === 0 || didInit.current) return;
-
-    if (scrollToMessageId) {
-      const targetIndex = messages.findIndex((message) => message.id === scrollToMessageId);
-      if (targetIndex < 0) return;
-      didUnreadScroll.current = true;
-      didInit.current = true;
-      return;
-    }
 
     if (firstUnreadId && !didUnreadScroll.current) {
       const unreadIndex = messages.findIndex((message) => message.id === firstUnreadId);
@@ -349,7 +291,7 @@ export function Timeline({
       }
       didInit.current = true;
     });
-  }, [firstItemIndex, firstUnreadId, messages, room.id, scrollToMessageId]);
+  }, [firstItemIndex, firstUnreadId, messages, room.id]);
 
   useEffect(() => {
     const saveBeforeUnload = () => {
@@ -524,7 +466,7 @@ export function Timeline({
       </AnimatePresence>
     </section>
   );
-}
+});
 
 function renderTimelineItem(index: number, message: MatrixMessage, context: TimelineItemContext) {
   const dataIndex = index - context.firstItemIndex;
