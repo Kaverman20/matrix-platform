@@ -22,7 +22,6 @@ import {
   mxcThumbnailUrl,
   paginateBackwards,
   paginateToEvent,
-  isEventInTimeline,
   removeReaction,
   reorderFavourites,
   sendPollResponse,
@@ -143,8 +142,10 @@ export function ChatShell() {
   const composerRef = useRef<ComposerHandle | null>(null);
   const roomListRef = useRef<RoomListHandle | null>(null);
   const [globalSearchOpen, setGlobalSearchOpen] = useState(false);
-  const [scrollTarget, setScrollTarget] = useState<{ roomId: string; messageId: string } | null>(null);
+  const [scrollTarget, setScrollTarget] = useState<{ roomId: string; messageId: string; seq: number } | null>(null);
   const scrollToMessageId = scrollTarget?.roomId === activeRoomId ? scrollTarget.messageId : null;
+  const scrollToMessageSeq = scrollTarget?.roomId === activeRoomId ? scrollTarget.seq : 0;
+  const messages = useTimelineMessages(client, activeRoomId);
 
   const allRooms = useMemo(
     () => [
@@ -228,13 +229,15 @@ export function ChatShell() {
     const targetRoomId = roomId ?? activeRoomId;
     if (!client || !targetRoomId) return;
 
-    setScrollTarget({ roomId: targetRoomId, messageId });
     markMessageHighlight(messageId);
+    setScrollTarget({ roomId: targetRoomId, messageId, seq: Date.now() });
 
-    if (isEventInTimeline(client, targetRoomId, messageId)) return;
+    const alreadyVisible = targetRoomId === activeRoomId
+      && messages.some((message) => message.id === messageId);
+    if (alreadyVisible) return;
 
     await paginateToEvent(client, targetRoomId, messageId);
-  }, [activeRoomId, client, markMessageHighlight]);
+  }, [activeRoomId, client, markMessageHighlight, messages]);
   const clearMessageMenu = useCallback(() => setMessageMenu(null), [setMessageMenu]);
   const resolveSpaceForRoom = useCallback(
     (roomId: string) => findSpaceIdForRoom(roomGroups.spaces, roomId),
@@ -277,13 +280,11 @@ export function ChatShell() {
   });
   const openGlobalSearchMessage = useCallback((roomId: string, messageId: string) => {
     setGlobalSearchOpen(false);
-    setScrollTarget({ roomId, messageId });
     if (activeRoomId !== roomId) {
       chatNavigation.selectRoom(roomId);
     }
     void focusMessageWithPagination(messageId, roomId);
   }, [activeRoomId, chatNavigation, focusMessageWithPagination]);
-  const messages = useTimelineMessages(client, activeRoomId);
   const selection = useMessageSelection(messages);
   const { clear: clearSelection } = selection;
   const [editHistoryEntries, setEditHistoryEntries] = useState<MessageEditEntry[] | null>(null);
@@ -806,6 +807,7 @@ export function ChatShell() {
             <Timeline
               key={activeRoom.id}
               scrollToMessageId={scrollToMessageId}
+              scrollToMessageSeq={scrollToMessageSeq}
               onScrolledToMessage={() => setScrollTarget(null)}
               highlightMessageId={
                 timelineSearch.open && timelineSearch.currentHitId

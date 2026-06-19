@@ -27,6 +27,8 @@ type Props = {
   highlightMessageId?: string | null;
   /** When set, scrolls the virtualized list to this message (used for search / deep links). */
   scrollToMessageId?: string | null;
+  /** Bumped on each jump request so repeated jumps to the same id still run. */
+  scrollToMessageSeq?: number;
   onScrolledToMessage?: (messageId: string) => void;
   onOpenImage: (src: string) => void;
   onOpenMessageMenu: (message: MatrixMessage, x: number, y: number) => void;
@@ -115,6 +117,7 @@ export function Timeline({
   messages,
   highlightMessageId,
   scrollToMessageId,
+  scrollToMessageSeq = 0,
   onScrolledToMessage,
   onOpenImage,
   onOpenMessageMenu,
@@ -253,20 +256,61 @@ export function Timeline({
     return true;
   }, [firstItemIndex, messages]);
 
+  useEffect(() => {
+    if (!scrollToMessageId) return;
+
+    let cancelled = false;
+    let attempt = 0;
+
+    const finish = (messageId: string) => {
+      if (cancelled) return;
+      onScrolledToMessage?.(messageId);
+    };
+
+    const tryScroll = () => {
+      if (cancelled) return;
+
+      const idx = messages.findIndex((message) => message.id === scrollToMessageId);
+      if (idx >= 0) {
+        scrollToMessageById(scrollToMessageId, attempt === 0 ? "auto" : "smooth");
+        window.requestAnimationFrame(() => {
+          window.requestAnimationFrame(() => {
+            const node = document.querySelector<HTMLElement>(
+              `.timeline [data-mid="${CSS.escape(scrollToMessageId)}"]`,
+            );
+            if (node) {
+              finish(scrollToMessageId);
+              return;
+            }
+            if (attempt < 30) {
+              attempt += 1;
+              window.setTimeout(tryScroll, 50);
+            }
+          });
+        });
+        return;
+      }
+
+      if (attempt < 30) {
+        attempt += 1;
+        window.setTimeout(tryScroll, 80);
+      }
+    };
+
+    tryScroll();
+    return () => {
+      cancelled = true;
+    };
+  }, [messages, onScrolledToMessage, scrollToMessageById, scrollToMessageId, scrollToMessageSeq]);
+
   useLayoutEffect(() => {
     if (messages.length === 0 || didInit.current) return;
 
     if (scrollToMessageId) {
       const targetIndex = messages.findIndex((message) => message.id === scrollToMessageId);
-      if (targetIndex >= 0) {
-        stick.current = false;
-        didUnreadScroll.current = true;
-        didInit.current = true;
-        requestAnimationFrame(() => {
-          scrollToMessageById(scrollToMessageId, "auto");
-          onScrolledToMessage?.(scrollToMessageId);
-        });
-      }
+      if (targetIndex < 0) return;
+      didUnreadScroll.current = true;
+      didInit.current = true;
       return;
     }
 
@@ -305,22 +349,7 @@ export function Timeline({
       }
       didInit.current = true;
     });
-  }, [firstItemIndex, firstUnreadId, messages, onScrolledToMessage, room.id, scrollToMessageById, scrollToMessageId]);
-
-  useEffect(() => {
-    if (!scrollToMessageId || !didInit.current) return;
-
-    const targetIndex = messages.findIndex((message) => message.id === scrollToMessageId);
-    if (targetIndex < 0) return;
-
-    const timer = window.setTimeout(() => {
-      if (scrollToMessageById(scrollToMessageId)) {
-        onScrolledToMessage?.(scrollToMessageId);
-      }
-    }, 40);
-
-    return () => window.clearTimeout(timer);
-  }, [messages, onScrolledToMessage, scrollToMessageById, scrollToMessageId]);
+  }, [firstItemIndex, firstUnreadId, messages, room.id, scrollToMessageId]);
 
   useEffect(() => {
     const saveBeforeUnload = () => {
