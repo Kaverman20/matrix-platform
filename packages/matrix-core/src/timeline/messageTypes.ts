@@ -20,6 +20,7 @@ export type MatrixMessage = {
   replyTo?: MatrixMessageReference;
   pinned?: boolean;
   thread?: MatrixThreadSummary;
+  poll?: MatrixPoll;
 };
 
 export type MatrixDeliveryStatus = "sending" | "sent" | "read" | "error";
@@ -51,6 +52,22 @@ export type MatrixMedia = {
   durationMs?: number;
   voice?: boolean;
   waveform?: number[];
+};
+
+export type MatrixPollAnswer = {
+  id: string;
+  text: string;
+};
+
+export type MatrixPoll = {
+  question: string;
+  answers: MatrixPollAnswer[];
+  maxSelections: number;
+  kind: "disclosed" | "undisclosed";
+  closed: boolean;
+  mySelections: string[];
+  voteCounts: Record<string, number>;
+  totalVotes: number;
 };
 
 export type MatrixMessageReference = {

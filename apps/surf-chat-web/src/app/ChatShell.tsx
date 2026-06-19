@@ -1,13 +1,17 @@
 import { AnimatePresence, motion } from "framer-motion";
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { pageCrossfade, transition } from "@matrix-platform/ui";
 import {
   buildForwardData,
+  buildForwardDataList,
   buildMessageDeepLink,
   canPinMessages as canPinMessagesInRoom,
   canPaginateBackwards,
   deleteMessage,
+  deleteMessages,
   findSpaceIdForRoom,
+  getMessageEditHistory,
+  getMessageReaders,
   getPinnedEventIds,
   loadRoomThreads,
   markReadUpToEvent,
@@ -16,6 +20,7 @@ import {
   paginateToEvent,
   removeReaction,
   reorderFavourites,
+  sendPollResponse,
   sendReaction,
   setPinnedEventIds,
   setRoomFavourite,
@@ -24,6 +29,8 @@ import {
   togglePinnedEventId,
   type MatrixMedia,
   type MatrixMessage,
+  type MessageEditEntry,
+  type MessageReader,
 } from "@matrix-platform/matrix-core";
 import { useMatrix } from "./providers/MatrixContext";
 import { useChatNavigation } from "./useChatNavigation";
@@ -53,9 +60,14 @@ import { ChatMainHeader } from "../features/timeline/ChatMainHeader";
 import { PinnedBar } from "../features/timeline/PinnedBar";
 import { RoomTimelineSearch } from "../features/timeline/RoomTimelineSearch";
 import { Timeline } from "../features/timeline/Timeline";
+import { EditHistoryModal } from "../features/timeline/EditHistoryModal";
+import { ReadReceiptsPopover } from "../features/timeline/ReadReceiptsPopover";
 import { useFirstUnread } from "../features/timeline/useFirstUnread";
 import { usePinnedMessages } from "../features/timeline/usePinnedMessages";
 import { useRoomTimelineSearch } from "../features/timeline/useRoomTimelineSearch";
+import { SelectionToolbar } from "../features/selection/SelectionToolbar";
+import { useMessageSelection } from "../features/selection/useMessageSelection";
+import "../features/selection/selection-toolbar.css";
 import {
   usePreloadTimelineMessages,
   useTimelineMessages,
@@ -252,6 +264,27 @@ export function ChatShell() {
     onOpenSpace: setActiveSpaceId,
   });
   const messages = useTimelineMessages(client, activeRoomId);
+  const selection = useMessageSelection(messages);
+  const { clear: clearSelection } = selection;
+  const [editHistoryEntries, setEditHistoryEntries] = useState<MessageEditEntry[] | null>(null);
+  const [readReceipts, setReadReceipts] = useState<{
+    readers: MessageReader[];
+    anchorRect: DOMRect;
+  } | null>(null);
+
+  useEffect(() => {
+    clearSelection();
+  }, [activeRoomId, clearSelection]);
+
+  useEffect(() => {
+    if (!selection.active) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") clearSelection();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [selection.active, clearSelection]);
+
   const timelineSearch = useRoomTimelineSearch({
     client,
     roomId: activeRoomId,
@@ -402,6 +435,13 @@ export function ChatShell() {
     if (action === "forward") {
       setForwarding([buildForwardData(client, activeRoomId, message)]);
     }
+    if (action === "select") {
+      selection.enter();
+      selection.toggle(message.id);
+    }
+    if (action === "history") {
+      setEditHistoryEntries(getMessageEditHistory(client, activeRoomId, message.id));
+    }
     if (action === "pin") {
       void togglePinnedMessage(message);
     }
@@ -455,6 +495,45 @@ export function ChatShell() {
       void sendReaction(client, activeRoomId, message.id, key);
     }
   };
+
+  const handleBulkForward = () => {
+    if (!client || !activeRoomId || selection.selectedMessages.length === 0) return;
+    setForwarding(buildForwardDataList(client, activeRoomId, selection.selectedMessages));
+    selection.clear();
+  };
+
+  const handleBulkDelete = () => {
+    if (!client || !activeRoomId || selection.selectedIds.length === 0) return;
+    const ownOnly = selection.selectedMessages.every((message) => message.own);
+    if (!ownOnly) {
+      window.alert("Можно удалить только свои сообщения.");
+      return;
+    }
+    if (!window.confirm(`Удалить ${selection.selectedIds.length} сообщений?`)) return;
+    void deleteMessages(client, activeRoomId, selection.selectedIds).then(() => selection.clear());
+  };
+
+  const handleVotePoll = (messageId: string, answerIds: string[]) => {
+    if (!client || !activeRoomId) return;
+    void sendPollResponse(client, activeRoomId, messageId, answerIds);
+  };
+
+  const handleShowEditHistory = (message: MatrixMessage) => {
+    if (!client || !activeRoomId) return;
+    setEditHistoryEntries(getMessageEditHistory(client, activeRoomId, message.id));
+  };
+
+  const handleShowReaders = (message: MatrixMessage, anchorRect: DOMRect) => {
+    if (!client || !activeRoomId) return;
+    setReadReceipts({
+      readers: getMessageReaders(client, activeRoomId, message.id),
+      anchorRect,
+    });
+  };
+
+  const canBulkDelete =
+    selection.selectedMessages.length > 0 &&
+    selection.selectedMessages.every((message) => message.own);
 
   const toggleFavouriteRoom = (roomId: string) => {
     if (!client) return;
@@ -675,6 +754,13 @@ export function ChatShell() {
               onQuickReply={(message) => composerMode.startReply(message)}
               onQuickReact={toggleReaction}
               searchQuery={timelineSearch.open ? timelineSearch.query : undefined}
+              selectionActive={selection.active}
+              selectedIds={selection.selectedSet}
+              onMessagePointerClick={(message, event) => selection.handleClick(message, event)}
+              onToggleSelect={selection.toggle}
+              onShowEditHistory={handleShowEditHistory}
+              onShowReaders={handleShowReaders}
+              onVotePoll={handleVotePoll}
               onLoadOlder={loadOlder}
               hasOlder={hasOlder}
               room={activeRoom}
@@ -694,6 +780,14 @@ export function ChatShell() {
               onCancelReply={composerMode.cancelReply}
               onSent={clearComposerMode}
             />
+            {selection.active && (
+              <SelectionToolbar
+                count={selection.selectedIds.length}
+                canDelete={canBulkDelete}
+                onForward={handleBulkForward}
+                onDelete={handleBulkDelete}
+              />
+            )}
           </>
         ) : (
           <section className="chat-main__placeholder">
@@ -780,6 +874,19 @@ export function ChatShell() {
           onAction={handleMessageAction}
           onReact={toggleReaction}
           onClose={() => setMessageMenu(null)}
+        />
+      )}
+      {editHistoryEntries && (
+        <EditHistoryModal
+          entries={editHistoryEntries}
+          onClose={() => setEditHistoryEntries(null)}
+        />
+      )}
+      {readReceipts && (
+        <ReadReceiptsPopover
+          readers={readReceipts.readers}
+          anchorRect={readReceipts.anchorRect}
+          onClose={() => setReadReceipts(null)}
         />
       )}
       <AnimatePresence>

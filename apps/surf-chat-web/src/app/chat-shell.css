@@ -84,6 +84,7 @@ html.reduce-motion .chat-shell__room-list {
 }
 
 .chat-main {
+  position: relative;
   min-width: 0;
   flex: 1;
   /* Flex column (not a fixed 3-row grid) so any number of stacked top bars —

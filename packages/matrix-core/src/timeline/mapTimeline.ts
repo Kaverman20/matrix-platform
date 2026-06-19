@@ -10,6 +10,7 @@ import type {
   MatrixReaction,
   MatrixThreadSummary,
 } from "./messageTypes";
+import { parsePollFromEvent } from "./polls";
 import { FORWARD_KEY } from "./sendMessage";
 
 export function buildTimelineMessages(
@@ -114,6 +115,7 @@ function buildMessagesFromEvents(
       const own = sender === me;
       const text = getEffectiveText(event);
       const content = event.getContent();
+      const poll = parsePollFromEvent(event, room, me);
 
       return {
         id: eventId,
@@ -122,11 +124,12 @@ function buildMessagesFromEvents(
         author: member?.name || sender,
         time: formatTime(event.getTs()),
         timestamp: event.getTs(),
-        text: text.value,
-        formattedBody: text.formattedBody,
+        text: poll ? poll.question : text.value,
+        formattedBody: poll ? undefined : text.formattedBody,
         color: colorForId(sender),
         avatarUrl: getMemberAvatarUrl(client, member),
-        media: resolveMedia(client, content),
+        media: poll ? undefined : resolveMedia(client, content),
+        poll: poll ?? undefined,
         own,
         deliveryStatus: own ? getDeliveryStatus(room, event, eventId, me) : undefined,
         edited: text.edited,
@@ -266,6 +269,7 @@ function isRealMessageEvent(event: MatrixEvent): boolean {
   if (event.isRedacted()) return false;
 
   const content = event.getContent();
+  if (content.msgtype === "m.poll.response") return false;
   const relation = content["m.relates_to"] as { rel_type?: string } | undefined;
   return relation?.rel_type !== "m.replace";
 }

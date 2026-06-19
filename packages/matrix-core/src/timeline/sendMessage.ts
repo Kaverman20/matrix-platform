@@ -128,6 +128,24 @@ export function buildForwardData(
   };
 }
 
+export function buildForwardDataList(
+  client: MatrixClient,
+  roomId: string,
+  messages: MatrixMessage[],
+): MatrixForwardData[] {
+  return messages.map((message) => buildForwardData(client, roomId, message));
+}
+
+export async function deleteMessages(
+  client: MatrixClient,
+  roomId: string,
+  eventIds: string[],
+): Promise<void> {
+  for (const eventId of eventIds) {
+    await deleteMessage(client, roomId, eventId);
+  }
+}
+
 export async function sendForwardedMessage(
   client: MatrixClient,
   roomId: string,

@@ -1,10 +1,10 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { ArrowLeft, ChevronRight, Copy, Forward, Link2, MessagesSquare, Pencil, Pin, Reply, Trash2 } from "lucide-react";
+import { ArrowLeft, CheckSquare, ChevronRight, Copy, Forward, History, Link2, MessagesSquare, Pencil, Pin, Reply, Trash2 } from "lucide-react";
 import type { MatrixMessage } from "@matrix-platform/matrix-core";
 import { EmojiPicker } from "../../components/EmojiPicker";
 import "./message-context-menu.css";
 
-export type MessageAction = "reply" | "thread" | "edit" | "copy" | "forward" | "pin" | "delete" | "link";
+export type MessageAction = "reply" | "thread" | "edit" | "copy" | "forward" | "pin" | "delete" | "link" | "select" | "history";
 const QUICK_REACTIONS = ["👍", "❤️", "😂", "🔥", "👏", "🤔", "👎"];
 
 type Props = {
@@ -148,6 +148,20 @@ export function MessageContextMenu({ canPin, message, x, y, onAction, onClose, o
                   <button type="button" role="menuitem" className="message-menu__action" onClick={() => runAction("edit")}>
                     <Pencil size={16} />
                     <span>Изменить</span>
+                  </button>
+                </li>
+              )}
+              <li>
+                <button type="button" role="menuitem" className="message-menu__action" onClick={() => runAction("select")}>
+                  <CheckSquare size={16} />
+                  <span>Выбрать</span>
+                </button>
+              </li>
+              {message.edited && (
+                <li>
+                  <button type="button" role="menuitem" className="message-menu__action" onClick={() => runAction("history")}>
+                    <History size={16} />
+                    <span>История изменений</span>
                   </button>
                 </li>
               )}

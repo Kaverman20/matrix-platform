@@ -1,0 +1,135 @@
+/* Floating bulk-action bar — compact pill above the composer. */
+.selection-toolbar {
+  position: absolute;
+  left: 50%;
+  bottom: 80px;
+  z-index: 20;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: calc(100% - 40px);
+  border: 1px solid color-mix(in srgb, var(--color-border) 55%, transparent);
+  border-radius: 999px;
+  padding: 6px 14px;
+  background: color-mix(in srgb, var(--color-bg) 92%, transparent);
+  backdrop-filter: blur(14px);
+  box-shadow: 0 2px 12px rgb(0 0 0 / 7%), inset 0 0 0 0.5px rgb(255 255 255 / 35%);
+  pointer-events: auto;
+}
+
+.selection-toolbar__icon {
+  width: 34px;
+  height: 34px;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 999px;
+  color: var(--color-text-muted);
+  background: transparent;
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease;
+}
+
+.selection-toolbar__icon:hover {
+  background: color-mix(in srgb, var(--color-bg-subtle) 80%, transparent);
+  color: var(--color-text-strong);
+}
+
+.selection-toolbar__icon--danger {
+  color: #e05555;
+}
+
+.selection-toolbar__icon--danger:hover {
+  color: #c93c3c;
+  background: rgb(224 85 85 / 8%);
+}
+
+.selection-toolbar__icon--placeholder {
+  pointer-events: none;
+  visibility: hidden;
+}
+
+.selection-toolbar__count {
+  flex: 1;
+  min-width: 0;
+  padding-inline: 4px;
+  color: var(--color-text);
+  font-size: 14px;
+  font-weight: 500;
+  text-align: center;
+  white-space: nowrap;
+}
+
+/* Selection rows — subtle tint, grouped rounded bands like Telegram. */
+.timeline--selecting [data-virtuoso-scroller] {
+  padding-bottom: calc(var(--space-5) + 52px);
+}
+
+.timeline__item--selection-mode {
+  position: relative;
+  margin-inline: calc(-1 * var(--space-5));
+  padding-inline: var(--space-5) calc(var(--space-5) + 30px);
+  cursor: pointer;
+  user-select: none;
+  transition: background 140ms ease;
+}
+
+.timeline__item--selection-mode.timeline__item--selected {
+  background: rgb(74 144 226 / 6%);
+}
+
+.timeline__item--selection-mode.timeline__item--selected-start {
+  margin-top: 2px;
+  border-top-left-radius: 12px;
+  border-top-right-radius: 12px;
+}
+
+.timeline__item--selection-mode.timeline__item--selected-end {
+  margin-bottom: 2px;
+  border-bottom-left-radius: 12px;
+  border-bottom-right-radius: 12px;
+}
+
+.timeline__item--selection-mode:not(.timeline__item--selected):active {
+  background: rgb(0 0 0 / 3%);
+}
+
+.timeline__item--selection-mode .message:hover,
+.timeline__item--selection-mode .mb:hover {
+  background: transparent;
+}
+
+.timeline--selecting .message,
+.timeline--selecting .mb {
+  padding-inline: 0;
+}
+
+.message-select-mark {
+  position: absolute;
+  top: 50%;
+  right: calc(var(--space-5) + 4px);
+  width: 20px;
+  height: 20px;
+  transform: translateY(-50%);
+  display: grid;
+  place-items: center;
+  border: 1.5px solid color-mix(in srgb, var(--color-text-muted) 28%, transparent);
+  border-radius: 50%;
+  color: #fff;
+  opacity: 0.85;
+  pointer-events: none;
+  transition: border-color 140ms ease, background 140ms ease, opacity 140ms ease;
+}
+
+.message-select-mark.is-selected {
+  border-color: transparent;
+  background: #59ae4f;
+  opacity: 1;
+  box-shadow: 0 1px 3px rgb(89 174 79 / 35%);
+}
+
+.timeline__item--selection-mode:not(.timeline__item--selected) .message-select-mark {
+  opacity: 0.5;
+}
