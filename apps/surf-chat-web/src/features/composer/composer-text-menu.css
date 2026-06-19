@@ -1,0 +1,115 @@
+.composer-text-menu {
+  position: fixed;
+  z-index: 1100;
+  margin: 0;
+  animation: composer-text-menu-pop 140ms cubic-bezier(0.2, 0, 0, 1) both;
+}
+
+@keyframes composer-text-menu-pop {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.composer-text-menu__panel {
+  min-width: 196px;
+  border: 1px solid color-mix(in srgb, var(--color-border) 72%, transparent);
+  border-radius: 10px;
+  padding: 4px;
+  list-style: none;
+  background: color-mix(in srgb, var(--color-bg) 88%, white);
+  backdrop-filter: blur(20px) saturate(1.4);
+  -webkit-backdrop-filter: blur(20px) saturate(1.4);
+  box-shadow:
+    0 0 0 0.5px color-mix(in srgb, var(--color-border) 40%, transparent),
+    0 8px 28px color-mix(in srgb, black 14%, transparent);
+}
+
+.composer-text-menu__sep {
+  height: 1px;
+  margin: 4px 8px;
+  background: color-mix(in srgb, var(--color-border) 70%, transparent);
+  list-style: none;
+}
+
+.composer-text-menu__action {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  border: 0;
+  border-radius: 6px;
+  padding: 6px 10px;
+  color: var(--color-text-strong);
+  background: transparent;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+  transition: background 80ms ease;
+}
+
+.composer-text-menu__action:hover:not(:disabled),
+.composer-text-menu__submenu-row.is-open > .composer-text-menu__action--submenu {
+  background: color-mix(in srgb, var(--color-accent) 10%, var(--color-bg-subtle));
+}
+
+.composer-text-menu__action:disabled {
+  cursor: default;
+  opacity: 0.42;
+}
+
+.composer-text-menu__action svg {
+  color: var(--color-text-muted);
+}
+
+.composer-text-menu__action kbd {
+  color: var(--color-text-faint);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+}
+
+.composer-text-menu__action--submenu {
+  grid-template-columns: 18px minmax(0, 1fr) 14px;
+}
+
+.composer-text-menu__chevron {
+  color: var(--color-text-faint);
+  justify-self: end;
+}
+
+.composer-text-menu__submenu {
+  min-width: 232px;
+  padding: 4px;
+  border: 1px solid color-mix(in srgb, var(--color-border) 72%, transparent);
+  border-radius: 10px;
+  list-style: none;
+  background: color-mix(in srgb, var(--color-bg) 88%, white);
+  backdrop-filter: blur(20px) saturate(1.4);
+  -webkit-backdrop-filter: blur(20px) saturate(1.4);
+  box-shadow:
+    0 0 0 0.5px color-mix(in srgb, var(--color-border) 40%, transparent),
+    0 8px 28px color-mix(in srgb, black 14%, transparent);
+}
+
+.composer-text-menu__action--compact {
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 16px;
+  padding: 6px 12px;
+  font-weight: 400;
+}
+
+.composer-text-menu__action--compact kbd {
+  justify-self: end;
+  white-space: nowrap;
+}

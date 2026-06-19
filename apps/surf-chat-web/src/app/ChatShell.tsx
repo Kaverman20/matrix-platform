@@ -6,6 +6,7 @@ import {
   buildForwardDataList,
   buildMessageDeepLink,
   canPinMessages as canPinMessagesInRoom,
+  canKickMember,
   canPaginateBackwards,
   deleteMessage,
   deleteMessages,
@@ -13,6 +14,9 @@ import {
   getMessageEditHistory,
   getMessageReaders,
   getPinnedEventIds,
+  getRoomMemberPermissions,
+  inviteUser,
+  kickUser,
   loadRoomThreads,
   markReadUpToEvent,
   mxcThumbnailUrl,
@@ -402,6 +406,45 @@ export function ChatShell() {
         })),
     [messages],
   );
+  const roomMemberPermissions = useMemo(
+    () => (client && activeRoomId ? getRoomMemberPermissions(client, activeRoomId) : { canInvite: false, canKick: false, myPowerLevel: 0 }),
+    [activeRoomId, client],
+  );
+  const composerMembers = useMemo(
+    () => roomMembers.map((member) => ({ userId: member.userId, name: member.name })),
+    [roomMembers],
+  );
+  const pinnedPreviews = useMemo(
+    () => pinnedMessages.map((message) => ({
+      id: message.id,
+      author: message.author ?? "Сообщение",
+      text: message.text,
+    })),
+    [pinnedMessages],
+  );
+  const canKickRoomMember = useCallback(
+    (userId: string) => Boolean(client && activeRoomId && canKickMember(client, activeRoomId, userId)),
+    [activeRoomId, client],
+  );
+  const handleInviteUser = useCallback(async (userId: string) => {
+    if (!client || !activeRoomId) return;
+    try {
+      await inviteUser(client, activeRoomId, userId);
+    } catch (error) {
+      console.error("[invite-user]", error);
+      window.alert("Не удалось пригласить пользователя.");
+    }
+  }, [activeRoomId, client]);
+  const handleKickMember = useCallback(async (userId: string) => {
+    if (!client || !activeRoomId) return;
+    try {
+      await kickUser(client, activeRoomId, userId);
+    } catch (error) {
+      console.error("[kick-user]", error);
+      window.alert("Не удалось исключить участника.");
+    }
+  }, [activeRoomId, client]);
+
   const canPinMessages = canPinMessagesInRoom(client, activeRoomId);
 
   const openMessageMenu = (
@@ -772,6 +815,7 @@ export function ChatShell() {
               ref={composerRef}
               key={composerMode.composerKey}
               roomId={activeRoom.id}
+              members={composerMembers}
               editingMessage={composerMode.editingMessage}
               pendingForward={composerMode.pendingForward}
               replyTo={composerMode.replyTo}
@@ -820,8 +864,14 @@ export function ChatShell() {
                     onSectionChange={setRightPanelSection}
                     members={roomMembers}
                     media={roomMedia}
+                    pinned={pinnedPreviews}
+                    permissions={roomMemberPermissions}
+                    canKickMember={canKickRoomMember}
                     onOpenSettings={() => roomSettings.openSettings(activeRoom.id)}
                     onOpenImage={setLightbox}
+                    onInviteUser={handleInviteUser}
+                    onKickMember={handleKickMember}
+                    onJumpToPinned={(messageId) => void focusMessageWithPagination(messageId)}
                   />
                 </motion.div>
               </AnimatePresence>
@@ -852,6 +902,9 @@ export function ChatShell() {
           onOpenMessageMenu={(message, x, y) => openMessageMenu(message, x, y, "thread")}
           onToggleReaction={toggleReaction}
           onJumpToMessage={(messageId) => focusMessage(messageId, ".thread-panel")}
+          onShowEditHistory={handleShowEditHistory}
+          onShowReaders={handleShowReaders}
+          onVotePoll={handleVotePoll}
           onCancelEdit={() => setThreadEditing(null)}
           onCancelReply={() => setThreadReplyTo(null)}
           onSent={() => {
@@ -910,7 +963,14 @@ export function ChatShell() {
         activeSpaceId={spaceNavigation.effectiveActiveSpaceId}
         activeSpaceName={spaceNavigation.activeSpace?.name ?? null}
       />
-      <RoomSettingsModal settings={roomSettings} />
+      <RoomSettingsModal
+        settings={roomSettings}
+        onLeaveRoom={
+          activeRoom
+            ? () => void chatNavigation.leaveRoom(activeRoom.id)
+            : undefined
+        }
+      />
     </div>
           </motion.div>
         )}

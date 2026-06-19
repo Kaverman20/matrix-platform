@@ -95,7 +95,7 @@ function renderInlineMarkdown(text: string, keyStart: number): ReactNode[] {
   let key = keyStart;
 
   const pattern = new RegExp(
-    `${INLINE_CODE_PATTERN.source}|\\*\\*([^*]+)\\*\\*|\\*([^*]+)\\*|${MENTION_PATTERN.source}|${URL_PATTERN.source}`,
+    `${INLINE_CODE_PATTERN.source}|\\*\\*([^*]+)\\*\\*|~~([^~]+)~~|_([^_\\n]+)_|\\*([^*]+)\\*|${MENTION_PATTERN.source}|${URL_PATTERN.source}`,
     "g",
   );
 
@@ -114,8 +114,12 @@ function renderInlineMarkdown(text: string, keyStart: number): ReactNode[] {
       );
     } else if (match[0].startsWith("**")) {
       parts.push(<strong key={`strong-${key++}`}>{match[2]}</strong>);
+    } else if (match[0].startsWith("~~")) {
+      parts.push(<del key={`strike-${key++}`}>{match[3]}</del>);
+    } else if (match[0].startsWith("_")) {
+      parts.push(<em key={`em-${key++}`}>{match[4]}</em>);
     } else if (match[0].startsWith("*")) {
-      parts.push(<em key={`em-${key++}`}>{match[3]}</em>);
+      parts.push(<em key={`em-${key++}`}>{match[5]}</em>);
     } else if (match[0].startsWith("@")) {
       parts.push(
         <span key={`mention-${key++}`} className="message-body__mention">

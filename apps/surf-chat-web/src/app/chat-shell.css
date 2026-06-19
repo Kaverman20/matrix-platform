@@ -447,7 +447,7 @@ html.reduce-motion .chat-shell__room-list {
 
 .right-panel__member {
   display: grid;
-  grid-template-columns: 40px minmax(0, 1fr);
+  grid-template-columns: 40px minmax(0, 1fr) auto;
   align-items: center;
   gap: var(--space-3);
   padding: var(--space-3);
@@ -557,6 +557,102 @@ html.reduce-motion .chat-shell__room-list {
   display: flex;
   align-items: center;
   gap: var(--space-3);
+}
+
+.right-panel__invite {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-subtle);
+  color: var(--color-text-muted);
+}
+
+.right-panel__invite-input {
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-text);
+  font: inherit;
+  font-size: var(--text-sm);
+}
+
+.right-panel__invite-input:focus {
+  outline: none;
+}
+
+.right-panel__invite-btn {
+  border: 0;
+  border-radius: var(--radius-sm);
+  padding: 6px 10px;
+  background: var(--color-accent);
+  color: white;
+  font: inherit;
+  font-size: var(--text-xs);
+  cursor: pointer;
+}
+
+.right-panel__invite-btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.right-panel__kick {
+  flex: 0 0 auto;
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: var(--radius-sm);
+  color: var(--color-text-muted);
+  background: transparent;
+  cursor: pointer;
+}
+
+.right-panel__kick:hover:not(:disabled) {
+  color: var(--color-danger, #d64545);
+  background: color-mix(in srgb, var(--color-danger, #d64545) 10%, transparent);
+}
+
+.right-panel__pinned {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr);
+  gap: var(--space-2);
+  align-items: start;
+  width: 100%;
+  padding: var(--space-3);
+  border: 0;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.right-panel__pinned:hover {
+  background: var(--color-bg-hover);
+}
+
+.right-panel__pinned-body {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.right-panel__pinned-body strong,
+.right-panel__pinned-body span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.right-panel__pinned-body span {
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
 }
 
 .lightbox {

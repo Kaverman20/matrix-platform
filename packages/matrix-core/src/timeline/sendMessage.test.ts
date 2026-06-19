@@ -76,15 +76,25 @@ describe("buildReplyFallback", () => {
 
 describe("sendTextMessage", () => {
   it("sends trimmed text", async () => {
-    const { client, texts } = fakeClient();
-    await sendTextMessage(client, "!r", "  hello  ");
-    expect(texts).toEqual(["hello"]);
+    const { client, sent } = fakeClient();
+    const result = await sendTextMessage(client, "!r", "  hello  ");
+    expect(result).toBe("sent");
+    expect(sent).toHaveLength(1);
+    expect(sent[0].content.body).toBe("hello");
   });
 
   it("ignores empty text", async () => {
-    const { client, texts } = fakeClient();
-    await sendTextMessage(client, "!r", "   ");
-    expect(texts).toHaveLength(0);
+    const { client, sent } = fakeClient();
+    const result = await sendTextMessage(client, "!r", "   ");
+    expect(result).toBe("ignored");
+    expect(sent).toHaveLength(0);
+  });
+
+  it("returns help for /help", async () => {
+    const { client, sent } = fakeClient();
+    const result = await sendTextMessage(client, "!r", "/help");
+    expect(result).toBe("help");
+    expect(sent).toHaveLength(0);
   });
 });
 

@@ -8,9 +8,10 @@ import "./room-settings.css";
 
 type Props = {
   settings: RoomSettings;
+  onLeaveRoom?: () => void;
 };
 
-export function RoomSettingsModal({ settings: s }: Props) {
+export function RoomSettingsModal({ settings: s, onLeaveRoom }: Props) {
   const avatarInputRef = useRef<HTMLInputElement | null>(null);
   const heading = s.isSpace ? "Настройки пространства" : "Настройки канала";
 
@@ -104,6 +105,16 @@ export function RoomSettingsModal({ settings: s }: Props) {
             >
               {s.pending ? "Сохраняем..." : "Сохранить"}
             </button>
+
+            {onLeaveRoom && (
+              <button
+                type="button"
+                className="room-settings__leave"
+                onClick={onLeaveRoom}
+              >
+                {s.isSpace ? "Покинуть пространство" : "Покинуть канал"}
+              </button>
+            )}
           </motion.div>
         </motion.div>
       )}

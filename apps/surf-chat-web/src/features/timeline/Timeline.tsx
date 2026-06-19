@@ -522,9 +522,6 @@ function renderTimelineItem(index: number, message: MatrixMessage, context: Time
             onQuickReact={context.onQuickReact}
             searchQuery={context.searchQuery}
             selectionActive={context.selectionActive}
-            selected={context.selectedIds?.has(message.id) ?? false}
-            onMessagePointerClick={context.onMessagePointerClick}
-            onToggleSelect={context.onToggleSelect}
             onShowEditHistory={context.onShowEditHistory}
             onShowReaders={context.onShowReaders}
             onVotePoll={context.onVotePoll}
@@ -543,9 +540,6 @@ function renderTimelineItem(index: number, message: MatrixMessage, context: Time
             onQuickReact={context.onQuickReact}
             searchQuery={context.searchQuery}
             selectionActive={context.selectionActive}
-            selected={context.selectedIds?.has(message.id) ?? false}
-            onMessagePointerClick={context.onMessagePointerClick}
-            onToggleSelect={context.onToggleSelect}
             onShowEditHistory={context.onShowEditHistory}
             onShowReaders={context.onShowReaders}
             onVotePoll={context.onVotePoll}
@@ -587,9 +581,6 @@ type MessageRowProps = {
   onQuickReact?: (message: MatrixMessage, key: string) => void;
   searchQuery?: string;
   selectionActive?: boolean;
-  selected?: boolean;
-  onMessagePointerClick?: (message: MatrixMessage, event: ReactMouseEvent) => void;
-  onToggleSelect?: (messageId: string) => void;
   onShowEditHistory?: (message: MatrixMessage) => void;
   onShowReaders?: (message: MatrixMessage, anchorRect: DOMRect) => void;
   onVotePoll?: (messageId: string, answerIds: string[]) => void;
@@ -608,9 +599,6 @@ function FlatMessage({
   onQuickReact,
   searchQuery,
   selectionActive = false,
-  selected = false,
-  onMessagePointerClick,
-  onToggleSelect,
   onShowEditHistory,
   onShowReaders,
   onVotePoll,
@@ -700,9 +688,6 @@ function BubbleMessage({
   onQuickReact,
   searchQuery,
   selectionActive = false,
-  selected = false,
-  onMessagePointerClick,
-  onToggleSelect,
   onShowEditHistory,
   onShowReaders,
   onVotePoll,
