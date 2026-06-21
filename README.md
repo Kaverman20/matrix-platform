@@ -21,8 +21,9 @@ packages/
 services/                 Access-mapping services (Keycloak ↔ Matrix) — planned, stubs only
   mapping-api/            API for Keycloak group to Matrix target rules
   matrix-keycloak-sync/   Sync service applying access rules to Matrix
-infra/                    Deployment infrastructure — mostly planned; foxhound/ mirrors the live VPS
-  docker/  k8s/  synapse/  foxhound/
+infra/                    Deployment infrastructure
+  foxhound/               Current VPS runtime manifests (mirrors the live VPS)
+  docker/  k8s/  synapse/  (planned)
 docs/
   architecture.md         Architecture overview
   migration-plan.md       Rebuild-from-donor plan
