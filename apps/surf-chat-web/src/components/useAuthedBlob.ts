@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useMatrix } from "../../app/providers/MatrixContext";
+import { useMatrix } from "../app/providers/MatrixContext";
 
 export function useAuthedBlob(url: string | undefined): {
   failed: boolean;

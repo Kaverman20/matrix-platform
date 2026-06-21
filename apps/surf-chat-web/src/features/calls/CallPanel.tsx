@@ -15,7 +15,7 @@ import { colorForId } from "@matrix-platform/matrix-core";
 import type { IncomingCall } from "./useIncomingCall";
 import { canScreenShare, type RoomCall } from "./useRoomCall";
 import { formatCallDuration } from "./callDuration";
-import { AuthedImage } from "../media/AuthedImage";
+import { AuthedImage } from "../../components/AuthedImage";
 import { useDraggablePanel } from "./useDraggablePanel";
 import "./call-panel.css";
 

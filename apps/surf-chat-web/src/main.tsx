@@ -4,7 +4,7 @@ import { App } from "./app/App";
 import { ErrorBoundary } from "./app/ErrorBoundary";
 import { MatrixProvider } from "./app/providers/MatrixProvider";
 import { PreferencesProvider } from "./app/providers/PreferencesProvider";
-import { initThemeFromStorage } from "./features/settings/usePreferences";
+import { initThemeFromStorage } from "./app/providers/usePreferences";
 import "./styles/index.css";
 import "./styles/tokens-presets.css";
 

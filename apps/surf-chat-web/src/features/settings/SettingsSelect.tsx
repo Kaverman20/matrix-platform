@@ -1,7 +1,7 @@
 import { Check, ChevronDown } from "lucide-react";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import type { ThemePreview } from "./themePresets";
+import type { ThemePreview } from "../../app/providers/themePresets";
 import { ThemeSwatch } from "./ThemeSwatch";
 
 export type SettingsSelectOption<T extends string> = {

@@ -85,7 +85,7 @@ import { CALLS_ENABLED } from "../features/calls/callsEnabled";
 import { useIncomingCall } from "../features/calls/useIncomingCall";
 import { useRoomCall } from "../features/calls/useRoomCall";
 import { SettingsPage } from "../features/settings/SettingsModal";
-import { usePreferences } from "../features/settings/usePreferences";
+import { usePreferences } from "./providers/usePreferences";
 import { useChatUrl } from "./useChatUrl";
 import { useChatShellKeyboard } from "./useChatShellKeyboard";
 import { useMultiTabNavigation } from "./useMultiTabNavigation";

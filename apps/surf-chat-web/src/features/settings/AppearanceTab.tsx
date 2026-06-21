@@ -1,7 +1,7 @@
-import type { ChatView } from "./usePreferences";
-import { usePreferences } from "./usePreferences";
+import type { ChatView } from "../../app/providers/usePreferences";
+import { usePreferences } from "../../app/providers/usePreferences";
 import { SettingsSelect } from "./SettingsSelect";
-import { THEME_PRESETS } from "./themePresets";
+import { THEME_PRESETS } from "../../app/providers/themePresets";
 
 const VIEW_OPTIONS: { value: ChatView; label: string; hint?: string }[] = [
   { value: "flat", label: "Плоский", hint: "Сообщения в одной колонке" },

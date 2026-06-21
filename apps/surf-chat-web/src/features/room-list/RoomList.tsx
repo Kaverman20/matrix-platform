@@ -6,8 +6,8 @@ import { colorForId, filterRoomSummaries, formatUnreadCount } from "@matrix-plat
 import { fadeUp, transition } from "@matrix-platform/ui";
 import type { SidebarView } from "../../app/chatUrl";
 import { useMatrix } from "../../app/providers/MatrixContext";
-import { AuthedImage } from "../media/AuthedImage";
-import { useRoomListTimeFormatter } from "../settings/usePreferences";
+import { AuthedImage } from "../../components/AuthedImage";
+import { useRoomListTimeFormatter } from "../../app/providers/usePreferences";
 import { useSidebarUserSearch } from "./useSidebarUserSearch";
 import "./room-list.css";
 

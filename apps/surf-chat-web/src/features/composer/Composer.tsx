@@ -22,8 +22,8 @@ import {
   type TextWrapMode,
 } from "@matrix-platform/matrix-core";
 import { useMatrix } from "../../app/providers/MatrixContext";
-import { usePreferences } from "../settings/usePreferences";
-import { composerSubmitOnKeyDown } from "../settings/composerKeys";
+import { usePreferences } from "../../app/providers/usePreferences";
+import { composerSubmitOnKeyDown } from "./composerKeys";
 import { useVoiceRecorder } from "./useVoiceRecorder";
 import { RecordingWaveform } from "./RecordingWaveform";
 import { formatRecordingTime, waveformFromBlob } from "../media/waveform";

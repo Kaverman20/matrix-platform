@@ -2,7 +2,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { Boxes, Camera, Hash, X } from "lucide-react";
 import { useRef } from "react";
 import { transition } from "@matrix-platform/ui";
-import { AuthedImage } from "../media/AuthedImage";
+import { AuthedImage } from "../../components/AuthedImage";
 import type { RoomSettings } from "./useRoomSettings";
 import "./room-settings.css";
 

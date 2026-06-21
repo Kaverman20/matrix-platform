@@ -1,4 +1,4 @@
-import type { ThemePreview } from "./themePresets";
+import type { ThemePreview } from "../../app/providers/themePresets";
 
 type Props = {
   preview: ThemePreview;

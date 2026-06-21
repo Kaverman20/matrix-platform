@@ -12,8 +12,8 @@ import {
   type MatrixRoomSummary,
 } from "@matrix-platform/matrix-core";
 import { useMatrix } from "../../app/providers/MatrixContext";
-import { usePreferences } from "../settings/usePreferences";
-import { composerSubmitOnKeyDown } from "../settings/composerKeys";
+import { usePreferences } from "../../app/providers/usePreferences";
+import { composerSubmitOnKeyDown } from "../composer/composerKeys";
 import { Timeline } from "../timeline/Timeline";
 import { useThreadMessages } from "./useThreadMessages";
 import "./thread-panel.css";

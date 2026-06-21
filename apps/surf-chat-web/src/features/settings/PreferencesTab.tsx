@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
-import type { SurfPreferences } from "./usePreferences";
-import { usePreferences } from "./usePreferences";
+import type { SurfPreferences } from "../../app/providers/usePreferences";
+import { usePreferences } from "../../app/providers/usePreferences";
 
 type BoolKey = {
   [K in keyof SurfPreferences]: SurfPreferences[K] extends boolean ? K : never;

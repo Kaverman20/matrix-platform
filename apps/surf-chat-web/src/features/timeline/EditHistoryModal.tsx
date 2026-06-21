@@ -1,7 +1,7 @@
 import { X } from "lucide-react";
 import type { MessageEditEntry } from "@matrix-platform/matrix-core";
 import { MessageBody } from "./MessageBody";
-import { useTimeFormatter } from "../settings/usePreferences";
+import { useTimeFormatter } from "../../app/providers/usePreferences";
 import "./edit-history-modal.css";
 
 type Props = {

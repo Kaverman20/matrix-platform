@@ -1,7 +1,7 @@
 import { Download, FileText, ImageOff } from "lucide-react";
 import type { MatrixMedia } from "@matrix-platform/matrix-core";
 import { useMatrix } from "../../app/providers/MatrixContext";
-import { useAuthedBlob } from "./useAuthedBlob";
+import { useAuthedBlob } from "../../components/useAuthedBlob";
 import { VoiceMessagePlayer } from "./VoiceMessagePlayer";
 import "./message-media.css";
 

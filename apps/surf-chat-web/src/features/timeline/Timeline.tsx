@@ -20,7 +20,7 @@ import { PollMessage } from "./PollMessage";
 import { ReactionPill } from "../reactions/ReactionPill";
 import { MessageSelectMark } from "../selection/MessageSelectMark";
 import { BubbleShell } from "./BubbleShell";
-import { usePreferences, useTimeFormatter } from "../settings/usePreferences";
+import { usePreferences, useTimeFormatter } from "../../app/providers/usePreferences";
 import "./timeline.css";
 import "./room-timeline-search.css";
 

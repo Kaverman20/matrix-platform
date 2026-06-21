@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { MatrixForwardData, MatrixMessage, MatrixMessageReference } from "@matrix-platform/matrix-core";
 import type { RightPanelSection } from "../features/room-settings/RoomRightPanel";
-import type { usePreferences } from "../features/settings/usePreferences";
+import type { usePreferences } from "./providers/usePreferences";
 import { resolveInitialActiveRoomId, resolveInitialActiveSpaceId, resolveInitialSidebarView, type SidebarView } from "./chatUrl";
 
 export const ACTIVE_ROOM_STORAGE_KEY = "surf-chat:active-room";

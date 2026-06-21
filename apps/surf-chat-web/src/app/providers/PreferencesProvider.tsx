@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { PreferencesContext, usePreferencesStore } from "../../features/settings/usePreferences";
+import { PreferencesContext, usePreferencesStore } from "./usePreferences";
 
 export function PreferencesProvider({ children }: { children: ReactNode }) {
   const store = usePreferencesStore();

@@ -5,7 +5,7 @@ import {
 } from "@matrix-platform/matrix-core";
 import type { SidebarView } from "../../app/chatUrl";
 import { HelpMenu } from "../help/HelpMenu";
-import { AuthedImage } from "../media/AuthedImage";
+import { AuthedImage } from "../../components/AuthedImage";
 import "./space-rail.css";
 
 type Props = {
