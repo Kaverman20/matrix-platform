@@ -11,17 +11,21 @@ type EmojiMartProps = EmojiPickerProps & {
 };
 
 // emoji-mart + its data set is ~510 kB. Load it only when a picker actually
-// opens so it stays off the initial bundle path.
+// opens so it stays off the initial bundle path. The Russian i18n is bundled
+// too (instead of letting emoji-mart fetch it from jsdelivr) — the production
+// CSP blocks that CDN, which would otherwise leave the picker blank.
 const LazyEmojiMart = lazy(async () => {
-  const [{ default: Picker }, { default: data }] = await Promise.all([
+  const [{ default: Picker }, { default: data }, { default: i18n }] = await Promise.all([
     import("@emoji-mart/react"),
     import("@emoji-mart/data"),
+    import("@emoji-mart/data/i18n/ru.json"),
   ]);
 
   function EmojiMart({ onSelect, theme }: EmojiMartProps) {
     return (
       <Picker
         data={data}
+        i18n={i18n}
         onEmojiSelect={(event: { native: string }) => onSelect(event.native)}
         theme={theme}
         locale="ru"
