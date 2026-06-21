@@ -3,6 +3,7 @@
 
 [data-theme-preset="pure-light"] {
   --color-bg: #ffffff;
+  --emoji-rgb-bg: 255, 255, 255;
   --color-bg-subtle: #f7f7f8;
   --color-bg-sunken: #efeff1;
   --color-bg-hover: rgb(43 46 52 / 4%);
@@ -21,6 +22,8 @@
 
 [data-theme-preset="dark"] {
   --color-bg: #1a1c20;
+  --emoji-rgb-bg: 26, 28, 32;
+  --emoji-rgb-text: 230, 231, 234;
   --color-bg-subtle: #15171a;
   --color-bg-sunken: #101215;
   --color-bg-hover: rgb(255 255 255 / 6%);
@@ -65,6 +68,8 @@
 
 [data-theme-preset="magic-blue"] {
   --color-bg: #171a22;
+  --emoji-rgb-bg: 23, 26, 34;
+  --emoji-rgb-text: 232, 234, 237;
   --color-bg-subtle: #12151d;
   --color-bg-sunken: #0c0e14;
   --color-bg-hover: rgb(255 255 255 / 6%);
@@ -109,6 +114,8 @@
 
 [data-theme-preset="classic-dark"] {
   --color-bg: #1a1a1a;
+  --emoji-rgb-bg: 26, 26, 26;
+  --emoji-rgb-text: 236, 236, 236;
   --color-bg-subtle: #141414;
   --color-bg-sunken: #0f0f0f;
   --color-bg-hover: rgb(255 255 255 / 6%);

@@ -272,8 +272,11 @@
 }
 
 .composer__picker em-emoji-picker {
-  --rgb-background: 255, 255, 255;
-  --rgb-color: 33, 33, 33;
+  /* Light/dark palette is set via the `theme` prop in EmojiPicker.tsx; the exact
+     surface/text colours come from the active app theme so the picker matches
+     each preset (e.g. Magic Blue's tint) instead of a generic grey. */
+  --rgb-background: var(--emoji-rgb-bg);
+  --rgb-color: var(--emoji-rgb-text);
   --border-radius: var(--radius-md);
   width: 352px;
   height: 380px;

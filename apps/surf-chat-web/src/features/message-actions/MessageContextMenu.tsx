@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { ArrowLeft, CheckSquare, ChevronRight, Copy, Forward, History, Link2, MessagesSquare, Pencil, Pin, Reply, Trash2 } from "lucide-react";
 import type { MatrixMessage } from "@matrix-platform/matrix-core";
 import { EmojiPicker } from "../../components/EmojiPicker";
@@ -24,7 +24,7 @@ export function MessageContextMenu({ canPin, message, x, y, onAction, onClose, o
   const [pickerOpen, setPickerOpen] = useState(false);
   const [position, setPosition] = useState<{ left: number; top: number; flip: boolean } | null>(null);
 
-  useLayoutEffect(() => {
+  const reposition = useCallback(() => {
     const menu = ref.current;
     if (!menu) return;
 
@@ -41,7 +41,21 @@ export function MessageContextMenu({ canPin, message, x, y, onAction, onClose, o
     top = clamp(top, SAFE_OFFSET, window.innerHeight - height - SAFE_OFFSET);
 
     setPosition({ left, top, flip });
-  }, [canPin, message.own, message.pinned, pickerOpen, x, y]);
+  }, [x, y]);
+
+  useLayoutEffect(() => {
+    reposition();
+  }, [reposition, canPin, message.own, message.pinned, pickerOpen]);
+
+  // The emoji picker loads lazily and grows the menu after the initial measure;
+  // re-clamp on every size change so an expanded picker can't overflow off-screen.
+  useEffect(() => {
+    const menu = ref.current;
+    if (!menu) return;
+    const observer = new ResizeObserver(() => reposition());
+    observer.observe(menu);
+    return () => observer.disconnect();
+  }, [reposition]);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {

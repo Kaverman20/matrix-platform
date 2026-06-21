@@ -1,5 +1,8 @@
 :root {
   --color-bg: #fdfcfa;
+  /* emoji-mart needs RGB triplets — keep its picker surface in sync with the theme. */
+  --emoji-rgb-bg: 253, 252, 250;
+  --emoji-rgb-text: 43, 46, 52;
   --color-bg-subtle: #f5f3ee;
   --color-bg-sunken: #ece9e2;
   --color-bg-hover: rgb(43 46 52 / 5%);
