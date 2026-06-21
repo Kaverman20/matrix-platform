@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { renderHook } from "@testing-library/react";
 import type { MatrixClient } from "matrix-js-sdk";
 import type { MatrixMessage } from "@matrix-platform/matrix-core";
 import { useFirstUnread } from "./useFirstUnread";
@@ -45,10 +46,20 @@ function fakeClient({
 // A non-empty messages array only gates resolution; contents are irrelevant.
 const RENDERED = [{} as MatrixMessage];
 
+type Props = { client: MatrixClient | null; roomId: string | null; messages: MatrixMessage[] };
+
+function render(initialProps: Props) {
+  return renderHook(
+    ({ client, roomId, messages }: Props) => useFirstUnread(client, roomId, messages),
+    { initialProps },
+  );
+}
+
 describe("useFirstUnread", () => {
   it("returns null when there is no active room", () => {
     const client = fakeClient({ events: [], readUpTo: null });
-    expect(useFirstUnread(client, null, RENDERED)).toBeNull();
+    const { result } = render({ client, roomId: null, messages: RENDERED });
+    expect(result.current).toBeNull();
   });
 
   it("returns null when there is no read receipt to anchor to", () => {
@@ -56,7 +67,8 @@ describe("useFirstUnread", () => {
       events: [{ id: "$a", sender: "@other:server" }],
       readUpTo: null,
     });
-    expect(useFirstUnread(client, "!noreceipt:server", RENDERED)).toBeNull();
+    const { result } = render({ client, roomId: "!noreceipt:server", messages: RENDERED });
+    expect(result.current).toBeNull();
   });
 
   it("returns the first message from someone else after the read marker", () => {
@@ -68,7 +80,8 @@ describe("useFirstUnread", () => {
       ],
       readUpTo: "$read",
     });
-    expect(useFirstUnread(client, "!firstother:server", RENDERED)).toBe("$unread1");
+    const { result } = render({ client, roomId: "!firstother:server", messages: RENDERED });
+    expect(result.current).toBe("$unread1");
   });
 
   it("skips the user's own messages after the marker", () => {
@@ -80,7 +93,8 @@ describe("useFirstUnread", () => {
       ],
       readUpTo: "$read",
     });
-    expect(useFirstUnread(client, "!skipown:server", RENDERED)).toBe("$theirs");
+    const { result } = render({ client, roomId: "!skipown:server", messages: RENDERED });
+    expect(result.current).toBe("$theirs");
   });
 
   it("ignores redacted and non-message events", () => {
@@ -93,7 +107,8 @@ describe("useFirstUnread", () => {
       ],
       readUpTo: "$read",
     });
-    expect(useFirstUnread(client, "!ignore:server", RENDERED)).toBe("$real");
+    const { result } = render({ client, roomId: "!ignore:server", messages: RENDERED });
+    expect(result.current).toBe("$real");
   });
 
   it("returns null when everything after the marker is the user's own", () => {
@@ -104,7 +119,8 @@ describe("useFirstUnread", () => {
       ],
       readUpTo: "$read",
     });
-    expect(useFirstUnread(client, "!allmine:server", RENDERED)).toBeNull();
+    const { result } = render({ client, roomId: "!allmine:server", messages: RENDERED });
+    expect(result.current).toBeNull();
   });
 
   it("stays unresolved (no freeze) until the room has rendered messages", () => {
@@ -116,9 +132,11 @@ describe("useFirstUnread", () => {
       readUpTo: "$read",
     });
     // Empty messages -> not resolved yet -> null, and not cached.
-    expect(useFirstUnread(client, "!lazy:server", [])).toBeNull();
+    const { result, rerender } = render({ client, roomId: "!lazy:server", messages: [] });
+    expect(result.current).toBeNull();
     // Once something is rendered it resolves.
-    expect(useFirstUnread(client, "!lazy:server", RENDERED)).toBe("$unread");
+    rerender({ client, roomId: "!lazy:server", messages: RENDERED });
+    expect(result.current).toBe("$unread");
   });
 
   it("freezes the divider while the room stays open", () => {
@@ -130,7 +148,8 @@ describe("useFirstUnread", () => {
       ],
       readUpTo: "$read",
     });
-    expect(useFirstUnread(client, roomId, RENDERED)).toBe("$unread");
+    const { result, rerender } = render({ client, roomId, messages: RENDERED });
+    expect(result.current).toBe("$unread");
 
     // Even if the read receipt advances, the frozen value holds while open.
     const advanced = fakeClient({
@@ -140,6 +159,7 @@ describe("useFirstUnread", () => {
       ],
       readUpTo: "$unread",
     });
-    expect(useFirstUnread(advanced, roomId, RENDERED)).toBe("$unread");
+    rerender({ client: advanced, roomId, messages: RENDERED });
+    expect(result.current).toBe("$unread");
   });
 });

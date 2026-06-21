@@ -1,3 +1,4 @@
+import { useRef } from "react";
 import type { MatrixClient } from "matrix-js-sdk";
 import { getReadUpToEventId, type MatrixMessage } from "@matrix-platform/matrix-core";
 
@@ -5,13 +6,6 @@ type FirstUnreadCacheEntry = {
   firstUnreadId: string | null;
   resolved: boolean;
 };
-
-const firstUnreadByRoom = new Map<string, FirstUnreadCacheEntry>();
-
-// The room currently open. When it changes we drop the room we just left so its
-// "new messages" divider is recomputed fresh on the next visit (by then those
-// messages are read, so the divider is gone) instead of staying frozen forever.
-let openRoomId: string | null = null;
 
 /**
  * The id of the first unread message in the active room, frozen for as long as
@@ -31,9 +25,18 @@ export function useFirstUnread(
   roomId: string | null,
   messages: MatrixMessage[],
 ): string | null {
-  if (roomId !== openRoomId) {
-    if (openRoomId) firstUnreadByRoom.delete(openRoomId);
-    openRoomId = roomId;
+  // Instance-scoped caches (were module-level globals, which leaked the divider
+  // state across rooms, across hook instances, and across account switches).
+  const cacheRef = useRef<Map<string, FirstUnreadCacheEntry>>(new Map());
+  const openRoomRef = useRef<string | null>(null);
+  const firstUnreadByRoom = cacheRef.current;
+
+  // When the open room changes we drop the room we just left so its "new
+  // messages" divider is recomputed fresh on the next visit (by then those
+  // messages are read, so the divider is gone) instead of staying frozen.
+  if (roomId !== openRoomRef.current) {
+    if (openRoomRef.current) firstUnreadByRoom.delete(openRoomRef.current);
+    openRoomRef.current = roomId;
   }
 
   if (!roomId) return null;

@@ -142,6 +142,8 @@ export function ChatShell() {
   const composerRef = useRef<ComposerHandle | null>(null);
   const roomListRef = useRef<RoomListHandle | null>(null);
   const timelineRef = useRef<TimelineHandle | null>(null);
+  // Monotonic token that invalidates in-flight jump-to-message retry chains.
+  const focusTokenRef = useRef(0);
   const [globalSearchOpen, setGlobalSearchOpen] = useState(false);
   const messages = useTimelineMessages(client, activeRoomId);
 
@@ -223,18 +225,24 @@ export function ChatShell() {
     const targetRoomId = roomId ?? activeRoomId;
     if (!client || !targetRoomId) return;
 
+    // Cancellation token: a newer focus request (or a room switch — see the
+    // effect below) bumps the counter, so a stale retry chain from a previous
+    // jump stops instead of scrolling/highlighting in the wrong room.
+    const token = (focusTokenRef.current += 1);
+
     // Fast path: message already rendered in the DOM (recent / reply / pinned).
     if (focusMessage(messageId)) return;
 
     // Load older history into the SDK timeline until the event surfaces.
     const found = await paginateToEvent(client, targetRoomId, messageId);
-    if (!found) return;
+    if (!found || token !== focusTokenRef.current) return;
 
     // The event is now in the timeline, but Virtuoso only renders a visible
     // window — for off-screen messages the DOM node does not exist yet. Drive
     // the virtualized list imperatively, then highlight; retry while React
     // catches up with the freshly paginated `messages` array.
     const tryScroll = (attempt = 0) => {
+      if (token !== focusTokenRef.current) return;
       if (focusMessage(messageId)) return;
       if (timelineRef.current?.scrollToMessage(messageId)) {
         highlightMessage(messageId);
@@ -305,6 +313,8 @@ export function ChatShell() {
 
   useEffect(() => {
     clearSelection();
+    // Invalidate any pending jump-to-message chain from the room we just left.
+    focusTokenRef.current += 1;
   }, [activeRoomId, clearSelection]);
 
   useEffect(() => {
