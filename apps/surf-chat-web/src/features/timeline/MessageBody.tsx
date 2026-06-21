@@ -1,4 +1,5 @@
 import { type ReactNode } from "react";
+import DOMPurify from "dompurify";
 
 const URL_PATTERN = /https?:\/\/[^\s<>"']+/g;
 const MENTION_PATTERN = /@[\w\d._=/-]+:[\w.-]+/g;
@@ -145,16 +146,36 @@ function renderInlineMarkdown(text: string, keyStart: number): ReactNode[] {
   return parts.length > 0 ? parts : [text];
 }
 
+// Matrix formatted_body приходит от любого участника комнаты — это недоверенный
+// HTML. Санитизируем через DOMPurify со строгим allowlist (подмножество того, что
+// разрешает Matrix spec). Самописные regex-фильтры здесь принципиально дырявы.
+const ALLOWED_TAGS = [
+  "a", "b", "strong", "em", "i", "u", "del", "s", "code", "pre", "br",
+  "span", "p", "blockquote", "ul", "ol", "li",
+];
+const ALLOWED_ATTR = ["href", "class"];
+
+let purifyHooked = false;
+function ensurePurifyHook(): void {
+  if (purifyHooked) return;
+  purifyHooked = true;
+  // Все внешние ссылки открываем безопасно: новая вкладка без доступа к opener.
+  DOMPurify.addHook("afterSanitizeAttributes", (node) => {
+    if (node.tagName === "A" && node.hasAttribute("href")) {
+      node.setAttribute("target", "_blank");
+      node.setAttribute("rel", "noopener noreferrer");
+    }
+  });
+}
+
 function sanitizeFormattedHtml(html: string): string | null {
+  ensurePurifyHook();
   const withoutReply = html.replace(/<mx-reply>[\s\S]*?<\/mx-reply>/gi, "");
-  const allowed = withoutReply
-    .replace(/<br\s*\/?>/gi, "<br />")
-    .replace(/<\/p>/gi, "<br />")
-    .replace(/<p[^>]*>/gi, "")
-    .replace(/<(?!(\/)?(a|b|strong|em|i|code|pre|br|span)\b)[^>]+>/gi, "")
-    .replace(/\son\w+="[^"]*"/gi, "")
-    .replace(/\son\w+='[^']*'/gi, "")
-    .replace(/javascript:/gi, "");
+  const allowed = DOMPurify.sanitize(withoutReply, {
+    ALLOWED_TAGS,
+    ALLOWED_ATTR,
+    ALLOWED_URI_REGEXP: /^(?:https?|mailto):/i,
+  });
 
   const text = stripHtml(allowed).trim();
   if (!text) return null;
