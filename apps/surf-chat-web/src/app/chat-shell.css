@@ -301,6 +301,8 @@ html.reduce-motion .chat-shell__room-list {
   height: 100%;
   object-fit: cover;
   border-radius: inherit;
+  /* Sit above the fallback initial so a loaded avatar covers the letter. */
+  z-index: 2;
 }
 
 .right-panel__avatar-fallback,

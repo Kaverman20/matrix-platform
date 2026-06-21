@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { ArrowLeft, Bell, ChevronRight, FileText, Hash, Pin, Settings, UserPlus, Users, UserX } from "lucide-react";
-import type { SyntheticEvent } from "react";
 import type { MatrixMedia, MatrixRoomSummary, RoomMemberPermissions } from "@matrix-platform/matrix-core";
+import { AuthedImage } from "../../components/AuthedImage";
 
 export type RightPanelSection = "overview" | "members" | "media" | "notifications" | "pinned";
 
@@ -89,9 +89,7 @@ export function RoomRightPanel({
   return (
     <>
       <div className="right-panel__avatar" style={{ background: room.color }}>
-        {room.avatarUrl ? (
-          <img className="right-panel__avatar-img" src={room.avatarUrl} alt="" onError={hideImage} />
-        ) : null}
+        <AuthedImage url={room.avatarUrl} className="right-panel__avatar-img" />
         <span className="right-panel__avatar-fallback">
           {room.kind === "channel" ? <Hash size={34} /> : room.name.slice(0, 1).toUpperCase()}
         </span>
@@ -186,14 +184,7 @@ export function RoomRightPanel({
                 {members.map((member) => (
                   <div key={member.id} className="right-panel__member">
                     <div className="right-panel__member-avatar" style={{ background: member.color }}>
-                      {member.avatarUrl ? (
-                        <img
-                          className="right-panel__member-avatar-img"
-                          src={member.avatarUrl}
-                          alt=""
-                          onError={hideImage}
-                        />
-                      ) : null}
+                      <AuthedImage url={member.avatarUrl} className="right-panel__member-avatar-img" />
                       <span className="right-panel__member-avatar-fallback">
                         {(member.name[0] || "?").toUpperCase()}
                       </span>
@@ -253,7 +244,7 @@ export function RoomRightPanel({
                   >
                     <div className="right-panel__media-preview">
                       {item.media.kind === "image" && item.media.thumbUrl ? (
-                        <img src={item.media.thumbUrl} alt="" />
+                        <AuthedImage url={item.media.thumbUrl} />
                       ) : (
                         <span>{mediaKindLabel(item.media.kind)}</span>
                       )}
@@ -326,8 +317,4 @@ function mediaKindLabel(kind: MatrixMedia["kind"]): string {
     default:
       return "FILE";
   }
-}
-
-function hideImage(event: SyntheticEvent<HTMLImageElement>): void {
-  event.currentTarget.style.display = "none";
 }
