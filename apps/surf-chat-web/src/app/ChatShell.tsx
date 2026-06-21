@@ -259,16 +259,17 @@ export function ChatShell() {
   // the request and let the effect below fire it once that room is active and its
   // timeline has rendered — replaces fixed setTimeout delays that raced on slow
   // history loads (a deep link / global-search hit on a not-yet-loaded room).
-  const [pendingFocus, setPendingFocus] = useState<{ roomId: string; messageId: string } | null>(
-    null,
-  );
+  // Held in a ref (not state) so the consuming effect can clear it without an
+  // extra render. requestFocusMessage is always called alongside a room switch,
+  // whose state update re-runs that effect.
+  const pendingFocusRef = useRef<{ roomId: string; messageId: string } | null>(null);
   const requestFocusMessage = useCallback(
     (roomId: string, messageId: string) => {
       if (roomId === activeRoomId) {
         void focusMessageWithPagination(messageId, roomId);
         return;
       }
-      setPendingFocus({ roomId, messageId });
+      pendingFocusRef.current = { roomId, messageId };
     },
     [activeRoomId, focusMessageWithPagination],
   );
@@ -322,16 +323,16 @@ export function ChatShell() {
   // requested room is active and its timeline has messages, scroll to the target.
   // If the user navigates elsewhere first, the request is abandoned.
   useEffect(() => {
-    if (!pendingFocus) return;
-    if (activeRoomId !== pendingFocus.roomId) {
-      setPendingFocus(null);
+    const pending = pendingFocusRef.current;
+    if (!pending) return;
+    if (activeRoomId !== pending.roomId) {
+      pendingFocusRef.current = null;
       return;
     }
     if (messages.length === 0) return;
-    const { roomId, messageId } = pendingFocus;
-    setPendingFocus(null);
-    void focusMessageWithPagination(messageId, roomId);
-  }, [pendingFocus, activeRoomId, messages, focusMessageWithPagination]);
+    pendingFocusRef.current = null;
+    void focusMessageWithPagination(pending.messageId, pending.roomId);
+  }, [activeRoomId, messages, focusMessageWithPagination]);
   const selection = useMessageSelection(messages);
   const { clear: clearSelection } = selection;
   const [editHistoryEntries, setEditHistoryEntries] = useState<MessageEditEntry[] | null>(null);

@@ -1,4 +1,3 @@
-import { useRef } from "react";
 import type { MatrixClient } from "matrix-js-sdk";
 import { getReadUpToEventId, type MatrixMessage } from "@matrix-platform/matrix-core";
 
@@ -6,6 +5,28 @@ type FirstUnreadCacheEntry = {
   firstUnreadId: string | null;
   resolved: boolean;
 };
+
+type ClientCache = {
+  firstUnreadByRoom: Map<string, FirstUnreadCacheEntry>;
+  // The room currently open for this client. When it changes we drop the room we
+  // just left so its "new messages" divider is recomputed fresh on the next visit.
+  openRoomId: string | null;
+};
+
+// Cache is scoped per client (WeakMap) so the divider state can't leak across
+// account switches, and an old client's cache is GC'd with it. Keyed by client
+// rather than held in a ref so the value can be memoized during render without
+// violating the rules of hooks.
+const cacheByClient = new WeakMap<MatrixClient, ClientCache>();
+
+function cacheForClient(client: MatrixClient): ClientCache {
+  let cache = cacheByClient.get(client);
+  if (!cache) {
+    cache = { firstUnreadByRoom: new Map(), openRoomId: null };
+    cacheByClient.set(client, cache);
+  }
+  return cache;
+}
 
 /**
  * The id of the first unread message in the active room, frozen for as long as
@@ -25,25 +46,21 @@ export function useFirstUnread(
   roomId: string | null,
   messages: MatrixMessage[],
 ): string | null {
-  // Instance-scoped caches (were module-level globals, which leaked the divider
-  // state across rooms, across hook instances, and across account switches).
-  const cacheRef = useRef<Map<string, FirstUnreadCacheEntry>>(new Map());
-  const openRoomRef = useRef<string | null>(null);
-  const firstUnreadByRoom = cacheRef.current;
+  if (!client) return null;
 
-  // When the open room changes we drop the room we just left so its "new
-  // messages" divider is recomputed fresh on the next visit (by then those
-  // messages are read, so the divider is gone) instead of staying frozen.
-  if (roomId !== openRoomRef.current) {
-    if (openRoomRef.current) firstUnreadByRoom.delete(openRoomRef.current);
-    openRoomRef.current = roomId;
+  const cache = cacheForClient(client);
+  const { firstUnreadByRoom } = cache;
+
+  if (roomId !== cache.openRoomId) {
+    if (cache.openRoomId) firstUnreadByRoom.delete(cache.openRoomId);
+    cache.openRoomId = roomId;
   }
 
   if (!roomId) return null;
 
   const cached = firstUnreadByRoom.get(roomId);
   if (cached?.resolved) return cached.firstUnreadId;
-  if (!client || messages.length === 0) return cached?.firstUnreadId ?? null;
+  if (messages.length === 0) return cached?.firstUnreadId ?? null;
 
   const room = client.getRoom(roomId);
   const me = client.getUserId();
