@@ -99,6 +99,9 @@ export function useRoomCall(client: MatrixClient | null, roomId: string | null):
   const [callRoomId, setCallRoomId] = useState<string | null>(null);
   const sessionRef = useRef<MatrixRTCSession | null>(null);
   const liveKitRef = useRef<Room | null>(null);
+  // True while start() is mid-setup, before sessionRef/liveKitRef are populated —
+  // blocks a second start() from racing in and orphaning the first call's session.
+  const startingRef = useRef(false);
   const liveKitUnwatchRef = useRef<(() => void) | null>(null);
   const wasConnectedRef = useRef(false);
   const cameraEnabledRef = useRef(false);
@@ -174,6 +177,10 @@ export function useRoomCall(client: MatrixClient | null, roomId: string | null):
     async (options?: StartCallOptions) => {
       const targetRoomId = options?.roomId ?? roomId;
       if (!client || !targetRoomId) return;
+      // Ignore a second start() while one is in flight or a call is already live,
+      // so two quick clicks can't spin up two MatrixRTC/LiveKit sessions (leak).
+      if (startingRef.current || sessionRef.current || liveKitRef.current) return;
+      startingRef.current = true;
       const isOutgoing = options?.ring === true;
       const isVideo = options?.intent === "video";
 
@@ -187,6 +194,7 @@ export function useRoomCall(client: MatrixClient | null, roomId: string | null):
           durationRef.current = 0;
           setCallRoomId(targetRoomId);
           await endCallRef.current("Занят");
+          startingRef.current = false;
           return;
         }
       }
@@ -259,6 +267,8 @@ export function useRoomCall(client: MatrixClient | null, roomId: string | null):
         setStatus("error");
         setOutgoing(false);
         resetMediaState();
+      } finally {
+        startingRef.current = false;
       }
     },
     [client, resetMediaState, roomId],
