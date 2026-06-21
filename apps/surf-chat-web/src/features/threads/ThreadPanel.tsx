@@ -30,6 +30,9 @@ type Props = {
   onOpenMessageMenu: (message: MatrixMessage, x: number, y: number) => void;
   onToggleReaction: (message: MatrixMessage, key: string) => void;
   onJumpToMessage?: (messageId: string) => void;
+  onShowEditHistory?: (message: MatrixMessage) => void;
+  onShowReaders?: (message: MatrixMessage, anchorRect: DOMRect) => void;
+  onVotePoll?: (messageId: string, answerIds: string[]) => void;
   onCancelEdit: () => void;
   onCancelReply: () => void;
   onSent: () => void;
@@ -48,6 +51,9 @@ export function ThreadPanel({
   onOpenMessageMenu,
   onToggleReaction,
   onJumpToMessage,
+  onShowEditHistory,
+  onShowReaders,
+  onVotePoll,
   onCancelEdit,
   onCancelReply,
   onSent,
@@ -118,6 +124,9 @@ export function ThreadPanel({
         onOpenMessageMenu={onOpenMessageMenu}
         onToggleReaction={onToggleReaction}
         onJumpToMessage={onJumpToMessage}
+        onShowEditHistory={onShowEditHistory}
+        onShowReaders={onShowReaders}
+        onVotePoll={onVotePoll}
         onOpenThread={() => {}}
       />
 

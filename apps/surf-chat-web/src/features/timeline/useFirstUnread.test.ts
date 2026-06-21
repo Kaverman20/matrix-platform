@@ -21,6 +21,8 @@ function makeEvent(e: FakeEvent) {
   };
 }
 
+type FakeClient = MatrixClient & { __setReadUpTo: (value: string | null) => void };
+
 function fakeClient({
   events,
   readUpTo,
@@ -31,15 +33,20 @@ function fakeClient({
   readUpTo: string | null;
   userId?: string | null;
   hasRoom?: boolean;
-}): MatrixClient {
+}): FakeClient {
+  const state = { readUpTo };
   const room = {
     getLiveTimeline: () => ({ getEvents: () => events.map(makeEvent) }),
-    getEventReadUpTo: () => readUpTo,
+    getEventReadUpTo: () => state.readUpTo,
   };
-  return {
+  const client = {
     getUserId: () => userId,
     getRoom: () => (hasRoom ? room : null),
-  } as unknown as MatrixClient;
+    __setReadUpTo: (value: string | null) => {
+      state.readUpTo = value;
+    },
+  };
+  return client as unknown as FakeClient;
 }
 
 // A non-empty messages array only gates resolution; contents are irrelevant.
@@ -132,14 +139,9 @@ describe("useFirstUnread", () => {
     });
     expect(useFirstUnread(client, roomId, RENDERED)).toBe("$unread");
 
-    // Even if the read receipt advances, the frozen value holds while open.
-    const advanced = fakeClient({
-      events: [
-        { id: "$read", sender: "@other:server" },
-        { id: "$unread", sender: "@other:server" },
-      ],
-      readUpTo: "$unread",
-    });
-    expect(useFirstUnread(advanced, roomId, RENDERED)).toBe("$unread");
+    // Even after the read receipt advances on the same client, the frozen value
+    // holds while the room stays open.
+    client.__setReadUpTo("$unread");
+    expect(useFirstUnread(client, roomId, RENDERED)).toBe("$unread");
   });
 });

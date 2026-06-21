@@ -9,7 +9,7 @@ import { parseMatrixDeepLink, resolveDeepLink } from "@matrix-platform/matrix-co
 export function useDeepLink(
   client: MatrixClient | null,
   onOpenRoom: (roomId: string) => void,
-  onFocusMessage?: (messageId: string) => void | Promise<void>,
+  onFocusMessage?: (roomId: string, messageId: string) => void | Promise<void>,
 ): void {
   const handledKeyRef = useRef<string | null>(null);
 
@@ -27,7 +27,9 @@ export function useDeepLink(
       .then((roomId) => {
         onOpenRoom(roomId);
         if (target.type === "room" && target.eventId) {
-          window.setTimeout(() => void onFocusMessage?.(target.eventId!), 320);
+          // Event-driven focus: ChatShell fires once the room's timeline is
+          // ready, instead of guessing a fixed delay that races on slow loads.
+          void onFocusMessage?.(roomId, target.eventId);
         }
         window.history.replaceState(
           window.history.state,

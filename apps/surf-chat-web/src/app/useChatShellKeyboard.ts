@@ -13,6 +13,8 @@ type Options = {
   chatNavigation: ReturnType<typeof useChatNavigation>;
   composerRef: RefObject<ComposerHandle | null>;
   roomListRef: RefObject<RoomListHandle | null>;
+  globalSearchOpen?: boolean;
+  onToggleGlobalSearch?: () => void;
   onOpenTimelineSearch?: () => void;
 };
 
@@ -23,6 +25,8 @@ export function useChatShellKeyboard({
   chatNavigation,
   composerRef,
   roomListRef,
+  globalSearchOpen,
+  onToggleGlobalSearch,
   onOpenTimelineSearch,
 }: Options): void {
   const activeRoomRef = useRef(activeRoom);
@@ -58,7 +62,11 @@ export function useChatShellKeyboard({
     const onKey = (event: KeyboardEvent) => {
       if (isSearchShortcut(event)) {
         event.preventDefault();
-        roomListRef.current?.focusSearch();
+        if (onToggleGlobalSearch) {
+          onToggleGlobalSearch();
+        } else {
+          roomListRef.current?.focusSearch();
+        }
         return;
       }
 
@@ -74,6 +82,12 @@ export function useChatShellKeyboard({
       }
 
       if (event.key !== "Escape") return;
+
+      if (globalSearchOpen) {
+        event.preventDefault();
+        onToggleGlobalSearch?.();
+        return;
+      }
 
       if (forwardingRef.current) {
         event.preventDefault();
@@ -122,7 +136,7 @@ export function useChatShellKeyboard({
 
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [chatNavigation, composerRef, onOpenTimelineSearch, roomListRef, state]);
+  }, [chatNavigation, composerRef, globalSearchOpen, onOpenTimelineSearch, onToggleGlobalSearch, roomListRef, state]);
 }
 
 function isEditableTarget(target: EventTarget | null): boolean {

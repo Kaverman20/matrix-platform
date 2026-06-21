@@ -71,19 +71,24 @@ export function useRoomTimelineSearch({ client, roomId, messages }: Options) {
     const term = query.trim();
     if (term.length < 2) return;
 
+    // Гонка: устаревший ответ не должен затирать результаты текущего запроса.
+    let cancelled = false;
     if (debounceRef.current) window.clearTimeout(debounceRef.current);
     debounceRef.current = window.setTimeout(() => {
+      if (cancelled) return;
       setLoading(true);
       void searchRoomMessages(client, roomId, term)
-        .then(setRemoteHits)
+        .then((hits) => { if (!cancelled) setRemoteHits(hits); })
         .catch((error) => {
+          if (cancelled) return;
           console.error("[room-search]", error);
           setRemoteHits([]);
         })
-        .finally(() => setLoading(false));
+        .finally(() => { if (!cancelled) setLoading(false); });
     }, 280);
 
     return () => {
+      cancelled = true;
       if (debounceRef.current) window.clearTimeout(debounceRef.current);
     };
   }, [client, open, query, roomId]);

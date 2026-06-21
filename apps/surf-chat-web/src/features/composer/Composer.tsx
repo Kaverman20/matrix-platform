@@ -1,4 +1,4 @@
-import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { ArrowUp, FileText, Forward, Image as ImageIcon, Mic, Paperclip, Pencil, Reply, Smile, Trash2, X } from "lucide-react";
 import { spring, transition } from "@matrix-platform/ui";
@@ -11,8 +11,15 @@ import {
   sendTextMessage,
   sendVoiceMessage,
   setTyping,
+  slashCommandHelpText,
+  loadRoomDraft,
+  wrapComposerSelection,
+  transformComposerSelection,
   type MatrixForwardData,
+  type MatrixMentionMember,
   type MatrixMessageReference,
+  type TextTransformMode,
+  type TextWrapMode,
 } from "@matrix-platform/matrix-core";
 import { useMatrix } from "../../app/providers/MatrixContext";
 import { usePreferences } from "../settings/usePreferences";
@@ -20,10 +27,16 @@ import { composerSubmitOnKeyDown } from "../settings/composerKeys";
 import { useVoiceRecorder } from "./useVoiceRecorder";
 import { RecordingWaveform } from "./RecordingWaveform";
 import { formatRecordingTime, waveformFromBlob } from "../media/waveform";
+import { MentionAutocomplete } from "./MentionAutocomplete";
+import { ComposerTextMenu } from "./ComposerTextMenu";
+import { useMentionAutocomplete } from "./useMentionAutocomplete";
+import { useComposerDraft } from "./useComposerDraft";
+import { useComposerTextSelection } from "./useComposerTextSelection";
 import "./composer.css";
 
 type Props = {
   roomId: string;
+  members?: readonly MatrixMentionMember[];
   editingMessage?: MatrixMessageReference | null;
   pendingForward?: MatrixForwardData[] | null;
   replyTo?: MatrixMessageReference | null;
@@ -39,6 +52,7 @@ export type ComposerHandle = {
 
 export const Composer = forwardRef<ComposerHandle, Props>(function Composer({
   roomId,
+  members = [],
   editingMessage,
   pendingForward,
   replyTo,
@@ -49,12 +63,13 @@ export const Composer = forwardRef<ComposerHandle, Props>(function Composer({
 }: Props, ref) {
   const { client } = useMatrix();
   const { preferences } = usePreferences();
-  const [draft, setDraft] = useState(editingMessage?.text ?? "");
+  const [draft, setDraft] = useState(() => initialDraft(roomId, editingMessage?.text));
   const [attachOpen, setAttachOpen] = useState(false);
   const [emojiOpen, setEmojiOpen] = useState(false);
   const [sending, setSending] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploadState, setUploadState] = useState<{ current: number; total: number; name: string } | null>(null);
+  const [textMenu, setTextMenu] = useState<{ x: number; y: number } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const attachWrapRef = useRef<HTMLDivElement>(null);
@@ -66,6 +81,17 @@ export const Composer = forwardRef<ComposerHandle, Props>(function Composer({
   const context = editingMessage ?? replyTo ?? pendingForward?.[0] ?? null;
   const contextAuthor = context && "author" in context ? context.author : undefined;
   const contextTextValue = context && "text" in context ? context.text : undefined;
+  const mentionMembers = members;
+  const mentions = useMentionAutocomplete({
+    members: mentionMembers,
+    excludeUserId: client?.getUserId(),
+  });
+  const { clearDraft } = useComposerDraft({
+    roomId,
+    draft,
+    disabled: mode === "edit",
+  });
+  const { selection, syncSelection } = useComposerTextSelection();
 
   useEffect(() => {
     requestAnimationFrame(() => textareaRef.current?.focus());
@@ -135,22 +161,39 @@ export const Composer = forwardRef<ComposerHandle, Props>(function Composer({
     textarea.style.overflowY = textarea.scrollHeight > 118 ? "auto" : "hidden";
   }, [draft]);
 
+  useEffect(() => {
+    if (editingMessage) {
+      setDraft(editingMessage.text ?? "");
+    }
+  }, [editingMessage]);
+
+  const sendOptions = { members: mentionMembers };
+
   const send = async () => {
     const text = draft.trim();
     if (!client || sending) return;
     if (!text && !pendingForward) return;
 
     setDraft("");
+    clearDraft();
     setSending(true);
     setAttachOpen(false);
     setEmojiOpen(false);
+    mentions.close();
     if (client && lastTypingSentRef.current) {
       lastTypingSentRef.current = 0;
       void setTyping(client, roomId, false);
     }
     try {
       if (pendingForward) {
-        if (text) await sendTextMessage(client, roomId, text);
+        if (text) {
+          const result = await sendTextMessage(client, roomId, text, sendOptions);
+          if (result === "help") {
+            setDraft(slashCommandHelpText());
+            return;
+          }
+          if (result === "clear") return;
+        }
         for (const [index, forward] of pendingForward.entries()) {
           await delay(index === 0 ? 80 : 140);
           await sendForwardedMessage(client, roomId, forward);
@@ -158,9 +201,19 @@ export const Composer = forwardRef<ComposerHandle, Props>(function Composer({
       } else if (editingMessage) {
         await sendEditMessage(client, roomId, text, editingMessage.id);
       } else if (replyTo) {
-        await sendReplyMessage(client, roomId, text, replyTo);
+        const result = await sendReplyMessage(client, roomId, text, replyTo, sendOptions);
+        if (result === "help") {
+          setDraft(slashCommandHelpText());
+          return;
+        }
+        if (result === "clear") return;
       } else {
-        await sendTextMessage(client, roomId, text);
+        const result = await sendTextMessage(client, roomId, text, sendOptions);
+        if (result === "help") {
+          setDraft(slashCommandHelpText());
+          return;
+        }
+        if (result === "clear") return;
       }
       onSent();
     } catch (e) {
@@ -210,6 +263,158 @@ export const Composer = forwardRef<ComposerHandle, Props>(function Composer({
       textarea.focus();
       const caret = start + emoji.length;
       textarea.setSelectionRange(caret, caret);
+      mentions.syncFromDraft(nextDraft, caret);
+    });
+  };
+
+  const applyFormatting = (mode: TextWrapMode) => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+
+    const start = textarea.selectionStart ?? draft.length;
+    const end = textarea.selectionEnd ?? draft.length;
+    const next = wrapComposerSelection(draft, start, end, mode);
+    setDraft(next.text);
+    requestAnimationFrame(() => {
+      textarea.focus();
+      textarea.setSelectionRange(next.selectionStart, next.selectionEnd);
+      mentions.syncFromDraft(next.text, next.selectionStart);
+      syncSelection(textarea);
+    });
+  };
+
+  const applyTransform = (mode: TextTransformMode) => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+
+    const start = textarea.selectionStart ?? draft.length;
+    const end = textarea.selectionEnd ?? draft.length;
+    const next = transformComposerSelection(draft, start, end, mode);
+    setDraft(next.text);
+    requestAnimationFrame(() => {
+      textarea.focus();
+      textarea.setSelectionRange(next.selectionStart, next.selectionEnd);
+      syncSelection(textarea);
+    });
+  };
+
+  const cutSelection = () => {
+    const textarea = textareaRef.current;
+    if (!textarea || selection.start === selection.end) return;
+    const selected = draft.slice(selection.start, selection.end);
+    void navigator.clipboard.writeText(selected);
+    const nextText = `${draft.slice(0, selection.start)}${draft.slice(selection.end)}`;
+    setDraft(nextText);
+    requestAnimationFrame(() => {
+      textarea.focus();
+      textarea.setSelectionRange(selection.start, selection.start);
+      syncSelection(textarea);
+    });
+  };
+
+  const copySelection = () => {
+    if (selection.start === selection.end) return;
+    void navigator.clipboard.writeText(draft.slice(selection.start, selection.end));
+  };
+
+  const pasteFromClipboard = async () => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+    try {
+      const pasted = await navigator.clipboard.readText();
+      const start = textarea.selectionStart ?? draft.length;
+      const end = textarea.selectionEnd ?? draft.length;
+      const nextText = `${draft.slice(0, start)}${pasted}${draft.slice(end)}`;
+      const caret = start + pasted.length;
+      setDraft(nextText);
+      notifyTyping(nextText);
+      requestAnimationFrame(() => {
+        textarea.focus();
+        textarea.setSelectionRange(caret, caret);
+        mentions.syncFromDraft(nextText, caret);
+        syncSelection(textarea);
+      });
+    } catch {
+      // Clipboard read may be blocked — fall back to native paste.
+      document.execCommand("paste");
+    }
+  };
+
+  const handleDraftChange = (value: string, textarea = textareaRef.current) => {
+    setDraft(value);
+    notifyTyping(value);
+    setTextMenu(null);
+    mentions.syncFromDraft(value, textarea?.selectionStart ?? value.length);
+    syncSelection(textarea);
+  };
+
+  const selectMention = (member: MatrixMentionMember) => {
+    const textarea = textareaRef.current;
+    const cursor = textarea?.selectionStart ?? draft.length;
+    const next = mentions.applySelection(draft, cursor, member);
+    setDraft(next.text);
+    requestAnimationFrame(() => {
+      textarea?.focus();
+      textarea?.setSelectionRange(next.cursor, next.cursor);
+    });
+  };
+
+  const handleComposerKeyDown = (event: ReactKeyboardEvent<HTMLTextAreaElement>) => {
+    if ((event.metaKey || event.ctrlKey) && !event.altKey) {
+      const key = event.key.toLowerCase();
+      if (key === "b") {
+        event.preventDefault();
+        applyFormatting("bold");
+        return;
+      }
+      if (key === "i") {
+        event.preventDefault();
+        applyFormatting("italic");
+        return;
+      }
+      if (key === "u") {
+        event.preventDefault();
+        applyFormatting("link");
+        return;
+      }
+      if (event.shiftKey && key === "k") {
+        event.preventDefault();
+        applyFormatting("code");
+        return;
+      }
+      if (event.shiftKey && key === "x") {
+        event.preventDefault();
+        applyFormatting("strikethrough");
+        return;
+      }
+    }
+
+    if (mentions.open && mentions.candidates.length > 0) {
+      if (event.key === "ArrowDown") {
+        event.preventDefault();
+        mentions.moveActive(1);
+        return;
+      }
+      if (event.key === "ArrowUp") {
+        event.preventDefault();
+        mentions.moveActive(-1);
+        return;
+      }
+      if ((event.key === "Enter" || event.key === "Tab") && mentions.activeCandidate) {
+        event.preventDefault();
+        selectMention(mentions.activeCandidate);
+        return;
+      }
+      if (event.key === "Escape") {
+        event.preventDefault();
+        mentions.close();
+        return;
+      }
+    }
+
+    composerSubmitOnKeyDown(event, {
+      enterToSend: preferences.enterToSend,
+      submit: () => void send(),
     });
   };
 
@@ -237,6 +442,14 @@ export const Composer = forwardRef<ComposerHandle, Props>(function Composer({
         voice.cancel();
         return true;
       }
+      if (mentions.open) {
+        mentions.close();
+        return true;
+      }
+      if (textMenu) {
+        setTextMenu(null);
+        return true;
+      }
       if (attachOpen) {
         setAttachOpen(false);
         return true;
@@ -260,11 +473,12 @@ export const Composer = forwardRef<ComposerHandle, Props>(function Composer({
       }
       if (draft.trim()) {
         setDraft("");
+        clearDraft();
         return true;
       }
       return false;
     },
-  }), [attachOpen, draft, editingMessage, emojiOpen, onCancelEdit, onCancelForward, onCancelReply, pendingForward, replyTo, voice]);
+  }), [attachOpen, clearDraft, draft, editingMessage, emojiOpen, mentions, onCancelEdit, onCancelForward, onCancelReply, pendingForward, replyTo, textMenu, voice]);
 
   return (
     <div className="composer-wrap">
@@ -350,7 +564,7 @@ export const Composer = forwardRef<ComposerHandle, Props>(function Composer({
               setAttachOpen((value) => !value);
             }}
           >
-            <Paperclip size={20} />
+            <Paperclip size={18} strokeWidth={2.25} />
           </button>
           <AnimatePresence>
             {attachOpen && (
@@ -402,24 +616,38 @@ export const Composer = forwardRef<ComposerHandle, Props>(function Composer({
             onChange={(event) => void sendFiles(event.currentTarget.files)}
           />
         </div>
-        <textarea
-          ref={textareaRef}
-          className="composer__input"
-          value={draft}
-          rows={1}
-          placeholder={mode === "edit" ? "Изменить сообщение" : "Сообщение"}
-          disabled={sending || uploading}
-          onChange={(e) => {
-            setDraft(e.target.value);
-            notifyTyping(e.target.value);
-          }}
-          onKeyDown={(e) =>
-            composerSubmitOnKeyDown(e, {
-              enterToSend: preferences.enterToSend,
-              submit: () => void send(),
-            })
-          }
-        />
+        <div className="composer__input-wrap">
+          {mentions.open && (
+            <MentionAutocomplete
+              candidates={mentions.candidates}
+              activeIndex={mentions.activeIndex}
+              onSelect={selectMention}
+            />
+          )}
+          <textarea
+            ref={textareaRef}
+            className="composer__input"
+            value={draft}
+            rows={1}
+            placeholder={mode === "edit" ? "Изменить сообщение" : "Сообщение"}
+            disabled={sending || uploading}
+            onChange={(e) => handleDraftChange(e.target.value, e.currentTarget)}
+            onKeyDown={handleComposerKeyDown}
+            onKeyUp={(e) => syncSelection(e.currentTarget)}
+            onContextMenu={(event) => {
+              event.preventDefault();
+              syncSelection(event.currentTarget);
+              setTextMenu({ x: event.clientX, y: event.clientY });
+              event.currentTarget.focus();
+            }}
+            onSelect={(e) => syncSelection(e.currentTarget)}
+            onClick={(event) => {
+              const target = event.currentTarget;
+              mentions.syncFromDraft(target.value, target.selectionStart ?? target.value.length);
+              syncSelection(target);
+            }}
+          />
+        </div>
         <div className="composer__emoji-wrap" ref={emojiWrapRef}>
           <button
             type="button"
@@ -431,7 +659,7 @@ export const Composer = forwardRef<ComposerHandle, Props>(function Composer({
               setEmojiOpen((value) => !value);
             }}
           >
-            <Smile size={20} />
+            <Smile size={18} strokeWidth={2.25} />
           </button>
           <AnimatePresence>
             {emojiOpen && (
@@ -479,10 +707,23 @@ export const Composer = forwardRef<ComposerHandle, Props>(function Composer({
             title="Голосовое сообщение"
             onClick={() => void voice.start()}
           >
-            <Mic size={20} />
+            <Mic size={18} strokeWidth={2.25} />
           </button>
         )}
       </form>
+      {textMenu && (
+        <ComposerTextMenu
+          x={textMenu.x}
+          y={textMenu.y}
+          hasSelection={selection.hasSelection}
+          onClose={() => setTextMenu(null)}
+          onWrap={applyFormatting}
+          onTransform={applyTransform}
+          onCut={cutSelection}
+          onCopy={copySelection}
+          onPaste={() => void pasteFromClipboard()}
+        />
+      )}
     </div>
   );
 });
@@ -537,5 +778,10 @@ function loadImage(src: string): Promise<HTMLImageElement> {
     image.onerror = reject;
     image.src = src;
   });
+}
+
+function initialDraft(roomId: string, editingText?: string | null): string {
+  if (editingText) return editingText;
+  return loadRoomDraft(localStorage, roomId);
 }
 

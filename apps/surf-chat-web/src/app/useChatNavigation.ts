@@ -27,7 +27,7 @@ type Options = {
   clearMessageMenu: () => void;
   clearComposerMode: () => void;
   startForward: (items: MatrixForwardData[]) => void;
-  focusPinnedMessage: (messageId: string) => void;
+  requestFocusMessage: (roomId: string, messageId: string) => void;
   resolveSpaceForRoom: (roomId: string) => string | null;
   resolveIsDmRoom: (roomId: string) => boolean;
 };
@@ -52,7 +52,7 @@ export function useChatNavigation({
   clearMessageMenu,
   clearComposerMode,
   startForward,
-  focusPinnedMessage,
+  requestFocusMessage,
   resolveSpaceForRoom,
   resolveIsDmRoom,
 }: Options) {
@@ -102,10 +102,12 @@ export function useChatNavigation({
     setShowAllThreads(false);
     clearComposerMode();
     setActiveThreadRootId(rootId);
-    window.setTimeout(() => focusPinnedMessage(rootId), 220);
+    // Event-driven: fires once the target room is active and its timeline has
+    // rendered (see requestFocusMessage in ChatShell), not after a fixed delay.
+    requestFocusMessage(roomId, rootId);
   }, [
     clearComposerMode,
-    focusPinnedMessage,
+    requestFocusMessage,
     applyRoomSidebarContext,
     resetRoomView,
     setActiveRoomId,

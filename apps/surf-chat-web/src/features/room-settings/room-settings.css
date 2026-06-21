@@ -27,3 +27,20 @@
   opacity: 0.6;
   cursor: not-allowed;
 }
+
+.room-settings__leave {
+  width: 100%;
+  margin-top: 12px;
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--color-danger, #d64545) 35%, var(--color-border));
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-danger, #d64545);
+  font: inherit;
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+.room-settings__leave:hover {
+  background: color-mix(in srgb, var(--color-danger, #d64545) 8%, transparent);
+}

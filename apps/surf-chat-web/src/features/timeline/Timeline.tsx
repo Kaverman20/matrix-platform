@@ -4,20 +4,30 @@ import {
   useCallback,
   useRef,
   useState,
+  useMemo,
+  forwardRef,
+  useImperativeHandle,
   type SyntheticEvent,
-  type UIEvent,
-  type WheelEvent,
+  type MouseEvent as ReactMouseEvent,
 } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { AlertCircle, Check, CheckCheck, Clock3, Forward, Hash, MessagesSquare, Reply, SmilePlus } from "lucide-react";
+import { Virtuoso, type VirtuosoHandle } from "react-virtuoso";
 import type { MatrixMessage, MatrixRoomSummary } from "@matrix-platform/matrix-core";
 import { MessageMedia } from "../media/MessageMedia";
 import { MessageBody } from "./MessageBody";
+import { PollMessage } from "./PollMessage";
 import { ReactionPill } from "../reactions/ReactionPill";
+import { MessageSelectMark } from "../selection/MessageSelectMark";
 import { BubbleShell } from "./BubbleShell";
 import { usePreferences, useTimeFormatter } from "../settings/usePreferences";
 import "./timeline.css";
 import "./room-timeline-search.css";
+
+export type TimelineHandle = {
+  /** Scroll the virtualized list to a message already present in `messages`. */
+  scrollToMessage: (messageId: string) => boolean;
+};
 
 type Props = {
   messages: MatrixMessage[];
@@ -30,6 +40,13 @@ type Props = {
   onQuickReply?: (message: MatrixMessage) => void;
   onQuickReact?: (message: MatrixMessage, key: string) => void;
   searchQuery?: string;
+  selectionActive?: boolean;
+  selectedIds?: Set<string>;
+  onMessagePointerClick?: (message: MatrixMessage, event: ReactMouseEvent) => void;
+  onToggleSelect?: (messageId: string) => void;
+  onShowEditHistory?: (message: MatrixMessage) => void;
+  onShowReaders?: (message: MatrixMessage, anchorRect: DOMRect) => void;
+  onVotePoll?: (messageId: string, answerIds: string[]) => void;
   onLoadOlder?: () => Promise<boolean>;
   hasOlder?: boolean;
   showIntro?: boolean;
@@ -46,15 +63,33 @@ type Props = {
 const TOP_THRESHOLD = 160;
 const SCROLL_STORAGE_PREFIX = "surf-chat:room-scroll:";
 const BOTTOM_THRESHOLD = 160;
+const VIRTUOSO_START_INDEX = 10_000;
 // How long a message must stay in view before it counts as read.
 const READ_VISIBLE_DELAY = 1000;
 // Leave the unread divider a little below the top when opening at first unread.
 const UNREAD_SCROLL_OFFSET = 64;
 
-type ViewportAnchor = {
-  id: string;
-  top: number;
-  fallbackDistanceFromBottom: number;
+type TimelineItemContext = {
+  view: "flat" | "bubbles";
+  firstUnreadId?: string | null;
+  highlightMessageId?: string | null;
+  searchQuery?: string;
+  selectionActive: boolean;
+  selectedIds?: Set<string>;
+  onOpenImage: (src: string) => void;
+  onOpenMessageMenu: (message: MatrixMessage, x: number, y: number) => void;
+  onToggleReaction: (message: MatrixMessage, key: string) => void;
+  onOpenThread: (rootId: string) => void;
+  onJumpToMessage?: (messageId: string) => void;
+  onQuickReply?: (message: MatrixMessage) => void;
+  onQuickReact?: (message: MatrixMessage, key: string) => void;
+  onMessagePointerClick?: (message: MatrixMessage, event: ReactMouseEvent) => void;
+  onToggleSelect?: (messageId: string) => void;
+  onShowEditHistory?: (message: MatrixMessage) => void;
+  onShowReaders?: (message: MatrixMessage, anchorRect: DOMRect) => void;
+  onVotePoll?: (messageId: string, answerIds: string[]) => void;
+  messages: MatrixMessage[];
+  firstItemIndex: number;
 };
 
 const scrollStorageKey = (roomId: string) => `${SCROLL_STORAGE_PREFIX}${roomId}`;
@@ -80,33 +115,7 @@ function isNearBottom(el: HTMLElement): boolean {
   return el.scrollHeight - el.scrollTop - el.clientHeight < BOTTOM_THRESHOLD;
 }
 
-function pinToBottom(roomId: string, el: HTMLElement): void {
-  el.scrollTop = el.scrollHeight;
-  storeDistanceFromBottom(roomId, el, true);
-}
-
-function scrollToBottom(roomId: string, el: HTMLElement, behavior: ScrollBehavior = "auto"): void {
-  el.scrollTo({ top: el.scrollHeight, behavior });
-  storeDistanceFromBottom(roomId, el, true);
-}
-
-function captureViewportAnchor(el: HTMLElement): ViewportAnchor | null {
-  const viewportTop = el.getBoundingClientRect().top;
-  const items = Array.from(
-    el.querySelectorAll<HTMLElement>(".timeline__item[data-message-id]"),
-  );
-  const anchor = items.find((item) => item.getBoundingClientRect().bottom >= viewportTop + 8);
-  const id = anchor?.dataset.messageId;
-  if (!anchor || !id) return null;
-
-  return {
-    id,
-    top: anchor.getBoundingClientRect().top,
-    fallbackDistanceFromBottom: el.scrollHeight - el.scrollTop,
-  };
-}
-
-export function Timeline({
+export const Timeline = forwardRef<TimelineHandle, Props>(function Timeline({
   messages,
   highlightMessageId,
   onOpenImage,
@@ -117,6 +126,13 @@ export function Timeline({
   onQuickReply,
   onQuickReact,
   searchQuery,
+  selectionActive = false,
+  selectedIds,
+  onMessagePointerClick,
+  onToggleSelect,
+  onShowEditHistory,
+  onShowReaders,
+  onVotePoll,
   onLoadOlder,
   hasOlder = false,
   showIntro = true,
@@ -124,60 +140,67 @@ export function Timeline({
   view,
   firstUnreadId,
   onReadUpTo,
-}: Props) {
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const contentRef = useRef<HTMLDivElement>(null);
+}: Props, ref) {
+  const virtuosoRef = useRef<VirtuosoHandle>(null);
+  const scrollerElRef = useRef<HTMLElement | null>(null);
   const loadingRef = useRef(false);
   const [loading, setLoading] = useState(false);
   const [newMessagesCount, setNewMessagesCount] = useState(0);
-  // Becomes true once paginating returns no more messages — i.e. we've reached
-  // the very start of the room. The component is keyed by room id and remounts
-  // on room switch, so this resets automatically per room.
+  const [firstItemIndex, setFirstItemIndex] = useState(VIRTUOSO_START_INDEX);
   const [atStart, setAtStart] = useState(!hasOlder);
-  const prependAnchor = useRef<ViewportAnchor | null>(null);
+  const leadingMessageIdRef = useRef<string | null>(null);
   const didInit = useRef(false);
-  // One-shot guard for the "open at first unread" scroll. Lets us retry across a
-  // render or two — the unread node may not exist on the very first paint if the
-  // timeline is still settling. Resets per room (the component is keyed by room).
   const didUnreadScroll = useRef(false);
-  // Set once a pagination attempt returns no new messages — i.e. we've genuinely
-  // reached the room start. Locks `atStart` so the sync-tick effect below can't
-  // flip it back: some homeservers keep handing out a backwards token even at the
-  // start of a room (common for DMs), which would otherwise ping-pong atStart and
-  // re-trigger endless pagination (the room intro visibly flickers).
   const reachedStart = useRef(false);
-  // Whether the view is pinned to the bottom (true until the user scrolls up).
   const stick = useRef(true);
   const tailMessageId = useRef<string | null>(null);
+  const readTimerRef = useRef<number | undefined>(undefined);
+
+  useImperativeHandle(ref, () => ({
+    scrollToMessage: (messageId: string) => {
+      const idx = messages.findIndex((message) => message.id === messageId);
+      if (idx < 0) return false;
+      stick.current = false;
+      virtuosoRef.current?.scrollToIndex({
+        index: firstItemIndex + idx,
+        align: "center",
+        behavior: "smooth",
+      });
+      return true;
+    },
+  }), [messages, firstItemIndex]);
 
   useEffect(() => {
     if (!hasOlder || !atStart || reachedStart.current) return;
-    // hasOlder can become known after the first Matrix sync tick.
     setAtStart(false);
   }, [atStart, hasOlder]);
 
+  useEffect(() => {
+    const leadingId = messages[0]?.id ?? null;
+    const previousLeadingId = leadingMessageIdRef.current;
+    if (previousLeadingId && leadingId && previousLeadingId !== leadingId) {
+      const previousIndex = messages.findIndex((message) => message.id === previousLeadingId);
+      if (previousIndex > 0) {
+        setFirstItemIndex((value) => value - previousIndex);
+      }
+    }
+    leadingMessageIdRef.current = leadingId;
+  }, [messages]);
+
   const runLoad = useCallback((options: { pages?: number; silent?: boolean; keepBottom?: boolean } = {}) => {
-    const el = scrollRef.current;
-    if (!el || !onLoadOlder || atStart || loadingRef.current) return;
+    if (!onLoadOlder || atStart || loadingRef.current) return;
 
     const pages = options.pages ?? 1;
     const silent = options.silent ?? true;
-    const keepBottom = options.keepBottom ?? false;
+    if (options.keepBottom) stick.current = true;
+
     loadingRef.current = true;
     if (!silent) setLoading(true);
-    // When filling the viewport on entry we stay pinned to the bottom and let the
-    // layout effect keep us there; capturing a prepend anchor would unstick us.
-    if (keepBottom) {
-      stick.current = true;
-    } else {
-      prependAnchor.current = captureViewportAnchor(el);
-    }
 
     void (async () => {
       for (let page = 0; page < pages; page += 1) {
         const added = await onLoadOlder();
         if (!added) {
-          prependAnchor.current = null;
           reachedStart.current = true;
           setAtStart(true);
           break;
@@ -211,99 +234,68 @@ export function Timeline({
   }, [messages]);
 
   const scrollToLatest = useCallback(() => {
-    const el = scrollRef.current;
-    if (!el) return;
+    if (messages.length === 0) return;
     stick.current = true;
-    scrollToBottom(room.id, el, "smooth");
+    virtuosoRef.current?.scrollToIndex({
+      index: firstItemIndex + messages.length - 1,
+      align: "end",
+      behavior: "smooth",
+    });
     setNewMessagesCount(0);
     const latestMessageId = findLatestReadableMessage(messages)?.id;
     if (latestMessageId) onReadUpTo?.(latestMessageId);
-  }, [messages, onReadUpTo, room.id]);
+  }, [firstItemIndex, messages, onReadUpTo]);
 
-  // Telegram-style entry: Matrix's initial sync only delivers a small window of
-  // recent events, so a fresh room often has fewer messages than fit on screen.
-  // While pinned to the bottom, eagerly paginate until the timeline is scrollable
-  // (or we reach the room start) so the chat opens already full of history.
   useEffect(() => {
-    const el = scrollRef.current;
+    const el = scrollerElRef.current;
     if (!el || atStart || loadingRef.current || !stick.current) return;
-    const fillsViewport = el.scrollHeight > el.clientHeight + BOTTOM_THRESHOLD;
-    if (fillsViewport) return;
+    if (el.scrollHeight > el.clientHeight + BOTTOM_THRESHOLD) return;
     runLoad({ keepBottom: true });
   }, [messages.length, atStart, runLoad, room.id]);
 
-  // Position the view after each render — instantly, never smooth. On scrollback,
-  // keep the same message anchored in the same viewport position; this is what
-  // stops prepended history from throwing the reader around.
   useLayoutEffect(() => {
-    const el = scrollRef.current;
-    if (!el) return;
+    if (messages.length === 0 || didInit.current) return;
 
-    if (prependAnchor.current) {
-      const anchor = prependAnchor.current;
-      const node = el.querySelector<HTMLElement>(
-        `.timeline__item[data-message-id="${CSS.escape(anchor.id)}"]`,
-      );
-      if (node) {
-        el.scrollTop += node.getBoundingClientRect().top - anchor.top;
-      } else {
-        el.scrollTop = el.scrollHeight - anchor.fallbackDistanceFromBottom;
-      }
-      prependAnchor.current = null;
-      stick.current = false;
-      didInit.current = true;
-      return;
-    }
-
-    // Open the room at the first unread message (Telegram-style). This may need a
-    // render or two until the node exists, so it's a one-shot retry independent of
-    // didInit rather than only on the first pass.
     if (firstUnreadId && !didUnreadScroll.current) {
-      const unreadNode = el.querySelector<HTMLElement>(
-        `.timeline__item[data-message-id="${CSS.escape(firstUnreadId)}"]`,
-      );
-      if (unreadNode) {
+      const unreadIndex = messages.findIndex((message) => message.id === firstUnreadId);
+      if (unreadIndex >= 0) {
         stick.current = false;
-        const offset = unreadNode.getBoundingClientRect().top - el.getBoundingClientRect().top;
-        el.scrollTop = Math.max(0, el.scrollTop + offset - UNREAD_SCROLL_OFFSET);
         didUnreadScroll.current = true;
         didInit.current = true;
+        requestAnimationFrame(() => {
+          virtuosoRef.current?.scrollToIndex({
+            index: firstItemIndex + unreadIndex,
+            align: "start",
+            offset: -UNREAD_SCROLL_OFFSET,
+          });
+        });
         return;
       }
     }
 
-    if (!didInit.current) {
-      const savedDistance = getStoredDistanceFromBottom(room.id);
+    const savedDistance = getStoredDistanceFromBottom(room.id);
+    requestAnimationFrame(() => {
       if (savedDistance === null || savedDistance < BOTTOM_THRESHOLD) {
         stick.current = true;
-        pinToBottom(room.id, el);
+        virtuosoRef.current?.scrollToIndex({
+          index: firstItemIndex + messages.length - 1,
+          align: "end",
+        });
       } else {
-        el.scrollTop = Math.max(0, el.scrollHeight - el.clientHeight - savedDistance);
+        stick.current = false;
+        virtuosoRef.current?.scrollToIndex({
+          index: firstItemIndex + messages.length - 1,
+          align: "end",
+          offset: -savedDistance,
+        });
       }
-    } else if (stick.current) {
-      pinToBottom(room.id, el);
-    }
-    didInit.current = true;
-  }, [messages.length, room.id, firstUnreadId]);
-
-  // Late layout (images decoding, reactions) grows the content after the initial
-  // scroll — keep the view glued to the bottom while the user is at the bottom.
-  useEffect(() => {
-    const content = contentRef.current;
-    const el = scrollRef.current;
-    if (!content || !el) return;
-    const observer = new ResizeObserver(() => {
-      if (!prependAnchor.current && stick.current) {
-        pinToBottom(room.id, el);
-      }
+      didInit.current = true;
     });
-    observer.observe(content);
-    return () => observer.disconnect();
-  }, [room.id]);
+  }, [firstItemIndex, firstUnreadId, messages, room.id]);
 
   useEffect(() => {
     const saveBeforeUnload = () => {
-      const el = scrollRef.current;
+      const el = scrollerElRef.current;
       if (!el) return;
       storeDistanceFromBottom(room.id, el, isNearBottom(el));
     };
@@ -312,156 +304,151 @@ export function Timeline({
     return () => window.removeEventListener("beforeunload", saveBeforeUnload);
   }, [room.id]);
 
-  // Read-on-visible: advance the read receipt only over messages that actually
-  // scrolled into view and stayed there briefly — not just because the room was
-  // opened. Reports the latest currently-visible message; the caller (and the
-  // SDK) ignore anything that wouldn't move the receipt forward.
   const onReadUpToRef = useRef(onReadUpTo);
   useEffect(() => {
     onReadUpToRef.current = onReadUpTo;
   }, [onReadUpTo]);
 
+  const readableOrder = useMemo(() => {
+    const readable = messages.filter((message) => message.kind !== "system");
+    return new Map(readable.map((message, index) => [message.id, index]));
+  }, [messages]);
+
+  const handleRangeChanged = useCallback(
+    (range: { startIndex: number; endIndex: number }) => {
+      if (!onReadUpToRef.current) return;
+      window.clearTimeout(readTimerRef.current);
+      readTimerRef.current = window.setTimeout(() => {
+        if (document.visibilityState !== "visible") return;
+        let bestIndex = -1;
+        let bestId: string | null = null;
+        for (let index = range.startIndex; index <= range.endIndex; index += 1) {
+          const dataIndex = index - firstItemIndex;
+          const message = messages[dataIndex];
+          if (!message || message.kind === "system") continue;
+          const orderIndex = readableOrder.get(message.id) ?? -1;
+          if (orderIndex > bestIndex) {
+            bestIndex = orderIndex;
+            bestId = message.id;
+          }
+        }
+        if (bestId) onReadUpToRef.current?.(bestId);
+      }, READ_VISIBLE_DELAY);
+    },
+    [firstItemIndex, messages, readableOrder],
+  );
+
+  const handleScrollerRef = useCallback((element: HTMLElement | Window | null) => {
+    scrollerElRef.current = element instanceof HTMLElement ? element : null;
+  }, []);
+
   useEffect(() => {
-    const el = scrollRef.current;
-    if (!el || !onReadUpToRef.current) return;
+    const el = scrollerElRef.current;
+    if (!el) return;
 
-    const readableMessages = messages.filter((message) => message.kind !== "system");
-    const order = new Map(readableMessages.map((message, index) => [message.id, index]));
-    const visible = new Set<string>();
-    let timer: number | undefined;
-
-    const flush = () => {
-      if (document.visibilityState !== "visible") return;
-      let bestIndex = -1;
-      let bestId: string | null = null;
-      for (const id of visible) {
-        const index = order.get(id) ?? -1;
-        if (index > bestIndex) {
-          bestIndex = index;
-          bestId = id;
-        }
-      }
-      if (bestId) onReadUpToRef.current?.(bestId);
+    const onScroll = () => {
+      const atBottom = isNearBottom(el);
+      stick.current = atBottom;
+      if (atBottom) setNewMessagesCount(0);
+      storeDistanceFromBottom(room.id, el, atBottom);
     };
 
-    const observer = new IntersectionObserver(
-      (entries) => {
-        for (const entry of entries) {
-          const id = (entry.target as HTMLElement).dataset.readableId;
-          if (!id) continue;
-          if (entry.isIntersecting) visible.add(id);
-          else visible.delete(id);
-        }
-        window.clearTimeout(timer);
-        timer = window.setTimeout(flush, READ_VISIBLE_DELAY);
-      },
-      { root: el, threshold: 0.6 },
+    el.addEventListener("scroll", onScroll, { passive: true });
+    return () => el.removeEventListener("scroll", onScroll);
+  }, [room.id, messages.length]);
+
+  const itemContext = useMemo<TimelineItemContext>(
+    () => ({
+      view,
+      firstUnreadId,
+      highlightMessageId,
+      searchQuery,
+      selectionActive,
+      selectedIds,
+      onOpenImage,
+      onOpenMessageMenu,
+      onToggleReaction,
+      onOpenThread,
+      onJumpToMessage,
+      onQuickReply,
+      onQuickReact,
+      onMessagePointerClick,
+      onToggleSelect,
+      onShowEditHistory,
+      onShowReaders,
+      onVotePoll,
+      messages,
+      firstItemIndex,
+    }),
+    [
+      view,
+      firstUnreadId,
+      highlightMessageId,
+      searchQuery,
+      selectionActive,
+      selectedIds,
+      onOpenImage,
+      onOpenMessageMenu,
+      onToggleReaction,
+      onOpenThread,
+      onJumpToMessage,
+      onQuickReply,
+      onQuickReact,
+      onMessagePointerClick,
+      onToggleSelect,
+      onShowEditHistory,
+      onShowReaders,
+      onVotePoll,
+      messages,
+      firstItemIndex,
+    ],
+  );
+
+  const timelineHeader = useCallback(() => {
+    return (
+      <>
+        {loading && <div className="timeline__loading">Загрузка истории…</div>}
+        {atStart && showIntro && <RoomIntro room={room} />}
+      </>
     );
+  }, [atStart, loading, room, showIntro]);
 
-    el.querySelectorAll<HTMLElement>(".timeline__item[data-readable-id]").forEach((node) =>
-      observer.observe(node),
-    );
-
-    return () => {
-      window.clearTimeout(timer);
-      observer.disconnect();
-    };
-  }, [messages, room.id]);
-
-  const handleScroll = (event: UIEvent<HTMLDivElement>) => {
-    const el = event.currentTarget;
-    stick.current = isNearBottom(el);
-    if (stick.current) setNewMessagesCount(0);
-    storeDistanceFromBottom(room.id, el, stick.current);
-    if (el.scrollTop <= TOP_THRESHOLD) runLoad();
-  };
-
-  const handleWheel = (event: WheelEvent<HTMLDivElement>) => {
-    if (event.deltaY >= 0) return;
-    const el = event.currentTarget;
-    if (el.scrollTop <= TOP_THRESHOLD) runLoad();
-  };
+  const timelineFooter = useCallback(() => {
+    if (messages.length > 0) return null;
+    return <div className="timeline__empty">Сообщений пока нет.</div>;
+  }, [messages.length]);
 
   return (
     <section
       key={room.id}
-      ref={scrollRef}
-      onScroll={handleScroll}
-      onWheel={handleWheel}
-      className={`timeline${view === "bubbles" ? " timeline--bubbles" : ""}`}
+      className={`timeline${view === "bubbles" ? " timeline--bubbles" : ""}${selectionActive ? " timeline--selecting" : ""}`}
     >
-      <div className="timeline__spacer" />
-      <div className="timeline__content" ref={contentRef}>
-      {loading && <div className="timeline__loading">Загрузка истории…</div>}
-      {atStart && showIntro && <RoomIntro room={room} />}
-      {messages.map((message, index) => {
-        const previous = messages[index - 1];
-        const next = messages[index + 1];
-        const startsNewDay = !previous || !isSameDay(previous.timestamp, message.timestamp);
-        const isSystem = message.kind === "system";
-        const compact =
-          !isSystem &&
-          Boolean(previous) &&
-          previous.kind !== "system" &&
-          !startsNewDay &&
-          previous.sender === message.sender &&
-          message.timestamp - previous.timestamp < 5 * 60 * 1000;
-        const groupEnd =
-          isSystem ||
-          !next ||
-          next.kind === "system" ||
-          !isSameDay(next.timestamp, message.timestamp) ||
-          next.sender !== message.sender ||
-          next.timestamp - message.timestamp >= 5 * 60 * 1000;
-
-        return (
-          <div
-            key={message.id}
-            data-message-id={message.id}
-            data-readable-id={isSystem ? undefined : message.id}
-            className="timeline__item"
-          >
-            <div className="timeline__item-inner">
-            {message.id === firstUnreadId && <UnreadDivider />}
-            {startsNewDay && <DayDivider timestamp={message.timestamp} />}
-            {isSystem ? (
-              <SystemMessage message={message} />
-            ) : view === "bubbles" ? (
-              <BubbleMessage
-                compact={compact}
-                groupEnd={groupEnd}
-                highlighted={message.id === highlightMessageId}
-                message={message}
-                onOpenImage={onOpenImage}
-                onOpenMessageMenu={onOpenMessageMenu}
-                onToggleReaction={onToggleReaction}
-                onOpenThread={onOpenThread}
-                onJumpToMessage={onJumpToMessage}
-                onQuickReply={onQuickReply}
-                onQuickReact={onQuickReact}
-                searchQuery={searchQuery}
-              />
-            ) : (
-              <FlatMessage
-                compact={compact}
-                highlighted={message.id === highlightMessageId}
-                message={message}
-                onOpenImage={onOpenImage}
-                onOpenMessageMenu={onOpenMessageMenu}
-                onToggleReaction={onToggleReaction}
-                onOpenThread={onOpenThread}
-                onJumpToMessage={onJumpToMessage}
-                onQuickReply={onQuickReply}
-                onQuickReact={onQuickReact}
-                searchQuery={searchQuery}
-              />
-            )}
-            </div>
-          </div>
-        );
-      })}
-      {messages.length === 0 && <div className="timeline__empty">Сообщений пока нет.</div>}
-      </div>
+      <Virtuoso
+        ref={virtuosoRef}
+        className="timeline__virtuoso"
+        data={messages}
+        firstItemIndex={firstItemIndex}
+        initialTopMostItemIndex={firstItemIndex + Math.max(0, messages.length - 1)}
+        alignToBottom
+        followOutput={() => (stick.current ? "auto" : false)}
+        atBottomThreshold={BOTTOM_THRESHOLD}
+        atTopThreshold={TOP_THRESHOLD}
+        startReached={() => runLoad()}
+        atBottomStateChange={(atBottom) => {
+          stick.current = atBottom;
+          if (atBottom) setNewMessagesCount(0);
+        }}
+        rangeChanged={handleRangeChanged}
+        scrollerRef={handleScrollerRef}
+        computeItemKey={(_, message) => message.id}
+        context={itemContext}
+        components={{ Header: timelineHeader, Footer: timelineFooter }}
+        increaseViewportBy={{ top: 600, bottom: 600 }}
+        defaultItemHeight={72}
+        itemContent={(index, message, context) =>
+          renderTimelineItem(index, message, context as TimelineItemContext)
+        }
+      />
       <AnimatePresence initial={false}>
         {newMessagesCount > 0 && (
           <motion.button
@@ -478,6 +465,109 @@ export function Timeline({
         )}
       </AnimatePresence>
     </section>
+  );
+});
+
+function renderTimelineItem(index: number, message: MatrixMessage, context: TimelineItemContext) {
+  const dataIndex = index - context.firstItemIndex;
+  const previous = context.messages[dataIndex - 1];
+  const next = context.messages[dataIndex + 1];
+  const startsNewDay = !previous || !isSameDay(previous.timestamp, message.timestamp);
+  const isSystem = message.kind === "system";
+  const compact =
+    !isSystem &&
+    Boolean(previous) &&
+    previous.kind !== "system" &&
+    !startsNewDay &&
+    previous.sender === message.sender &&
+    message.timestamp - previous.timestamp < 5 * 60 * 1000;
+  const groupEnd =
+    isSystem ||
+    !next ||
+    next.kind === "system" ||
+    !isSameDay(next.timestamp, message.timestamp) ||
+    next.sender !== message.sender ||
+    next.timestamp - message.timestamp >= 5 * 60 * 1000;
+  const selectionMode = context.selectionActive && !isSystem;
+  const selected = context.selectedIds?.has(message.id) ?? false;
+  const prevSelected =
+    selectionMode &&
+    Boolean(previous) &&
+    previous.kind !== "system" &&
+    (context.selectedIds?.has(previous.id) ?? false);
+  const nextSelected =
+    selectionMode &&
+    Boolean(next) &&
+    next.kind !== "system" &&
+    (context.selectedIds?.has(next.id) ?? false);
+
+  const itemClassName = [
+    "timeline__item",
+    selectionMode && "timeline__item--selection-mode",
+    selected && "timeline__item--selected",
+    selected && !prevSelected && "timeline__item--selected-start",
+    selected && !nextSelected && "timeline__item--selected-end",
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+  return (
+    <div
+      data-message-id={message.id}
+      data-readable-id={isSystem ? undefined : message.id}
+      className={itemClassName}
+      onClick={
+        selectionMode
+          ? (event) => context.onMessagePointerClick?.(message, event)
+          : undefined
+      }
+    >
+      {selectionMode && <MessageSelectMark selected={selected} />}
+      <div className="timeline__item-inner">
+        {message.id === context.firstUnreadId && <UnreadDivider />}
+        {startsNewDay && <DayDivider timestamp={message.timestamp} />}
+        {isSystem ? (
+          <SystemMessage message={message} />
+        ) : context.view === "bubbles" ? (
+          <BubbleMessage
+            compact={compact}
+            groupEnd={groupEnd}
+            highlighted={message.id === context.highlightMessageId}
+            message={message}
+            onOpenImage={context.onOpenImage}
+            onOpenMessageMenu={context.onOpenMessageMenu}
+            onToggleReaction={context.onToggleReaction}
+            onOpenThread={context.onOpenThread}
+            onJumpToMessage={context.onJumpToMessage}
+            onQuickReply={context.onQuickReply}
+            onQuickReact={context.onQuickReact}
+            searchQuery={context.searchQuery}
+            selectionActive={context.selectionActive}
+            onShowEditHistory={context.onShowEditHistory}
+            onShowReaders={context.onShowReaders}
+            onVotePoll={context.onVotePoll}
+          />
+        ) : (
+          <FlatMessage
+            compact={compact}
+            highlighted={message.id === context.highlightMessageId}
+            message={message}
+            onOpenImage={context.onOpenImage}
+            onOpenMessageMenu={context.onOpenMessageMenu}
+            onToggleReaction={context.onToggleReaction}
+            onOpenThread={context.onOpenThread}
+            onJumpToMessage={context.onJumpToMessage}
+            onQuickReply={context.onQuickReply}
+            onQuickReact={context.onQuickReact}
+            searchQuery={context.searchQuery}
+            selectionActive={context.selectionActive}
+            onShowEditHistory={context.onShowEditHistory}
+            onShowReaders={context.onShowReaders}
+            onVotePoll={context.onVotePoll}
+          />
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -499,6 +589,24 @@ function findLatestReadableMessage(messages: MatrixMessage[]): MatrixMessage | u
   return undefined;
 }
 
+type MessageRowProps = {
+  compact: boolean;
+  highlighted: boolean;
+  message: MatrixMessage;
+  onOpenImage: (src: string) => void;
+  onOpenMessageMenu: (message: MatrixMessage, x: number, y: number) => void;
+  onToggleReaction: (message: MatrixMessage, key: string) => void;
+  onOpenThread: (rootId: string) => void;
+  onJumpToMessage?: (messageId: string) => void;
+  onQuickReply?: (message: MatrixMessage) => void;
+  onQuickReact?: (message: MatrixMessage, key: string) => void;
+  searchQuery?: string;
+  selectionActive?: boolean;
+  onShowEditHistory?: (message: MatrixMessage) => void;
+  onShowReaders?: (message: MatrixMessage, anchorRect: DOMRect) => void;
+  onVotePoll?: (messageId: string, answerIds: string[]) => void;
+};
+
 function FlatMessage({
   compact,
   highlighted,
@@ -511,19 +619,11 @@ function FlatMessage({
   onQuickReply,
   onQuickReact,
   searchQuery,
-}: {
-  compact: boolean;
-  highlighted: boolean;
-  message: MatrixMessage;
-  onOpenImage: (src: string) => void;
-  onOpenMessageMenu: (message: MatrixMessage, x: number, y: number) => void;
-  onToggleReaction: (message: MatrixMessage, key: string) => void;
-  onOpenThread: (rootId: string) => void;
-  onJumpToMessage?: (messageId: string) => void;
-  onQuickReply?: (message: MatrixMessage) => void;
-  onQuickReact?: (message: MatrixMessage, key: string) => void;
-  searchQuery?: string;
-}) {
+  selectionActive = false,
+  onShowEditHistory,
+  onShowReaders,
+  onVotePoll,
+}: MessageRowProps) {
   const formatTime = useTimeFormatter();
   return (
     <article
@@ -534,11 +634,13 @@ function FlatMessage({
         onOpenMessageMenu(message, event.clientX, event.clientY);
       }}
     >
+      {!selectionActive && (
       <MessageHoverActions
         message={message}
         onQuickReply={onQuickReply}
         onQuickReact={onQuickReact}
       />
+      )}
       {compact ? (
         <span className="message__avatar message__avatar--spacer" />
       ) : (
@@ -558,6 +660,8 @@ function FlatMessage({
           onOpenImage={onOpenImage}
           onJumpToMessage={onJumpToMessage}
           searchQuery={searchQuery}
+          onShowEditHistory={onShowEditHistory}
+          onVotePoll={onVotePoll}
         />
         {message.reactions.length > 0 && (
           <motion.div className="message__reactions" layout>
@@ -576,7 +680,16 @@ function FlatMessage({
       </div>
       <div className="message__aside">
         <time>{formatTime(message.timestamp)}</time>
-        {message.own && <DeliveryStatus status={message.deliveryStatus} />}
+        {message.own && (
+          <DeliveryStatus
+            status={message.deliveryStatus}
+            onShowReaders={
+              onShowReaders
+                ? (anchorRect) => onShowReaders(message, anchorRect)
+                : undefined
+            }
+          />
+        )}
       </div>
     </article>
   );
@@ -595,20 +708,11 @@ function BubbleMessage({
   onQuickReply,
   onQuickReact,
   searchQuery,
-}: {
-  compact: boolean;
-  groupEnd: boolean;
-  highlighted: boolean;
-  message: MatrixMessage;
-  onOpenImage: (src: string) => void;
-  onOpenMessageMenu: (message: MatrixMessage, x: number, y: number) => void;
-  onToggleReaction: (message: MatrixMessage, key: string) => void;
-  onOpenThread: (rootId: string) => void;
-  onJumpToMessage?: (messageId: string) => void;
-  onQuickReply?: (message: MatrixMessage) => void;
-  onQuickReact?: (message: MatrixMessage, key: string) => void;
-  searchQuery?: string;
-}) {
+  selectionActive = false,
+  onShowEditHistory,
+  onShowReaders,
+  onVotePoll,
+}: MessageRowProps & { groupEnd: boolean }) {
   const formatTime = useTimeFormatter();
   return (
     <article
@@ -619,11 +723,13 @@ function BubbleMessage({
         onOpenMessageMenu(message, event.clientX, event.clientY);
       }}
     >
+      {!selectionActive && (
       <MessageHoverActions
         message={message}
         onQuickReply={onQuickReply}
         onQuickReact={onQuickReact}
       />
+      )}
       {!message.own && (
         <span
           className="mb__avatar"
@@ -648,6 +754,8 @@ function BubbleMessage({
           onOpenImage={onOpenImage}
           onJumpToMessage={onJumpToMessage}
           searchQuery={searchQuery}
+          onShowEditHistory={onShowEditHistory}
+          onVotePoll={onVotePoll}
           bubble
         />
         {message.reactions.length > 0 && (
@@ -665,9 +773,27 @@ function BubbleMessage({
         )}
         {message.thread && <ThreadChip message={message} onOpenThread={onOpenThread} />}
         <div className="bubble__time">
-          {message.edited && <span className="message__edited">изменено</span>}
+          {message.edited && (
+            <button
+              type="button"
+              className="message__edited message__edited-btn"
+              onClick={() => onShowEditHistory?.(message)}
+            >
+              изменено
+            </button>
+          )}
           {formatTime(message.timestamp)}
-          {message.own && <DeliveryStatus status={message.deliveryStatus} compact />}
+          {message.own && (
+            <DeliveryStatus
+              status={message.deliveryStatus}
+              compact
+              onShowReaders={
+                onShowReaders
+                  ? (anchorRect) => onShowReaders(message, anchorRect)
+                  : undefined
+              }
+            />
+          )}
         </div>
       </BubbleShell>
     </article>
@@ -677,16 +803,36 @@ function BubbleMessage({
 function DeliveryStatus({
   status = "sent",
   compact = false,
+  onShowReaders,
 }: {
   status?: MatrixMessage["deliveryStatus"];
   compact?: boolean;
+  onShowReaders?: (anchorRect: DOMRect) => void;
 }) {
   const { preferences } = usePreferences();
-  // Read receipts ("read" → double check) are hidden when the user opts out;
-  // fall back to the plain "sent" indicator. Sending/error stay as-is.
   const effectiveStatus = status === "read" && !preferences.showReadReceipts ? "sent" : status;
   const size = compact ? 13 : 14;
   const className = `message__delivery message__delivery--${effectiveStatus}`;
+  const canShowReaders = effectiveStatus === "read" && onShowReaders;
+
+  const handleClick = (event: ReactMouseEvent<HTMLButtonElement>) => {
+    if (!canShowReaders) return;
+    event.stopPropagation();
+    onShowReaders(event.currentTarget.getBoundingClientRect());
+  };
+
+  const iconProps = {
+    size,
+    className: className,
+  };
+
+  if (canShowReaders) {
+    return (
+      <button type="button" className="message__delivery-btn" onClick={handleClick} aria-label="Кто прочитал">
+        <CheckCheck {...iconProps} />
+      </button>
+    );
+  }
 
   switch (effectiveStatus) {
     case "sending":
@@ -706,12 +852,16 @@ function MessageContent({
   onOpenImage,
   onJumpToMessage,
   searchQuery,
+  onShowEditHistory,
+  onVotePoll,
   bubble = false,
 }: {
   message: MatrixMessage;
   onOpenImage: (src: string) => void;
   onJumpToMessage?: (messageId: string) => void;
   searchQuery?: string;
+  onShowEditHistory?: (message: MatrixMessage) => void;
+  onVotePoll?: (messageId: string, answerIds: string[]) => void;
   bubble?: boolean;
 }) {
   return (
@@ -738,15 +888,27 @@ function MessageContent({
       {!message.deleted && message.media && (
         <MessageMedia media={message.media} onOpenImage={onOpenImage} />
       )}
+      {!message.deleted && message.poll && onVotePoll && (
+        <PollMessage
+          poll={message.poll}
+          onVote={(answerIds) => onVotePoll(message.id, answerIds)}
+        />
+      )}
       {message.deleted ? (
         <span className="message__deleted">Сообщение удалено</span>
-      ) : shouldShowText(message) ? (
+      ) : shouldShowText(message) && !message.poll ? (
         <MessageBody text={message.text} formattedBody={message.formattedBody} searchQuery={searchQuery} />
-      ) : !message.media ? (
+      ) : !message.media && !message.poll ? (
         <span className="message__empty">Пустое сообщение</span>
       ) : null}
       {!bubble && message.edited && !message.deleted && (
-        <span className="message__edited">(изменено)</span>
+        <button
+          type="button"
+          className="message__edited message__edited-btn"
+          onClick={() => onShowEditHistory?.(message)}
+        >
+          (изменено)
+        </button>
       )}
     </div>
   );

@@ -6,7 +6,19 @@ import {
   type MatrixMessage,
 } from "@matrix-platform/matrix-core";
 
-const timelineCache = new Map<string, MatrixMessage[]>();
+// Cache is scoped per client (WeakMap) so switching accounts can't serve one
+// user's messages to another, and an old client's cache is GC'd with it instead
+// of growing forever.
+const timelineCacheByClient = new WeakMap<MatrixClient, Map<string, MatrixMessage[]>>();
+
+function timelineCacheFor(client: MatrixClient): Map<string, MatrixMessage[]> {
+  let cache = timelineCacheByClient.get(client);
+  if (!cache) {
+    cache = new Map();
+    timelineCacheByClient.set(client, cache);
+  }
+  return cache;
+}
 
 export function useTimelineMessages(
   client: MatrixClient | null,
@@ -18,7 +30,7 @@ export function useTimelineMessages(
     if (!client || !roomId) return;
 
     const bump = () => {
-      timelineCache.set(roomId, buildTimelineMessages(client, roomId));
+      timelineCacheFor(client).set(roomId, buildTimelineMessages(client, roomId));
       setVersion((value) => value + 1);
     };
 
@@ -28,11 +40,12 @@ export function useTimelineMessages(
   return useMemo(() => {
     void version;
     if (!client || !roomId) return [];
-    const cached = timelineCache.get(roomId);
+    const cache = timelineCacheFor(client);
+    const cached = cache.get(roomId);
     if (cached) return cached;
 
     const messages = buildTimelineMessages(client, roomId);
-    timelineCache.set(roomId, messages);
+    cache.set(roomId, messages);
     return messages;
   }, [client, roomId, version]);
 }
@@ -48,10 +61,11 @@ export function usePreloadTimelineMessages(
     const preload = () => {
       if (cancelled) return;
 
+      const cache = timelineCacheFor(client);
       for (const roomId of roomIds) {
         if (cancelled) return;
-        if (timelineCache.has(roomId)) continue;
-        timelineCache.set(roomId, buildTimelineMessages(client, roomId));
+        if (cache.has(roomId)) continue;
+        cache.set(roomId, buildTimelineMessages(client, roomId));
       }
     };
 

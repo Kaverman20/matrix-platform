@@ -13,9 +13,11 @@ Usage:
 import argparse
 import logging
 import os
+import re
 import sys
 import time
 from typing import Optional
+from urllib.parse import quote
 
 import requests
 import yaml
@@ -28,6 +30,24 @@ logging.basicConfig(
     datefmt="%Y-%m-%d %H:%M:%S",
 )
 log = logging.getLogger("matrix-keycloak-sync")
+
+# Allowed characters in a Matrix localpart (per spec, plus the leading-@ we add).
+LOCALPART_RE = re.compile(r"^[a-z0-9._=\-/]+$")
+
+
+def seg(value: str) -> str:
+    """Percent-encode a single URL path segment (room ids, mxids, group ids come
+    from Keycloak/Synapse responses and contain @, :, ! that must be escaped)."""
+    return quote(str(value), safe="")
+
+
+def errcode_of(resp: requests.Response) -> str:
+    """Matrix errcode from a response body, '' if the body isn't JSON (e.g. an
+    HTML 5xx error page) so callers never crash on resp.json()."""
+    try:
+        return resp.json().get("errcode", "")
+    except ValueError:
+        return ""
 
 
 def make_session(retries: int = 3) -> requests.Session:
@@ -113,7 +133,7 @@ class KeycloakClient:
 
         while True:
             resp = self.session.get(
-                self._admin_url(f"groups/{group_id}/members"),
+                self._admin_url(f"groups/{seg(group_id)}/members"),
                 headers=self._headers(),
                 params={"first": first, "max": max_results},
             )
@@ -168,7 +188,7 @@ class MatrixClient:
 
     def get_room_members(self, room_id: str) -> list[str]:
         resp = self.session.get(
-            self._client_url(f"rooms/{room_id}/joined_members"),
+            self._client_url(f"rooms/{seg(room_id)}/joined_members"),
             headers=self._headers(),
         )
         if resp.status_code == 404:
@@ -179,21 +199,21 @@ class MatrixClient:
 
     def invite_user(self, room_id: str, mxid: str) -> bool:
         resp = self.session.post(
-            self._client_url(f"rooms/{room_id}/invite"),
+            self._client_url(f"rooms/{seg(room_id)}/invite"),
             headers=self._headers(),
             json={"user_id": mxid},
         )
         if resp.status_code == 200:
             return True
-        err = resp.json().get("errcode", "")
+        err = errcode_of(resp)
         if err == "M_ALREADY_IN_ROOM":
             return True
-        log.warning("Invite %s to %s: %s %s", mxid, room_id, resp.status_code, resp.text)
+        log.warning("Invite %s to %s: %s %s", mxid, room_id, resp.status_code, err)
         return False
 
     def force_join_user(self, room_id: str, mxid: str) -> bool:
         resp = self.session.post(
-            self._synapse_admin_url(f"join/{room_id}"),
+            self._synapse_admin_url(f"join/{seg(room_id)}"),
             headers=self._headers(),
             json={"user_id": mxid},
         )
@@ -204,33 +224,43 @@ class MatrixClient:
             mxid,
             room_id,
             resp.status_code,
-            resp.text,
+            errcode_of(resp),
         )
         return False
 
     def kick_user(self, room_id: str, mxid: str, reason: str = "Access revoked") -> bool:
         resp = self.session.post(
-            self._client_url(f"rooms/{room_id}/kick"),
+            self._client_url(f"rooms/{seg(room_id)}/kick"),
             headers=self._headers(),
             json={"user_id": mxid, "reason": reason},
         )
         if resp.status_code == 200:
             return True
-        err = resp.json().get("errcode", "")
+        err = errcode_of(resp)
         if err == "M_NOT_IN_ROOM":
             return True
-        log.warning("Kick %s from %s: %s %s", mxid, room_id, resp.status_code, resp.text)
+        log.warning("Kick %s from %s: %s %s", mxid, room_id, resp.status_code, err)
         return False
 
     def mxid_from_username(self, username: str) -> str:
-        return f"@{username.lower()}:{self.server_name}"
+        localpart = username.lower()
+        if not LOCALPART_RE.match(localpart):
+            raise ValueError(f"Invalid Matrix localpart from username {username!r}")
+        return f"@{localpart}:{self.server_name}"
 
     def user_exists(self, mxid: str) -> bool:
         resp = self.session.get(
-            f"{self.base_url}/_synapse/admin/v2/users/{mxid}",
+            f"{self.base_url}/_synapse/admin/v2/users/{seg(mxid)}",
             headers=self._headers(),
         )
-        return resp.status_code == 200
+        if resp.status_code == 200:
+            return True
+        if resp.status_code == 404:
+            return False
+        # 401/403/5xx: don't silently treat the user as absent (which would skip
+        # them from sync) — raise so the run fails loudly instead.
+        resp.raise_for_status()
+        return False
 
     def list_all_users(self) -> list[dict]:
         users = []
@@ -254,13 +284,13 @@ class MatrixClient:
 
     def deactivate_user(self, mxid: str) -> bool:
         resp = self.session.post(
-            f"{self.base_url}/_synapse/admin/v1/deactivate/{mxid}",
+            f"{self.base_url}/_synapse/admin/v1/deactivate/{seg(mxid)}",
             headers=self._headers(),
             json={"erase": False},
         )
         if resp.status_code == 200:
             return True
-        log.warning("Deactivate %s: %s %s", mxid, resp.status_code, resp.text)
+        log.warning("Deactivate %s: %s %s", mxid, resp.status_code, errcode_of(resp))
         return False
 
 
@@ -276,6 +306,7 @@ class GroupSyncer:
         gate_group: Optional[str] = None,
         deactivate_on_gate_loss: bool = False,
         bot_username: str = "sync-bot",
+        max_deactivations: int = 10,
     ):
         self.kc = keycloak
         self.mx = matrix
@@ -286,12 +317,17 @@ class GroupSyncer:
         self.gate_group = gate_group
         self.deactivate_on_gate_loss = deactivate_on_gate_loss
         self.bot_username = bot_username.lower()
+        self.max_deactivations = max_deactivations
 
     def _keycloak_username_to_mxid(self, kc_user: dict) -> Optional[str]:
         username = kc_user.get("username")
         if not username:
             return None
-        mxid = self.mx.mxid_from_username(username)
+        try:
+            mxid = self.mx.mxid_from_username(username)
+        except ValueError as error:
+            log.warning("Skipping Keycloak user: %s", error)
+            return None
         if not self.mx.user_exists(mxid):
             log.debug("Matrix account %s does not exist yet", mxid)
             return None
@@ -372,6 +408,18 @@ class GroupSyncer:
 
         if not to_deactivate:
             log.info("No accounts to deactivate")
+            return
+
+        # Safety brake: a bad Keycloak response (e.g. the gate group momentarily
+        # returns 0 members) must not trigger a mass deactivation. Refuse to act
+        # when the batch exceeds the configured ceiling.
+        if len(to_deactivate) > self.max_deactivations:
+            log.error(
+                "Refusing to deactivate %s accounts in one run (limit %s); "
+                "raise MAX_DEACTIVATIONS to override if this is expected",
+                len(to_deactivate),
+                self.max_deactivations,
+            )
             return
 
         for mxid in to_deactivate:
@@ -463,6 +511,7 @@ def load_config() -> dict:
         "gate_group": os.getenv("GATE_GROUP", "") or None,
         "deactivate_on_gate_loss": os.getenv("DEACTIVATE_ON_GATE_LOSS", "false").lower() == "true",
         "bot_username": os.getenv("MATRIX_BOT_USERNAME", "sync-bot"),
+        "max_deactivations": int(os.getenv("MAX_DEACTIVATIONS", "10")),
     }
 
 
@@ -503,6 +552,7 @@ def main() -> None:
         gate_group=config["gate_group"],
         deactivate_on_gate_loss=config["deactivate_on_gate_loss"],
         bot_username=config["bot_username"],
+        max_deactivations=config["max_deactivations"],
     )
 
     if args.watch:

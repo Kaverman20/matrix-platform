@@ -1,14 +1,22 @@
 import { AnimatePresence, motion } from "framer-motion";
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { pageCrossfade, transition } from "@matrix-platform/ui";
 import {
   buildForwardData,
+  buildForwardDataList,
   buildMessageDeepLink,
   canPinMessages as canPinMessagesInRoom,
+  canKickMember,
   canPaginateBackwards,
   deleteMessage,
+  deleteMessages,
   findSpaceIdForRoom,
+  getMessageEditHistory,
+  getMessageReaders,
   getPinnedEventIds,
+  getRoomMemberPermissions,
+  inviteUser,
+  kickUser,
   loadRoomThreads,
   markReadUpToEvent,
   mxcThumbnailUrl,
@@ -16,6 +24,7 @@ import {
   paginateToEvent,
   removeReaction,
   reorderFavourites,
+  sendPollResponse,
   sendReaction,
   setPinnedEventIds,
   setRoomFavourite,
@@ -24,11 +33,14 @@ import {
   togglePinnedEventId,
   type MatrixMedia,
   type MatrixMessage,
+  type MessageEditEntry,
+  type MessageReader,
 } from "@matrix-platform/matrix-core";
 import { useMatrix } from "./providers/MatrixContext";
 import { useChatNavigation } from "./useChatNavigation";
 import { Composer, type ComposerHandle } from "../features/composer/Composer";
 import { useComposerMode } from "../features/composer/useComposerMode";
+import { GlobalSearchModal } from "../features/search/GlobalSearchModal";
 import { ForwardModal } from "../features/forward/ForwardModal";
 import { Lightbox } from "../features/media/Lightbox";
 import {
@@ -52,10 +64,15 @@ import { ThreadsListPanel } from "../features/threads/ThreadsListPanel";
 import { ChatMainHeader } from "../features/timeline/ChatMainHeader";
 import { PinnedBar } from "../features/timeline/PinnedBar";
 import { RoomTimelineSearch } from "../features/timeline/RoomTimelineSearch";
-import { Timeline } from "../features/timeline/Timeline";
+import { Timeline, type TimelineHandle } from "../features/timeline/Timeline";
+import { EditHistoryModal } from "../features/timeline/EditHistoryModal";
+import { ReadReceiptsPopover } from "../features/timeline/ReadReceiptsPopover";
 import { useFirstUnread } from "../features/timeline/useFirstUnread";
 import { usePinnedMessages } from "../features/timeline/usePinnedMessages";
 import { useRoomTimelineSearch } from "../features/timeline/useRoomTimelineSearch";
+import { SelectionToolbar } from "../features/selection/SelectionToolbar";
+import { useMessageSelection } from "../features/selection/useMessageSelection";
+import "../features/selection/selection-toolbar.css";
 import {
   usePreloadTimelineMessages,
   useTimelineMessages,
@@ -124,6 +141,11 @@ export function ChatShell() {
   const roomListLayout = useRoomListLayout();
   const composerRef = useRef<ComposerHandle | null>(null);
   const roomListRef = useRef<RoomListHandle | null>(null);
+  const timelineRef = useRef<TimelineHandle | null>(null);
+  // Monotonic token that invalidates in-flight jump-to-message retry chains.
+  const focusTokenRef = useRef(0);
+  const [globalSearchOpen, setGlobalSearchOpen] = useState(false);
+  const messages = useTimelineMessages(client, activeRoomId);
 
   const allRooms = useMemo(
     () => [
@@ -180,6 +202,14 @@ export function ChatShell() {
     onRemoteNavigate: resetTransientPanels,
   });
 
+  const highlightMessage = useCallback((messageId: string) => {
+    setHighlightMessageId(messageId);
+    if (highlightTimerRef.current) {
+      window.clearTimeout(highlightTimerRef.current);
+    }
+    highlightTimerRef.current = window.setTimeout(() => setHighlightMessageId(null), 1700);
+  }, [highlightTimerRef, setHighlightMessageId]);
+
   const focusMessage = useCallback((messageId: string, scope = ".chat-main") => {
     const node = document.querySelector<HTMLElement>(
       `${scope} [data-mid="${CSS.escape(messageId)}"]`,
@@ -187,30 +217,62 @@ export function ChatShell() {
     if (!node) return false;
 
     node.scrollIntoView({ block: "center", behavior: "smooth" });
-    setHighlightMessageId(messageId);
-    if (highlightTimerRef.current) {
-      window.clearTimeout(highlightTimerRef.current);
-    }
-    highlightTimerRef.current = window.setTimeout(() => setHighlightMessageId(null), 1700);
+    highlightMessage(messageId);
     return true;
-  }, [highlightTimerRef, setHighlightMessageId]);
+  }, [highlightMessage]);
 
-  const focusMessageWithPagination = useCallback(async (messageId: string) => {
+  const focusMessageWithPagination = useCallback(async (messageId: string, roomId?: string) => {
+    const targetRoomId = roomId ?? activeRoomId;
+    if (!client || !targetRoomId) return;
+
+    // Cancellation token: a newer focus request (or a room switch — see the
+    // effect below) bumps the counter, so a stale retry chain from a previous
+    // jump stops instead of scrolling/highlighting in the wrong room.
+    const token = (focusTokenRef.current += 1);
+
+    // Fast path: message already rendered in the DOM (recent / reply / pinned).
     if (focusMessage(messageId)) return;
 
-    if (!client || !activeRoomId) return;
+    // Load older history into the SDK timeline until the event surfaces.
+    const found = await paginateToEvent(client, targetRoomId, messageId);
+    if (!found || token !== focusTokenRef.current) return;
 
-    const found = await paginateToEvent(client, activeRoomId, messageId);
-    if (!found) return;
-
+    // The event is now in the timeline, but Virtuoso only renders a visible
+    // window — for off-screen messages the DOM node does not exist yet. Drive
+    // the virtualized list imperatively, then highlight; retry while React
+    // catches up with the freshly paginated `messages` array.
     const tryScroll = (attempt = 0) => {
+      if (token !== focusTokenRef.current) return;
       if (focusMessage(messageId)) return;
-      if (attempt < 12) {
-        window.setTimeout(() => tryScroll(attempt + 1), 50);
+      if (timelineRef.current?.scrollToMessage(messageId)) {
+        highlightMessage(messageId);
+        return;
+      }
+      if (attempt < 20) {
+        window.setTimeout(() => tryScroll(attempt + 1), 60);
       }
     };
     tryScroll();
-  }, [activeRoomId, client, focusMessage]);
+  }, [activeRoomId, client, focusMessage, highlightMessage]);
+
+  // Cross-room jump-to-message. Same room → scroll now. Different room → record
+  // the request and let the effect below fire it once that room is active and its
+  // timeline has rendered — replaces fixed setTimeout delays that raced on slow
+  // history loads (a deep link / global-search hit on a not-yet-loaded room).
+  // Held in a ref (not state) so the consuming effect can clear it without an
+  // extra render. requestFocusMessage is always called alongside a room switch,
+  // whose state update re-runs that effect.
+  const pendingFocusRef = useRef<{ roomId: string; messageId: string } | null>(null);
+  const requestFocusMessage = useCallback(
+    (roomId: string, messageId: string) => {
+      if (roomId === activeRoomId) {
+        void focusMessageWithPagination(messageId, roomId);
+        return;
+      }
+      pendingFocusRef.current = { roomId, messageId };
+    },
+    [activeRoomId, focusMessageWithPagination],
+  );
   const clearMessageMenu = useCallback(() => setMessageMenu(null), [setMessageMenu]);
   const resolveSpaceForRoom = useCallback(
     (roomId: string) => findSpaceIdForRoom(roomGroups.spaces, roomId),
@@ -240,18 +302,60 @@ export function ChatShell() {
     clearMessageMenu,
     clearComposerMode,
     startForward: composerMode.startForward,
-    focusPinnedMessage: focusMessageWithPagination,
+    requestFocusMessage,
     resolveSpaceForRoom,
     resolveIsDmRoom,
   });
-  useDeepLink(client, chatNavigation.selectRoom, focusMessageWithPagination);
+  useDeepLink(client, chatNavigation.selectRoom, requestFocusMessage);
   const creation = useRoomCreation({
     client,
     activeSpaceId: spaceNavigation.effectiveActiveSpaceId,
     onOpenRoom: chatNavigation.selectRoom,
     onOpenSpace: setActiveSpaceId,
   });
-  const messages = useTimelineMessages(client, activeRoomId);
+  const openGlobalSearchMessage = useCallback((roomId: string, messageId: string) => {
+    setGlobalSearchOpen(false);
+    if (activeRoomId !== roomId) chatNavigation.selectRoom(roomId);
+    requestFocusMessage(roomId, messageId);
+  }, [activeRoomId, chatNavigation, requestFocusMessage]);
+
+  // Drives every cross-room jump recorded by requestFocusMessage: as soon as the
+  // requested room is active and its timeline has messages, scroll to the target.
+  // If the user navigates elsewhere first, the request is abandoned.
+  useEffect(() => {
+    const pending = pendingFocusRef.current;
+    if (!pending) return;
+    if (activeRoomId !== pending.roomId) {
+      pendingFocusRef.current = null;
+      return;
+    }
+    if (messages.length === 0) return;
+    pendingFocusRef.current = null;
+    void focusMessageWithPagination(pending.messageId, pending.roomId);
+  }, [activeRoomId, messages, focusMessageWithPagination]);
+  const selection = useMessageSelection(messages);
+  const { clear: clearSelection } = selection;
+  const [editHistoryEntries, setEditHistoryEntries] = useState<MessageEditEntry[] | null>(null);
+  const [readReceipts, setReadReceipts] = useState<{
+    readers: MessageReader[];
+    anchorRect: DOMRect;
+  } | null>(null);
+
+  useEffect(() => {
+    clearSelection();
+    // Invalidate any pending jump-to-message chain from the room we just left.
+    focusTokenRef.current += 1;
+  }, [activeRoomId, clearSelection]);
+
+  useEffect(() => {
+    if (!selection.active) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") clearSelection();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [selection.active, clearSelection]);
+
   const timelineSearch = useRoomTimelineSearch({
     client,
     roomId: activeRoomId,
@@ -259,7 +363,11 @@ export function ChatShell() {
   });
   useEffect(() => {
     if (!timelineSearch.open || !timelineSearch.currentHitId) return;
-    void focusMessageWithPagination(timelineSearch.currentHitId);
+    const messageId = timelineSearch.currentHitId;
+    const timer = window.setTimeout(() => {
+      void focusMessageWithPagination(messageId);
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, [timelineSearch.currentHitId, timelineSearch.open, focusMessageWithPagination]);
   useChatShellKeyboard({
     state: shell,
@@ -267,6 +375,8 @@ export function ChatShell() {
     chatNavigation,
     composerRef,
     roomListRef,
+    globalSearchOpen,
+    onToggleGlobalSearch: () => setGlobalSearchOpen((value) => !value),
     onOpenTimelineSearch: () => timelineSearch.setOpen(true),
   });
   const pinnedMessages = usePinnedMessages(client, activeRoomId, optimisticPinnedIds);
@@ -369,6 +479,45 @@ export function ChatShell() {
         })),
     [messages],
   );
+  const roomMemberPermissions = useMemo(
+    () => (client && activeRoomId ? getRoomMemberPermissions(client, activeRoomId) : { canInvite: false, canKick: false, myPowerLevel: 0 }),
+    [activeRoomId, client],
+  );
+  const composerMembers = useMemo(
+    () => roomMembers.map((member) => ({ userId: member.userId, name: member.name })),
+    [roomMembers],
+  );
+  const pinnedPreviews = useMemo(
+    () => pinnedMessages.map((message) => ({
+      id: message.id,
+      author: message.author ?? "Сообщение",
+      text: message.text,
+    })),
+    [pinnedMessages],
+  );
+  const canKickRoomMember = useCallback(
+    (userId: string) => Boolean(client && activeRoomId && canKickMember(client, activeRoomId, userId)),
+    [activeRoomId, client],
+  );
+  const handleInviteUser = useCallback(async (userId: string) => {
+    if (!client || !activeRoomId) return;
+    try {
+      await inviteUser(client, activeRoomId, userId);
+    } catch (error) {
+      console.error("[invite-user]", error);
+      window.alert("Не удалось пригласить пользователя.");
+    }
+  }, [activeRoomId, client]);
+  const handleKickMember = useCallback(async (userId: string) => {
+    if (!client || !activeRoomId) return;
+    try {
+      await kickUser(client, activeRoomId, userId);
+    } catch (error) {
+      console.error("[kick-user]", error);
+      window.alert("Не удалось исключить участника.");
+    }
+  }, [activeRoomId, client]);
+
   const canPinMessages = canPinMessagesInRoom(client, activeRoomId);
 
   const openMessageMenu = (
@@ -401,6 +550,13 @@ export function ChatShell() {
     }
     if (action === "forward") {
       setForwarding([buildForwardData(client, activeRoomId, message)]);
+    }
+    if (action === "select") {
+      selection.enter();
+      selection.toggle(message.id);
+    }
+    if (action === "history") {
+      setEditHistoryEntries(getMessageEditHistory(client, activeRoomId, message.id));
     }
     if (action === "pin") {
       void togglePinnedMessage(message);
@@ -455,6 +611,45 @@ export function ChatShell() {
       void sendReaction(client, activeRoomId, message.id, key);
     }
   };
+
+  const handleBulkForward = () => {
+    if (!client || !activeRoomId || selection.selectedMessages.length === 0) return;
+    setForwarding(buildForwardDataList(client, activeRoomId, selection.selectedMessages));
+    selection.clear();
+  };
+
+  const handleBulkDelete = () => {
+    if (!client || !activeRoomId || selection.selectedIds.length === 0) return;
+    const ownOnly = selection.selectedMessages.every((message) => message.own);
+    if (!ownOnly) {
+      window.alert("Можно удалить только свои сообщения.");
+      return;
+    }
+    if (!window.confirm(`Удалить ${selection.selectedIds.length} сообщений?`)) return;
+    void deleteMessages(client, activeRoomId, selection.selectedIds).then(() => selection.clear());
+  };
+
+  const handleVotePoll = (messageId: string, answerIds: string[]) => {
+    if (!client || !activeRoomId) return;
+    void sendPollResponse(client, activeRoomId, messageId, answerIds);
+  };
+
+  const handleShowEditHistory = (message: MatrixMessage) => {
+    if (!client || !activeRoomId) return;
+    setEditHistoryEntries(getMessageEditHistory(client, activeRoomId, message.id));
+  };
+
+  const handleShowReaders = (message: MatrixMessage, anchorRect: DOMRect) => {
+    if (!client || !activeRoomId) return;
+    setReadReceipts({
+      readers: getMessageReaders(client, activeRoomId, message.id),
+      anchorRect,
+    });
+  };
+
+  const canBulkDelete =
+    selection.selectedMessages.length > 0 &&
+    selection.selectedMessages.every((message) => message.own);
 
   const toggleFavouriteRoom = (roomId: string) => {
     if (!client) return;
@@ -661,6 +856,7 @@ export function ChatShell() {
             )}
             <Timeline
               key={activeRoom.id}
+              ref={timelineRef}
               highlightMessageId={
                 timelineSearch.open && timelineSearch.currentHitId
                   ? timelineSearch.currentHitId
@@ -675,6 +871,13 @@ export function ChatShell() {
               onQuickReply={(message) => composerMode.startReply(message)}
               onQuickReact={toggleReaction}
               searchQuery={timelineSearch.open ? timelineSearch.query : undefined}
+              selectionActive={selection.active}
+              selectedIds={selection.selectedSet}
+              onMessagePointerClick={(message, event) => selection.handleClick(message, event)}
+              onToggleSelect={selection.toggle}
+              onShowEditHistory={handleShowEditHistory}
+              onShowReaders={handleShowReaders}
+              onVotePoll={handleVotePoll}
               onLoadOlder={loadOlder}
               hasOlder={hasOlder}
               room={activeRoom}
@@ -686,6 +889,7 @@ export function ChatShell() {
               ref={composerRef}
               key={composerMode.composerKey}
               roomId={activeRoom.id}
+              members={composerMembers}
               editingMessage={composerMode.editingMessage}
               pendingForward={composerMode.pendingForward}
               replyTo={composerMode.replyTo}
@@ -694,6 +898,14 @@ export function ChatShell() {
               onCancelReply={composerMode.cancelReply}
               onSent={clearComposerMode}
             />
+            {selection.active && (
+              <SelectionToolbar
+                count={selection.selectedIds.length}
+                canDelete={canBulkDelete}
+                onForward={handleBulkForward}
+                onDelete={handleBulkDelete}
+              />
+            )}
           </>
         ) : (
           <section className="chat-main__placeholder">
@@ -726,8 +938,14 @@ export function ChatShell() {
                     onSectionChange={setRightPanelSection}
                     members={roomMembers}
                     media={roomMedia}
+                    pinned={pinnedPreviews}
+                    permissions={roomMemberPermissions}
+                    canKickMember={canKickRoomMember}
                     onOpenSettings={() => roomSettings.openSettings(activeRoom.id)}
                     onOpenImage={setLightbox}
+                    onInviteUser={handleInviteUser}
+                    onKickMember={handleKickMember}
+                    onJumpToPinned={(messageId) => void focusMessageWithPagination(messageId)}
                   />
                 </motion.div>
               </AnimatePresence>
@@ -758,6 +976,9 @@ export function ChatShell() {
           onOpenMessageMenu={(message, x, y) => openMessageMenu(message, x, y, "thread")}
           onToggleReaction={toggleReaction}
           onJumpToMessage={(messageId) => focusMessage(messageId, ".thread-panel")}
+          onShowEditHistory={handleShowEditHistory}
+          onShowReaders={handleShowReaders}
+          onVotePoll={handleVotePoll}
           onCancelEdit={() => setThreadEditing(null)}
           onCancelReply={() => setThreadReplyTo(null)}
           onSent={() => {
@@ -782,7 +1003,37 @@ export function ChatShell() {
           onClose={() => setMessageMenu(null)}
         />
       )}
+      {editHistoryEntries && (
+        <EditHistoryModal
+          entries={editHistoryEntries}
+          onClose={() => setEditHistoryEntries(null)}
+        />
+      )}
+      {readReceipts && (
+        <ReadReceiptsPopover
+          readers={readReceipts.readers}
+          anchorRect={readReceipts.anchorRect}
+          onClose={() => setReadReceipts(null)}
+        />
+      )}
       <AnimatePresence>
+        {globalSearchOpen && (
+          <GlobalSearchModal
+            open={globalSearchOpen}
+            rooms={allRooms}
+            existingDmUserIds={roomGroups.dms.map((room) => room.directUserId)}
+            onClose={() => setGlobalSearchOpen(false)}
+            onSelectRoom={(roomId) => {
+              setGlobalSearchOpen(false);
+              chatNavigation.selectRoom(roomId);
+            }}
+            onSelectUser={(userId) => {
+              setGlobalSearchOpen(false);
+              void creation.openDirectChatWithUser(userId);
+            }}
+            onSelectMessage={openGlobalSearchMessage}
+          />
+        )}
         {forwarding && (
           <ForwardModal
             rooms={allRooms}
@@ -803,7 +1054,14 @@ export function ChatShell() {
         activeSpaceId={spaceNavigation.effectiveActiveSpaceId}
         activeSpaceName={spaceNavigation.activeSpace?.name ?? null}
       />
-      <RoomSettingsModal settings={roomSettings} />
+      <RoomSettingsModal
+        settings={roomSettings}
+        onLeaveRoom={
+          activeRoom
+            ? () => void chatNavigation.leaveRoom(activeRoom.id)
+            : undefined
+        }
+      />
     </div>
           </motion.div>
         )}

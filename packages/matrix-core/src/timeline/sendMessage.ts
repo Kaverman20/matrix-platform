@@ -1,4 +1,6 @@
 import { EventType, MsgType, RelationType, type MatrixClient } from "matrix-js-sdk";
+import type { MatrixMentionMember } from "../composer/mentions";
+import { prepareOutgoingMessage } from "../composer/prepareOutgoingMessage";
 import type {
   MatrixForwardData,
   MatrixMessage,
@@ -12,14 +14,21 @@ export type MediaUploadInfo = {
   width?: number;
 };
 
+export type SendTextMessageOptions = {
+  members?: readonly MatrixMentionMember[];
+};
+
 export async function sendTextMessage(
   client: MatrixClient,
   roomId: string,
   text: string,
-): Promise<void> {
-  const body = text.trim();
-  if (!body) return;
-  await client.sendTextMessage(roomId, body);
+  options: SendTextMessageOptions = {},
+): Promise<"sent" | "help" | "clear" | "ignored"> {
+  const prepared = prepareOutgoingMessage(text, options.members);
+  if (!prepared) return "ignored";
+  if (prepared.kind === "action") return prepared.action;
+  await client.sendEvent(roomId, EventType.RoomMessage, prepared.content as never);
+  return "sent";
 }
 
 export async function sendReplyMessage(
@@ -27,25 +36,33 @@ export async function sendReplyMessage(
   roomId: string,
   text: string,
   replyTo: MatrixMessageReference,
-): Promise<void> {
-  const body = text.trim();
-  if (!body) return;
+  options: SendTextMessageOptions = {},
+): Promise<"sent" | "help" | "clear" | "ignored"> {
+  const prepared = prepareOutgoingMessage(text, options.members);
+  if (!prepared) return "ignored";
+  if (prepared.kind === "action") return prepared.action;
+
+  const body = prepared.content.body;
 
   // Rich-reply fallback so clients that don't render m.in_reply_to (older
   // clients, bots) still show the quoted message as a "> " blockquote.
   const fallback = buildReplyFallback(replyTo, body);
+  const formattedBody = prepared.content.formatted_body
+    ? `<mx-reply><blockquote>${extractReplyQuoteHtml(fallback.formattedBody)}</blockquote></mx-reply>${prepared.content.formatted_body}`
+    : fallback.formattedBody;
 
   await client.sendEvent(roomId, EventType.RoomMessage, {
-    msgtype: MsgType.Text,
+    ...prepared.content,
     body: fallback.body,
     format: "org.matrix.custom.html",
-    formatted_body: fallback.formattedBody,
+    formatted_body: formattedBody,
     "m.relates_to": {
       "m.in_reply_to": {
         event_id: replyTo.id,
       },
     },
   });
+  return "sent";
 }
 
 export function buildReplyFallback(
@@ -81,6 +98,11 @@ function escapeHtml(value: string): string {
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
+}
+
+function extractReplyQuoteHtml(formattedBody: string): string {
+  const match = formattedBody.match(/^<mx-reply><blockquote>([\s\S]*?)<\/blockquote><\/mx-reply>/);
+  return match?.[1] ?? formattedBody;
 }
 
 export async function sendEditMessage(
@@ -126,6 +148,24 @@ export function buildForwardData(
     sender: message.sender,
     preview: message.text || "Сообщение",
   };
+}
+
+export function buildForwardDataList(
+  client: MatrixClient,
+  roomId: string,
+  messages: MatrixMessage[],
+): MatrixForwardData[] {
+  return messages.map((message) => buildForwardData(client, roomId, message));
+}
+
+export async function deleteMessages(
+  client: MatrixClient,
+  roomId: string,
+  eventIds: string[],
+): Promise<void> {
+  for (const eventId of eventIds) {
+    await deleteMessage(client, roomId, eventId);
+  }
 }
 
 export async function sendForwardedMessage(

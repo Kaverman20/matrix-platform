@@ -1,6 +1,10 @@
 import { type ReactNode } from "react";
+import DOMPurify from "dompurify";
 
 const URL_PATTERN = /https?:\/\/[^\s<>"']+/g;
+const MENTION_PATTERN = /@[\w\d._=/-]+:[\w.-]+/g;
+const CODE_BLOCK_PATTERN = /```([\s\S]*?)```/g;
+const INLINE_CODE_PATTERN = /`([^`\n]+)`/g;
 
 type Props = {
   text: string;
@@ -8,19 +12,30 @@ type Props = {
   searchQuery?: string;
 };
 
-/** Renders message text with clickable URLs. Uses formatted_body links when present. */
+/** Renders message text with markdown-lite, mentions, and clickable URLs. */
 export function MessageBody({ text, formattedBody, searchQuery }: Props) {
-  if (formattedBody && /<a\s/i.test(formattedBody) && !searchQuery?.trim()) {
-    return <span className="message-body">{renderFormattedBody(formattedBody, text)}</span>;
+  if (formattedBody && !searchQuery?.trim()) {
+    const sanitized = sanitizeFormattedHtml(formattedBody);
+    if (sanitized) {
+      return (
+        <span
+          className="message-body message-body--rich"
+          dangerouslySetInnerHTML={{ __html: sanitized }}
+        />
+      );
+    }
   }
 
-  return <span className="message-body">{renderText(text, searchQuery)}</span>;
+  return <span className="message-body">{renderRichText(text, searchQuery)}</span>;
 }
 
-function renderText(text: string, searchQuery?: string): ReactNode[] {
+function renderRichText(text: string, searchQuery?: string): ReactNode[] {
   const query = searchQuery?.trim();
-  if (!query) return linkifyPlainText(text);
+  if (query) return renderSearchText(text, query);
+  return renderMarkdownText(text);
+}
 
+function renderSearchText(text: string, query: string): ReactNode[] {
   const lower = text.toLowerCase();
   const qLower = query.toLowerCase();
   const parts: ReactNode[] = [];
@@ -29,7 +44,7 @@ function renderText(text: string, searchQuery?: string): ReactNode[] {
 
   while (index !== -1) {
     if (index > start) {
-      parts.push(...linkifyPlainText(text.slice(start, index)));
+      parts.push(...renderMarkdownText(text.slice(start, index)));
     }
     parts.push(
       <mark key={`${index}:${query}`} className="message-body__mark">
@@ -41,69 +56,130 @@ function renderText(text: string, searchQuery?: string): ReactNode[] {
   }
 
   if (start < text.length) {
-    parts.push(...linkifyPlainText(text.slice(start)));
+    parts.push(...renderMarkdownText(text.slice(start)));
   }
 
-  return parts.length > 0 ? parts : linkifyPlainText(text);
+  return parts.length > 0 ? parts : renderMarkdownText(text);
 }
 
-function linkifyPlainText(text: string): ReactNode[] {
+function renderMarkdownText(text: string): ReactNode[] {
   if (!text) return [];
 
   const parts: ReactNode[] = [];
-  let lastIndex = 0;
-  let match: RegExpExecArray | null;
+  let cursor = 0;
+  let key = 0;
 
-  URL_PATTERN.lastIndex = 0;
-  while ((match = URL_PATTERN.exec(text)) !== null) {
-    const url = trimTrailingPunctuation(match[0]);
-    if (match.index > lastIndex) {
-      parts.push(text.slice(lastIndex, match.index));
+  for (const match of text.matchAll(CODE_BLOCK_PATTERN)) {
+    const index = match.index ?? 0;
+    if (index > cursor) {
+      parts.push(...renderInlineMarkdown(text.slice(cursor, index), key));
+      key += 100;
     }
     parts.push(
-      <a key={`${match.index}:${url}`} href={url} target="_blank" rel="noopener noreferrer">
-        {url}
-      </a>,
+      <pre key={`code-${key++}`} className="message-body__code-block">
+        <code>{match[1]?.trimEnd()}</code>
+      </pre>,
     );
-    lastIndex = match.index + match[0].length;
+    cursor = index + match[0].length;
   }
 
-  if (lastIndex < text.length) {
-    parts.push(text.slice(lastIndex));
+  if (cursor < text.length) {
+    parts.push(...renderInlineMarkdown(text.slice(cursor), key));
+  }
+
+  return parts.length > 0 ? parts : renderInlineMarkdown(text, 0);
+}
+
+function renderInlineMarkdown(text: string, keyStart: number): ReactNode[] {
+  const parts: ReactNode[] = [];
+  let cursor = 0;
+  let key = keyStart;
+
+  const pattern = new RegExp(
+    `${INLINE_CODE_PATTERN.source}|\\*\\*([^*]+)\\*\\*|~~([^~]+)~~|_([^_\\n]+)_|\\*([^*]+)\\*|${MENTION_PATTERN.source}|${URL_PATTERN.source}`,
+    "g",
+  );
+
+  let match: RegExpExecArray | null;
+  while ((match = pattern.exec(text)) !== null) {
+    const index = match.index;
+    if (index > cursor) {
+      parts.push(text.slice(cursor, index));
+    }
+
+    if (match[0].startsWith("`")) {
+      parts.push(
+        <code key={`inline-${key++}`} className="message-body__inline-code">
+          {match[1]}
+        </code>,
+      );
+    } else if (match[0].startsWith("**")) {
+      parts.push(<strong key={`strong-${key++}`}>{match[2]}</strong>);
+    } else if (match[0].startsWith("~~")) {
+      parts.push(<del key={`strike-${key++}`}>{match[3]}</del>);
+    } else if (match[0].startsWith("_")) {
+      parts.push(<em key={`em-${key++}`}>{match[4]}</em>);
+    } else if (match[0].startsWith("*")) {
+      parts.push(<em key={`em-${key++}`}>{match[5]}</em>);
+    } else if (match[0].startsWith("@")) {
+      parts.push(
+        <span key={`mention-${key++}`} className="message-body__mention">
+          {match[0]}
+        </span>,
+      );
+    } else {
+      const url = trimTrailingPunctuation(match[0]);
+      parts.push(
+        <a key={`url-${key++}`} href={url} target="_blank" rel="noopener noreferrer">
+          {url}
+        </a>,
+      );
+    }
+
+    cursor = index + match[0].length;
+  }
+
+  if (cursor < text.length) {
+    parts.push(text.slice(cursor));
   }
 
   return parts.length > 0 ? parts : [text];
 }
 
-function renderFormattedBody(html: string, fallbackText: string): ReactNode[] {
+// Matrix formatted_body приходит от любого участника комнаты — это недоверенный
+// HTML. Санитизируем через DOMPurify со строгим allowlist (подмножество того, что
+// разрешает Matrix spec). Самописные regex-фильтры здесь принципиально дырявы.
+const ALLOWED_TAGS = [
+  "a", "b", "strong", "em", "i", "u", "del", "s", "code", "pre", "br",
+  "span", "p", "blockquote", "ul", "ol", "li",
+];
+const ALLOWED_ATTR = ["href", "class"];
+
+let purifyHooked = false;
+function ensurePurifyHook(): void {
+  if (purifyHooked) return;
+  purifyHooked = true;
+  // Все внешние ссылки открываем безопасно: новая вкладка без доступа к opener.
+  DOMPurify.addHook("afterSanitizeAttributes", (node) => {
+    if (node.tagName === "A" && node.hasAttribute("href")) {
+      node.setAttribute("target", "_blank");
+      node.setAttribute("rel", "noopener noreferrer");
+    }
+  });
+}
+
+function sanitizeFormattedHtml(html: string): string | null {
+  ensurePurifyHook();
   const withoutReply = html.replace(/<mx-reply>[\s\S]*?<\/mx-reply>/gi, "");
-  const parts: ReactNode[] = [];
-  const anchorPattern = /<a\s+href="(https?:\/\/[^"]+)"[^>]*>([\s\S]*?)<\/a>/gi;
-  let lastIndex = 0;
-  let match: RegExpExecArray | null;
-  let key = 0;
+  const allowed = DOMPurify.sanitize(withoutReply, {
+    ALLOWED_TAGS,
+    ALLOWED_ATTR,
+    ALLOWED_URI_REGEXP: /^(?:https?|mailto):/i,
+  });
 
-  while ((match = anchorPattern.exec(withoutReply)) !== null) {
-    const before = stripHtml(withoutReply.slice(lastIndex, match.index));
-    if (before) parts.push(before);
-    const href = match[1];
-    const label = stripHtml(match[2]) || href;
-    parts.push(
-      <a key={`a-${key++}`} href={href} target="_blank" rel="noopener noreferrer">
-        {label}
-      </a>,
-    );
-    lastIndex = match.index + match[0].length;
-  }
-
-  const tail = stripHtml(withoutReply.slice(lastIndex));
-  if (tail) parts.push(tail);
-
-  if (parts.length === 0) {
-    return linkifyPlainText(fallbackText);
-  }
-
-  return parts;
+  const text = stripHtml(allowed).trim();
+  if (!text) return null;
+  return allowed;
 }
 
 function stripHtml(value: string): string {

@@ -1,17 +1,22 @@
 .timeline {
-  /* The single growing row of the chat-main flex column; min-height:0 lets it
-     shrink so its own content scrolls instead of pushing the composer off. */
   flex: 1;
   min-height: 0;
   display: flex;
   flex-direction: column;
-  overflow-y: auto;
-  /* We anchor scroll position manually on history prepend (see Timeline.tsx).
-     Disable the browser's native scroll anchoring so the two don't fight and
-     produce subtle micro-jumps during momentum scrolling. */
+  overflow: hidden;
+  position: relative;
+  padding: 0;
+  background: var(--color-bg);
+}
+
+.timeline__virtuoso {
+  flex: 1;
+  min-height: 0;
+}
+
+.timeline__virtuoso [data-virtuoso-scroller] {
   overflow-anchor: none;
   padding: var(--space-5);
-  background: var(--color-bg);
 }
 
 .timeline__spacer {
@@ -380,6 +385,55 @@
 
 .message-body a:hover {
   opacity: 0.85;
+}
+
+.message-body--rich code,
+.message-body__inline-code {
+  padding: 1px 5px;
+  border-radius: var(--radius-sm);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.92em;
+  background: color-mix(in srgb, var(--color-bg-subtle) 88%, var(--color-border));
+}
+
+.message-body__code-block {
+  margin: 6px 0;
+  border-radius: var(--radius-md);
+  padding: 10px 12px;
+  overflow-x: auto;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.88em;
+  line-height: 1.45;
+  background: color-mix(in srgb, var(--color-bg-subtle) 88%, var(--color-border));
+}
+
+.message-body__mention {
+  color: var(--color-accent);
+  font-weight: 600;
+}
+
+.message-body__mark {
+  border-radius: 2px;
+  padding: 0 1px;
+  background: color-mix(in srgb, var(--color-accent) 28%, transparent);
+}
+
+.message__edited-btn,
+.message__delivery-btn {
+  border: 0;
+  padding: 0;
+  color: inherit;
+  background: transparent;
+  cursor: pointer;
+}
+
+.message__edited-btn:hover,
+.message__delivery-btn:hover {
+  opacity: 0.85;
+}
+
+.message__delivery-btn .message__delivery {
+  display: block;
 }
 
 .message__edited {

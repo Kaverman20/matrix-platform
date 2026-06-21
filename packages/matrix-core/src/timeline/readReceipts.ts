@@ -3,14 +3,16 @@ import type { MatrixClient } from "matrix-js-sdk";
 /**
  * Send a read receipt + read marker up to the latest event in the room, so the
  * server clears the unread count and other devices stay in sync. Safe to call
- * repeatedly — the SDK no-ops when the receipt wouldn't move forward.
+ * repeatedly — the SDK no-ops when the receipt wouldn't move forward. Returns
+ * true if the receipt was sent (or there was nothing to mark), false if the
+ * network call failed — so callers can distinguish success from a silent error.
  */
 export async function markRoomRead(
   client: MatrixClient,
   roomId: string,
-): Promise<void> {
+): Promise<boolean> {
   const room = client.getRoom(roomId);
-  if (!room) return;
+  if (!room) return true;
 
   const events = room.getLiveTimeline().getEvents();
   for (let i = events.length - 1; i >= 0; i -= 1) {
@@ -21,11 +23,13 @@ export async function markRoomRead(
     try {
       await client.sendReadReceipt(event);
       await client.setRoomReadMarkers(roomId, event.getId()!);
+      return true;
     } catch (error) {
       console.error("[matrix-core] markRoomRead failed", error);
+      return false;
     }
-    return;
   }
+  return true;
 }
 
 /**

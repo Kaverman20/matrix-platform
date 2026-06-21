@@ -8,7 +8,6 @@ import type { SidebarView } from "../../app/chatUrl";
 import { useMatrix } from "../../app/providers/MatrixContext";
 import { AuthedImage } from "../media/AuthedImage";
 import { useRoomListTimeFormatter } from "../settings/usePreferences";
-import { searchShortcutLabel } from "./searchShortcut";
 import { useSidebarUserSearch } from "./useSidebarUserSearch";
 import "./room-list.css";
 
@@ -71,7 +70,7 @@ export const RoomList = forwardRef<RoomListHandle, Props>(function RoomList({
   const [query, setQuery] = useState("");
   const searchInputRef = useRef<HTMLInputElement>(null);
   const searchPlaceholder = useMemo(
-    () => `Комнаты и люди (${searchShortcutLabel()})`,
+    () => "Комнаты и люди",
     [],
   );
 
