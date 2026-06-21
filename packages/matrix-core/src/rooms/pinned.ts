@@ -1,4 +1,5 @@
-import { EventTimeline, RoomStateEvent, type MatrixClient, type MatrixEvent, type Room } from "matrix-js-sdk";
+import { RoomStateEvent, type MatrixClient, type MatrixEvent } from "matrix-js-sdk";
+import { getRoomStateContent } from "../util/roomState";
 import type { MatrixMessageReference } from "../timeline/messageTypes";
 import { colorForId } from "./colors";
 
@@ -119,11 +120,4 @@ export async function setPinnedEventIds(
   pinnedIds: string[],
 ): Promise<void> {
   await client.sendStateEvent(roomId, PINNED_EVENTS_TYPE as never, { pinned: pinnedIds } as never, "");
-}
-
-function getRoomStateContent<T>(room: Room, eventType: string): T | undefined {
-  return (
-    room.currentState.getStateEvents(eventType, "")?.getContent()
-    ?? room.getLiveTimeline().getState(EventTimeline.FORWARDS)?.getStateEvents(eventType, "")?.getContent()
-  ) as T | undefined;
 }

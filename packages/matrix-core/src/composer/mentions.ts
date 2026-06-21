@@ -1,3 +1,5 @@
+import { escapeHtml } from "../util/escapeHtml";
+
 export type MatrixMentionMember = {
   userId: string;
   name: string;
@@ -141,12 +143,4 @@ function mentionMatchScore(member: MatrixMentionMember, query: string): number {
 
 function localpart(userId: string): string {
   return userId.startsWith("@") ? userId.slice(1).split(":")[0] ?? userId : userId;
-}
-
-function escapeHtml(value: string): string {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
 }

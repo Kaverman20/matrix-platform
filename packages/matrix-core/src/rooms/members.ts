@@ -1,4 +1,5 @@
-import { EventTimeline, type MatrixClient, type Room } from "matrix-js-sdk";
+import { type MatrixClient } from "matrix-js-sdk";
+import { getRoomStateContent } from "../util/roomState";
 
 type PowerLevelsContent = {
   users?: Record<string, number>;
@@ -66,12 +67,4 @@ export function canKickMember(
   const powerLevels = getRoomStateContent<PowerLevelsContent>(room, "m.room.power_levels");
   const targetLevel = Number(powerLevels?.users?.[targetUserId] ?? powerLevels?.users_default ?? 0);
   return permissions.myPowerLevel > targetLevel;
-}
-
-function getRoomStateContent<T>(room: Room | null | undefined, eventType: string): T | undefined {
-  if (!room) return undefined;
-  return (
-    room.currentState.getStateEvents(eventType, "")?.getContent()
-    ?? room.getLiveTimeline().getState(EventTimeline.FORWARDS)?.getStateEvents(eventType, "")?.getContent()
-  ) as T | undefined;
 }

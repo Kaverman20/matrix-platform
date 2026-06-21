@@ -1,3 +1,5 @@
+import { escapeHtml } from "../util/escapeHtml";
+
 export type SlashCommandAction = "help" | "clear";
 
 export type SlashCommandSend = {
@@ -61,12 +63,4 @@ export function parseSlashCommand(input: string): SlashCommandResult {
 
 export function slashCommandHelpText(): string {
   return HELP_TEXT;
-}
-
-function escapeHtml(value: string): string {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
 }

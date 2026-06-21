@@ -1,4 +1,5 @@
 import { MsgType } from "matrix-js-sdk";
+import { escapeHtml } from "../util/escapeHtml";
 import type { MatrixMentionMember } from "./mentions";
 import { resolveMentionsForSend } from "./mentions";
 import { parseSlashCommand } from "./slashCommands";
@@ -55,12 +56,4 @@ export function prepareOutgoingMessage(
   }
 
   return { kind: "send", content };
-}
-
-function escapeHtml(value: string): string {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
 }

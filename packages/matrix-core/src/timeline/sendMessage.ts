@@ -1,6 +1,7 @@
 import { EventType, MsgType, RelationType, type MatrixClient } from "matrix-js-sdk";
 import type { MatrixMentionMember } from "../composer/mentions";
 import { prepareOutgoingMessage } from "../composer/prepareOutgoingMessage";
+import { escapeHtml } from "../util/escapeHtml";
 import type {
   MatrixForwardData,
   MatrixMessage,
@@ -90,14 +91,6 @@ export function buildReplyFallback(
     escapeHtml(body);
 
   return { body: plainBody, formattedBody };
-}
-
-function escapeHtml(value: string): string {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
 }
 
 function extractReplyQuoteHtml(formattedBody: string): string {

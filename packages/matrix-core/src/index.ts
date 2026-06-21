@@ -1,31 +1,39 @@
+export * from "./constants";
+
+export * from "./account/profile";
+
 export * from "./auth/passwordLogin";
 export * from "./auth/sso";
-export * from "./calls/callHistory";
+export * from "./auth/tokenLogin";
+export * from "./auth/types";
+
 export * from "./calls/callBusy";
+export * from "./calls/callHistory";
 export * from "./calls/discoverFoci";
 export * from "./calls/incomingCallRooms";
 export * from "./calls/incomingRing";
 export * from "./calls/rtcDecline";
 export * from "./calls/rtcSession";
-export * from "./auth/tokenLogin";
-export * from "./auth/types";
-export * from "./account/profile";
+
 export * from "./client/lifecycle";
 export * from "./client/startClient";
+
 export * from "./composer/drafts";
 export * from "./composer/formatting";
 export * from "./composer/mentions";
 export * from "./composer/prepareOutgoingMessage";
 export * from "./composer/slashCommands";
-export * from "./constants";
+
 export * from "./crypto/encryption";
 export * from "./crypto/secretStorage";
 export * from "./crypto/uia";
+
 export * from "./discovery/resolveBaseUrl";
+
 export * from "./rooms/avatar";
 export * from "./rooms/colors";
-export * from "./rooms/deepLink";
 export * from "./rooms/createRoom";
+export * from "./rooms/deepLink";
 export * from "./rooms/favourites";
 export * from "./rooms/filterRooms";
 export * from "./rooms/findSpaceForRoom";
@@ -37,10 +45,14 @@ export * from "./rooms/settings";
 export * from "./rooms/sidebarUserSearch";
 export * from "./rooms/spaceUnreads";
 export * from "./rooms/subscribeRoomGroups";
+
 export * from "./search/globalSearch";
+
 export * from "./session/sessionStorage";
 export * from "./session/types";
+
 export * from "./time/formatTime";
+
 export * from "./timeline/editHistory";
 export * from "./timeline/mapTimeline";
 export * from "./timeline/messageReaders";
@@ -50,7 +62,7 @@ export * from "./timeline/polls";
 export * from "./timeline/readReceipts";
 export * from "./timeline/searchMessages";
 export * from "./timeline/sendMessage";
-export * from "./timeline/subscribeTimeline";
 export * from "./timeline/subscribeThreads";
+export * from "./timeline/subscribeTimeline";
 export * from "./timeline/threads";
 export * from "./timeline/typing";
