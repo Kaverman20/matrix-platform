@@ -78,6 +78,7 @@ import {
   useTimelineMessages,
 } from "../features/timeline/useTimelineMessages";
 import { formatTypingLabel, useTyping } from "../features/timeline/useTyping";
+import { usePresence } from "../features/timeline/usePresence";
 import { useAccountSettings } from "../features/account/useAccountSettings";
 import { useEncryption } from "../features/encryption/useEncryption";
 import { CallPanel } from "../features/calls/CallPanel";
@@ -382,6 +383,10 @@ export function ChatShell() {
   const pinnedMessages = usePinnedMessages(client, activeRoomId, optimisticPinnedIds);
   const rawTypingLabel = formatTypingLabel(useTyping(client, activeRoomId));
   const typingLabel = preferences.showTypingIndicator ? rawTypingLabel : null;
+  const peerPresence = usePresence(
+    client,
+    activeRoom?.kind === "dm" ? activeRoom.directUserId : null,
+  );
   const incomingCallRoomIds = useMemo(
     () => (client ? listIncomingCallRoomIds(client) : []),
     [client, allRooms],
@@ -806,6 +811,8 @@ export function ChatShell() {
             <ChatMainHeader
               room={activeRoom}
               typingLabel={typingLabel}
+              presenceLabel={peerPresence.label}
+              presenceOnline={peerPresence.online}
               view={chatView}
               onToggleView={() => {
                 const next = chatView === "bubbles" ? "flat" : "bubbles";

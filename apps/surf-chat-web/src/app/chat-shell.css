@@ -141,6 +141,18 @@ html.reduce-motion .chat-shell__room-list {
   white-space: nowrap;
 }
 
+.chat-main__presence {
+  overflow: hidden;
+  color: var(--color-text-muted);
+  font-size: var(--text-xs, 0.75rem);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat-main__presence.is-online {
+  color: var(--color-online, #30d158);
+}
+
 .chat-main__actions {
   display: flex;
   align-items: center;

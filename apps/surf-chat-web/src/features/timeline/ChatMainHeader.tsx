@@ -4,6 +4,9 @@ import type { MatrixRoomSummary } from "@matrix-platform/matrix-core";
 type Props = {
   room: MatrixRoomSummary;
   typingLabel: string | null;
+  /** DM peer presence ("в сети" / "был(а) …"); shown when nobody is typing. */
+  presenceLabel?: string | null;
+  presenceOnline?: boolean;
   view: "flat" | "bubbles";
   onToggleView: () => void;
   threadsActive: boolean;
@@ -22,6 +25,8 @@ type Props = {
 export function ChatMainHeader({
   room,
   typingLabel,
+  presenceLabel = null,
+  presenceOnline = false,
   view,
   onToggleView,
   threadsActive,
@@ -41,7 +46,13 @@ export function ChatMainHeader({
         {room.kind === "channel" && <Hash size={18} strokeWidth={2.5} />}
         <div className="chat-main__title-text">
           <h1>{room.name}</h1>
-          {typingLabel && <span className="chat-main__typing">{typingLabel}</span>}
+          {typingLabel ? (
+            <span className="chat-main__typing">{typingLabel}</span>
+          ) : presenceLabel ? (
+            <span className={`chat-main__presence${presenceOnline ? " is-online" : ""}`}>
+              {presenceLabel}
+            </span>
+          ) : null}
         </div>
       </div>
       <div className="chat-main__actions">
