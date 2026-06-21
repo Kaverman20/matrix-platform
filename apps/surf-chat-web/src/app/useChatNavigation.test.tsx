@@ -39,7 +39,7 @@ function setup(overrides: Record<string, unknown> = {}) {
     clearMessageMenu: vi.fn(),
     clearComposerMode: vi.fn(),
     startForward: vi.fn(),
-    focusPinnedMessage: vi.fn(),
+    requestFocusMessage: vi.fn(),
     resolveSpaceForRoom: vi.fn(() => null),
     resolveIsDmRoom: vi.fn(() => false),
     setSidebarView: vi.fn(),

@@ -254,6 +254,24 @@ export function ChatShell() {
     };
     tryScroll();
   }, [activeRoomId, client, focusMessage, highlightMessage]);
+
+  // Cross-room jump-to-message. Same room → scroll now. Different room → record
+  // the request and let the effect below fire it once that room is active and its
+  // timeline has rendered — replaces fixed setTimeout delays that raced on slow
+  // history loads (a deep link / global-search hit on a not-yet-loaded room).
+  const [pendingFocus, setPendingFocus] = useState<{ roomId: string; messageId: string } | null>(
+    null,
+  );
+  const requestFocusMessage = useCallback(
+    (roomId: string, messageId: string) => {
+      if (roomId === activeRoomId) {
+        void focusMessageWithPagination(messageId, roomId);
+        return;
+      }
+      setPendingFocus({ roomId, messageId });
+    },
+    [activeRoomId, focusMessageWithPagination],
+  );
   const clearMessageMenu = useCallback(() => setMessageMenu(null), [setMessageMenu]);
   const resolveSpaceForRoom = useCallback(
     (roomId: string) => findSpaceIdForRoom(roomGroups.spaces, roomId),
@@ -283,11 +301,11 @@ export function ChatShell() {
     clearMessageMenu,
     clearComposerMode,
     startForward: composerMode.startForward,
-    focusPinnedMessage: focusMessageWithPagination,
+    requestFocusMessage,
     resolveSpaceForRoom,
     resolveIsDmRoom,
   });
-  useDeepLink(client, chatNavigation.selectRoom, focusMessageWithPagination);
+  useDeepLink(client, chatNavigation.selectRoom, requestFocusMessage);
   const creation = useRoomCreation({
     client,
     activeSpaceId: spaceNavigation.effectiveActiveSpaceId,
@@ -296,13 +314,24 @@ export function ChatShell() {
   });
   const openGlobalSearchMessage = useCallback((roomId: string, messageId: string) => {
     setGlobalSearchOpen(false);
-    if (activeRoomId !== roomId) {
-      chatNavigation.selectRoom(roomId);
-      window.setTimeout(() => void focusMessageWithPagination(messageId, roomId), 350);
+    if (activeRoomId !== roomId) chatNavigation.selectRoom(roomId);
+    requestFocusMessage(roomId, messageId);
+  }, [activeRoomId, chatNavigation, requestFocusMessage]);
+
+  // Drives every cross-room jump recorded by requestFocusMessage: as soon as the
+  // requested room is active and its timeline has messages, scroll to the target.
+  // If the user navigates elsewhere first, the request is abandoned.
+  useEffect(() => {
+    if (!pendingFocus) return;
+    if (activeRoomId !== pendingFocus.roomId) {
+      setPendingFocus(null);
       return;
     }
-    void focusMessageWithPagination(messageId);
-  }, [activeRoomId, chatNavigation, focusMessageWithPagination]);
+    if (messages.length === 0) return;
+    const { roomId, messageId } = pendingFocus;
+    setPendingFocus(null);
+    void focusMessageWithPagination(messageId, roomId);
+  }, [pendingFocus, activeRoomId, messages, focusMessageWithPagination]);
   const selection = useMessageSelection(messages);
   const { clear: clearSelection } = selection;
   const [editHistoryEntries, setEditHistoryEntries] = useState<MessageEditEntry[] | null>(null);
