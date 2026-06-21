@@ -36,6 +36,19 @@ export async function buildSsoRedirectUrl(
   idpId: string | null,
   redirectUrl: string,
 ): Promise<string> {
+  // The homeserver receives redirectUrl and sends the loginToken back to it,
+  // so an attacker-controlled value is an open-redirect / token-theft vector.
+  // Require a plain http(s) URL; callers should pass their own origin.
+  let parsedRedirect: URL;
+  try {
+    parsedRedirect = new URL(redirectUrl);
+  } catch {
+    throw new Error(`Invalid SSO redirectUrl: ${redirectUrl}`);
+  }
+  if (parsedRedirect.protocol !== "https:" && parsedRedirect.protocol !== "http:") {
+    throw new Error(`Unsupported SSO redirectUrl scheme: ${parsedRedirect.protocol}`);
+  }
+
   const baseUrl = await resolveBaseUrl(homeserver);
   const path = idpId
     ? `/_matrix/client/v3/login/sso/redirect/${encodeURIComponent(idpId)}`
