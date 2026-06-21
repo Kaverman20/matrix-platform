@@ -10,11 +10,17 @@ export async function loginWithAccessToken(
   const client = createClient({ baseUrl, accessToken: accessToken.trim() });
   const who = await client.whoami();
 
+  // device_id namespaces the crypto store (см. crypto/encryption.ts). Пустой id
+  // смешал бы хранилища разных устройств — лучше упасть, чем тихо сломать крипту.
+  if (!who.device_id) {
+    throw new Error("Access token has no associated device_id");
+  }
+
   return {
     baseUrl,
     accessToken: accessToken.trim(),
     userId: who.user_id,
-    deviceId: who.device_id ?? "",
+    deviceId: who.device_id,
   };
 }
 

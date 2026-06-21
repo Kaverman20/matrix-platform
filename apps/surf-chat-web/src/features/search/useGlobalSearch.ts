@@ -68,33 +68,39 @@ export function useGlobalSearch({ client, rooms, existingDmUserIds, open }: Opti
     const term = trimmedQuery;
     if (term.length < 2) return;
 
+    // Гонка: ответ на устаревший term не должен затирать результаты текущего.
+    let cancelled = false;
     if (debounceRef.current) window.clearTimeout(debounceRef.current);
     debounceRef.current = window.setTimeout(() => {
+      if (cancelled) return;
       setMessagesLoading(true);
       setUsersLoading(true);
 
       void searchGlobalMessages(client, term)
-        .then(setMessageHits)
+        .then((hits) => { if (!cancelled) setMessageHits(hits); })
         .catch((error) => {
+          if (cancelled) return;
           console.error("[global-search-messages]", error);
           setMessageHits([]);
         })
-        .finally(() => setMessagesLoading(false));
+        .finally(() => { if (!cancelled) setMessagesLoading(false); });
 
       void searchGlobalUsers(
         client,
         term,
         collectExistingDmUserIds(existingDmUserIds),
       )
-        .then(setUserHits)
+        .then((hits) => { if (!cancelled) setUserHits(hits); })
         .catch((error) => {
+          if (cancelled) return;
           console.error("[global-search-users]", error);
           setUserHits([]);
         })
-        .finally(() => setUsersLoading(false));
+        .finally(() => { if (!cancelled) setUsersLoading(false); });
     }, 220);
 
     return () => {
+      cancelled = true;
       if (debounceRef.current) window.clearTimeout(debounceRef.current);
     };
   }, [client, existingDmUserIds, open, trimmedQuery]);
