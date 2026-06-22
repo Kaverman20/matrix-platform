@@ -382,3 +382,115 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* Read-only composer (banned / no send rights / tombstoned channel) */
+.composer-readonly {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  margin: var(--space-3) 0;
+  padding: 13px var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-bg-subtle);
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  text-align: center;
+}
+
+/* Pasted-image preview above the composer */
+.composer__paste-preview {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr) 30px;
+  align-items: center;
+  gap: var(--space-2);
+  margin: var(--space-3) 0 -2px;
+  border: 1px solid var(--color-border);
+  border-left: 3px solid var(--color-accent);
+  border-radius: var(--radius-md);
+  padding: 7px var(--space-2);
+  background: var(--color-bg-subtle);
+  overflow: hidden;
+}
+
+.composer__paste-preview img {
+  width: 48px;
+  height: 48px;
+  object-fit: cover;
+  border-radius: var(--radius-sm);
+}
+
+.composer__paste-info strong {
+  display: block;
+  color: var(--color-text);
+  font-size: var(--text-sm);
+}
+
+.composer__paste-info p {
+  margin: 1px 0 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+}
+
+/* Poll creation modal */
+.poll-answers {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  width: 100%;
+  margin-top: var(--space-3);
+}
+
+.poll-answers__row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.poll-answers__row .surf-input {
+  flex: 1;
+}
+
+.poll-answers__remove {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: var(--radius-sm);
+  color: var(--color-text-muted);
+  background: transparent;
+}
+
+.poll-answers__remove:hover {
+  color: var(--color-text);
+  background: var(--color-bg-subtle);
+}
+
+.poll-answers__add {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  align-self: flex-start;
+  padding: 4px 2px;
+  color: var(--color-accent);
+  background: transparent;
+  font-size: var(--text-sm);
+}
+
+.poll-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  margin-top: var(--space-3);
+  color: var(--color-text);
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+.poll-toggle input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--color-accent);
+}

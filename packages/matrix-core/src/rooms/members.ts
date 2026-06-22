@@ -4,6 +4,8 @@ import { getRoomStateContent } from "../util/roomState";
 type PowerLevelsContent = {
   users?: Record<string, number>;
   users_default?: number;
+  events?: Record<string, number>;
+  events_default?: number;
   invite?: number;
   kick?: number;
   ban?: number;
@@ -14,6 +16,42 @@ export type RoomMemberPermissions = {
   canKick: boolean;
   myPowerLevel: number;
 };
+
+export type RoomSendPermission =
+  | { canSend: true }
+  | { canSend: false; reason: "banned" | "left" | "no-permission" | "tombstoned" };
+
+/**
+ * Whether the current user may post a normal message into the room. Mirrors how
+ * Synapse gates sending: membership must be `join`, the room must not be
+ * tombstoned (replaced), and the user's power level must clear the
+ * `m.room.message` event threshold (announcement channels raise this so only
+ * moderators post).
+ */
+export function getRoomSendPermission(
+  client: MatrixClient,
+  roomId: string,
+): RoomSendPermission {
+  const room = client.getRoom(roomId);
+  const me = client.getUserId();
+
+  const membership = room?.getMyMembership();
+  if (membership === "ban") return { canSend: false, reason: "banned" };
+  if (membership && membership !== "join") return { canSend: false, reason: "left" };
+
+  if (getRoomStateContent<unknown>(room, "m.room.tombstone")) {
+    return { canSend: false, reason: "tombstoned" };
+  }
+
+  const powerLevels = getRoomStateContent<PowerLevelsContent>(room, "m.room.power_levels");
+  const myPowerLevel = Number((me && powerLevels?.users?.[me]) ?? powerLevels?.users_default ?? 0);
+  const sendLevel = Number(
+    powerLevels?.events?.["m.room.message"] ?? powerLevels?.events_default ?? 0,
+  );
+  if (myPowerLevel < sendLevel) return { canSend: false, reason: "no-permission" };
+
+  return { canSend: true };
+}
 
 export async function inviteUser(
   client: MatrixClient,

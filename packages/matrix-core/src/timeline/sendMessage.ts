@@ -183,7 +183,7 @@ export async function sendMediaMessage(
   file: File,
   uploadInfo: MediaUploadInfo = {},
   threadRootId?: string,
-  options: { voice?: boolean; durationMs?: number; waveform?: number[] } = {},
+  options: { voice?: boolean; durationMs?: number; waveform?: number[]; caption?: string } = {},
 ): Promise<void> {
   const upload = await client.uploadContent(file, {
     name: file.name,
@@ -193,9 +193,14 @@ export async function sendMediaMessage(
   const msgtype = options.voice ? MsgType.Audio : msgTypeForFile(file);
   const thread = client.getRoom(roomId)?.getThread(threadRootId ?? "");
 
+  const caption = options.caption?.trim();
   await client.sendEvent(roomId, EventType.RoomMessage, {
     msgtype,
-    body: options.voice ? "Голосовое сообщение" : file.name || "Файл",
+    // With a caption, `body` carries the caption text and `filename` keeps the
+    // original name (extensible-events / MSC2530 convention). Otherwise `body`
+    // is the filename, as before.
+    body: options.voice ? "Голосовое сообщение" : caption || file.name || "Файл",
+    ...(caption ? { filename: file.name || "Файл" } : {}),
     url: contentUri,
     info: {
       mimetype: file.type || "application/octet-stream",

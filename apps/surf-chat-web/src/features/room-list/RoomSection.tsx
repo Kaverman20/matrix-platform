@@ -6,6 +6,7 @@ import { formatUnreadCount } from "@matrix-platform/matrix-core";
 import { fadeUp, transition } from "@matrix-platform/ui";
 import { AuthedImage } from "../../components/AuthedImage";
 import { useRoomListTimeFormatter } from "../../app/providers/usePreferences";
+import { useRoomDrafts } from "../composer/useRoomDrafts";
 
 type SectionProps = {
   title: string;
@@ -65,10 +66,13 @@ export function RoomSection({
   onOpenRowMenu,
 }: SectionProps) {
   const formatTime = useRoomListTimeFormatter();
+  const getDraft = useRoomDrafts();
   if (rooms.length === 0 && !onAdd) return null;
   if (collapsed && rooms.length === 0) return null;
   const renderRoom = (room: MatrixRoomSummary, index: number) => {
     const isActive = room.id === activeRoomId;
+    // Show a draft hint only for rooms the user isn't currently in.
+    const draft = isActive ? "" : getDraft(room.id).trim();
 
     return (
       <motion.div
@@ -116,7 +120,15 @@ export function RoomSection({
             <strong>{room.name}</strong>
             <time>{formatTime(room.timestamp)}</time>
           </span>
-          <span className="room-row__preview">{room.preview || room.topic || "Нет сообщений"}</span>
+          <span className="room-row__preview">
+            {draft ? (
+              <>
+                <span className="room-row__draft">Черновик:</span> {draft}
+              </>
+            ) : (
+              room.preview || room.topic || "Нет сообщений"
+            )}
+          </span>
         </span>
         <span className="room-row__meta">
           {!collapsed && (room.mentions > 0 || room.unread > 0) && (

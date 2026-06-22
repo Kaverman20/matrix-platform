@@ -1,12 +1,14 @@
-import { forwardRef, useEffect, useImperativeHandle, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState, type ClipboardEvent as ReactClipboardEvent, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { ArrowUp, FileText, Forward, Image as ImageIcon, Mic, Paperclip, Pencil, Reply, Smile, Trash2, X } from "lucide-react";
+import { ArrowUp, BarChart3, Ban, FileText, Forward, Image as ImageIcon, Mic, Paperclip, Pencil, Reply, Smile, Trash2, X } from "lucide-react";
 import { spring, transition } from "@matrix-platform/ui";
 import { EmojiPicker } from "../../components/EmojiPicker";
+import { CreatePollModal } from "./CreatePollModal";
 import {
   sendEditMessage,
   sendForwardedMessage,
   sendMediaMessage,
+  sendPollStart,
   sendReplyMessage,
   sendTextMessage,
   sendVoiceMessage,
@@ -18,6 +20,8 @@ import {
   type MatrixForwardData,
   type MatrixMentionMember,
   type MatrixMessageReference,
+  type PollStartInput,
+  type RoomSendPermission,
   type TextTransformMode,
   type TextWrapMode,
 } from "@matrix-platform/matrix-core";
@@ -40,15 +44,26 @@ type Props = {
   editingMessage?: MatrixMessageReference | null;
   pendingForward?: MatrixForwardData[] | null;
   replyTo?: MatrixMessageReference | null;
+  sendPermission?: RoomSendPermission;
   onCancelEdit: () => void;
   onCancelForward: () => void;
   onCancelReply: () => void;
   onSent: () => void;
 };
 
+const READ_ONLY_REASON: Record<Exclude<RoomSendPermission, { canSend: true }>["reason"], string> = {
+  banned: "Вы заблокированы в этом чате",
+  left: "Вы не участник этого чата",
+  "no-permission": "Только администраторы могут писать здесь",
+  tombstoned: "Этот чат перемещён и доступен только для чтения",
+};
+
 export type ComposerHandle = {
   escape: () => boolean;
 };
+
+// Keep in sync with `.composer__input { max-height }` in composer.css.
+const COMPOSER_MAX_HEIGHT = 160;
 
 export const Composer = forwardRef<ComposerHandle, Props>(function Composer({
   roomId,
@@ -56,6 +71,7 @@ export const Composer = forwardRef<ComposerHandle, Props>(function Composer({
   editingMessage,
   pendingForward,
   replyTo,
+  sendPermission,
   onCancelEdit,
   onCancelForward,
   onCancelReply,
@@ -66,6 +82,8 @@ export const Composer = forwardRef<ComposerHandle, Props>(function Composer({
   const [draft, setDraft] = useState(() => initialDraft(roomId, editingMessage?.text));
   const [attachOpen, setAttachOpen] = useState(false);
   const [emojiOpen, setEmojiOpen] = useState(false);
+  const [pollOpen, setPollOpen] = useState(false);
+  const [pastedImage, setPastedImage] = useState<{ file: File; url: string } | null>(null);
   const [sending, setSending] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploadState, setUploadState] = useState<{ current: number; total: number; name: string } | null>(null);
@@ -157,8 +175,8 @@ export const Composer = forwardRef<ComposerHandle, Props>(function Composer({
     if (!textarea) return;
 
     textarea.style.height = "0px";
-    textarea.style.height = `${Math.min(textarea.scrollHeight, 118)}px`;
-    textarea.style.overflowY = textarea.scrollHeight > 118 ? "auto" : "hidden";
+    textarea.style.height = `${Math.min(textarea.scrollHeight, COMPOSER_MAX_HEIGHT)}px`;
+    textarea.style.overflowY = textarea.scrollHeight > COMPOSER_MAX_HEIGHT ? "auto" : "hidden";
   }, [draft]);
 
   useEffect(() => {
@@ -414,7 +432,7 @@ export const Composer = forwardRef<ComposerHandle, Props>(function Composer({
 
     composerSubmitOnKeyDown(event, {
       enterToSend: preferences.enterToSend,
-      submit: () => void send(),
+      submit: submitComposer,
     });
   };
 
@@ -436,8 +454,93 @@ export const Composer = forwardRef<ComposerHandle, Props>(function Composer({
     }
   };
 
+  const handlePaste = (event: ReactClipboardEvent<HTMLTextAreaElement>) => {
+    if (mode === "edit") return;
+    const items = event.clipboardData?.items;
+    if (!items) return;
+    for (const item of items) {
+      if (item.kind === "file" && item.type.startsWith("image/")) {
+        const file = item.getAsFile();
+        if (!file) continue;
+        event.preventDefault();
+        setPastedImage((prev) => {
+          if (prev) URL.revokeObjectURL(prev.url);
+          return { file, url: URL.createObjectURL(file) };
+        });
+        return;
+      }
+    }
+  };
+
+  const clearPastedImage = () => {
+    setPastedImage((prev) => {
+      if (prev) URL.revokeObjectURL(prev.url);
+      return null;
+    });
+  };
+
+  const sendPastedImage = async () => {
+    if (!client || !pastedImage || sending || uploading) return;
+    const caption = draft.trim();
+    const image = pastedImage;
+    setPastedImage(null);
+    setDraft("");
+    clearDraft();
+    setUploading(true);
+    try {
+      await sendMediaMessage(client, roomId, image.file, await mediaUploadInfo(image.file), undefined, {
+        caption,
+      });
+      URL.revokeObjectURL(image.url);
+      onSent();
+    } catch (e) {
+      console.error("[send-pasted-image]", e);
+      setPastedImage(image);
+      setDraft(caption);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const submitComposer = () => {
+    if (pastedImage) {
+      void sendPastedImage();
+      return;
+    }
+    void send();
+  };
+
+  const createPoll = async (input: PollStartInput) => {
+    if (!client) return;
+    try {
+      await sendPollStart(client, roomId, input);
+      setPollOpen(false);
+      onSent();
+    } catch (e) {
+      console.error("[send-poll]", e);
+    }
+  };
+
+  // Release the pasted-image preview URL if the composer unmounts mid-compose.
+  useEffect(() => {
+    return () => {
+      setPastedImage((prev) => {
+        if (prev) URL.revokeObjectURL(prev.url);
+        return null;
+      });
+    };
+  }, []);
+
   useImperativeHandle(ref, () => ({
     escape() {
+      if (pastedImage) {
+        clearPastedImage();
+        return true;
+      }
+      if (pollOpen) {
+        setPollOpen(false);
+        return true;
+      }
       if (voice.state === "recording") {
         voice.cancel();
         return true;
@@ -478,10 +581,50 @@ export const Composer = forwardRef<ComposerHandle, Props>(function Composer({
       }
       return false;
     },
-  }), [attachOpen, clearDraft, draft, editingMessage, emojiOpen, mentions, onCancelEdit, onCancelForward, onCancelReply, pendingForward, replyTo, textMenu, voice]);
+  }), [attachOpen, clearDraft, draft, editingMessage, emojiOpen, mentions, onCancelEdit, onCancelForward, onCancelReply, pastedImage, pendingForward, pollOpen, replyTo, textMenu, voice]);
+
+  const readOnlyReason = sendPermission && !sendPermission.canSend ? sendPermission.reason : null;
+  if (readOnlyReason) {
+    return (
+      <div className="composer-wrap">
+        <div className="composer-readonly">
+          <Ban size={16} />
+          <span>{READ_ONLY_REASON[readOnlyReason]}</span>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="composer-wrap">
+      {pollOpen && (
+        <CreatePollModal onSubmit={createPoll} onClose={() => setPollOpen(false)} />
+      )}
+      <AnimatePresence initial={false}>
+        {pastedImage && (
+          <motion.div
+            className="composer__paste-preview"
+            initial={{ height: 0, opacity: 0, y: 6 }}
+            animate={{ height: "auto", opacity: 1, y: 0 }}
+            exit={{ height: 0, opacity: 0, y: 6 }}
+            transition={transition.fast}
+          >
+            <img src={pastedImage.url} alt="Вставленное изображение" />
+            <div className="composer__paste-info">
+              <strong>Изображение</strong>
+              <p>Добавьте подпись и отправьте</p>
+            </div>
+            <button
+              type="button"
+              className="composer__cancel"
+              title="Убрать изображение"
+              onClick={clearPastedImage}
+            >
+              <X size={16} />
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
       <AnimatePresence initial={false}>
         {context && (
           <motion.div
@@ -533,7 +676,7 @@ export const Composer = forwardRef<ComposerHandle, Props>(function Composer({
         className={`composer${voice.state === "recording" ? " composer--recording" : ""}`}
         onSubmit={(e) => {
           e.preventDefault();
-          void send();
+          submitComposer();
         }}
       >
         {voice.state === "recording" ? (
@@ -597,6 +740,17 @@ export const Composer = forwardRef<ComposerHandle, Props>(function Composer({
                   <FileText size={18} />
                   <span>Файл</span>
                 </button>
+                <button
+                  type="button"
+                  className="attach-menu__item"
+                  onClick={() => {
+                    setPollOpen(true);
+                    setAttachOpen(false);
+                  }}
+                >
+                  <BarChart3 size={18} />
+                  <span>Опрос</span>
+                </button>
               </motion.div>
             )}
           </AnimatePresence>
@@ -629,9 +783,10 @@ export const Composer = forwardRef<ComposerHandle, Props>(function Composer({
             className="composer__input"
             value={draft}
             rows={1}
-            placeholder={mode === "edit" ? "Изменить сообщение" : "Сообщение"}
+            placeholder={mode === "edit" ? "Изменить сообщение" : pastedImage ? "Добавьте подпись…" : "Сообщение…"}
             disabled={sending || uploading}
             onChange={(e) => handleDraftChange(e.target.value, e.currentTarget)}
+            onPaste={handlePaste}
             onKeyDown={handleComposerKeyDown}
             onKeyUp={(e) => syncSelection(e.currentTarget)}
             onContextMenu={(event) => {
@@ -677,7 +832,7 @@ export const Composer = forwardRef<ComposerHandle, Props>(function Composer({
         </div>
           </>
         )}
-        {draft.trim() || pendingForward ? (
+        {draft.trim() || pendingForward || pastedImage ? (
           <motion.button
             type="submit"
             className="composer__send"

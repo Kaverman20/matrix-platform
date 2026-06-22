@@ -846,6 +846,10 @@
   white-space: nowrap;
 }
 
+.room-row__draft {
+  color: var(--color-danger, #e0566b);
+}
+
 .room-row__meta {
   min-width: fit-content;
   display: flex;

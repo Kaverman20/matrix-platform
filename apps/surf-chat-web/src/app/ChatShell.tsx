@@ -15,6 +15,7 @@ import {
   getMessageReaders,
   getPinnedEventIds,
   getRoomMemberPermissions,
+  getRoomSendPermission,
   inviteUser,
   kickUser,
   loadRoomThreads,
@@ -492,6 +493,16 @@ export function ChatShell() {
     () => roomMembers.map((member) => ({ userId: member.userId, name: member.name })),
     [roomMembers],
   );
+  const sendPermission = useMemo(
+    () =>
+      client && activeRoomId
+        ? getRoomSendPermission(client, activeRoomId)
+        : ({ canSend: true } as const),
+    // activeMatrixRoom is an intentional dep: re-check send rights after room
+    // state (power levels, membership, tombstone) loads or changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [activeMatrixRoom, activeRoomId, client],
+  );
   const pinnedPreviews = useMemo(
     () => pinnedMessages.map((message) => ({
       id: message.id,
@@ -900,6 +911,7 @@ export function ChatShell() {
               editingMessage={composerMode.editingMessage}
               pendingForward={composerMode.pendingForward}
               replyTo={composerMode.replyTo}
+              sendPermission={sendPermission}
               onCancelEdit={composerMode.cancelEdit}
               onCancelForward={composerMode.cancelForward}
               onCancelReply={composerMode.cancelReply}

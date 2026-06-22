@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { clearRoomDraft, saveRoomDraft } from "@matrix-platform/matrix-core";
+import { DRAFTS_CHANGED_EVENT } from "./useRoomDrafts";
 
 type Options = {
   roomId: string;
@@ -19,12 +20,14 @@ export function useComposerDraft({ roomId, draft, disabled = false }: Options) {
     if (disabled) return;
     const timer = window.setTimeout(() => {
       saveRoomDraft(localStorage, roomIdRef.current, draft);
+      window.dispatchEvent(new Event(DRAFTS_CHANGED_EVENT));
     }, 250);
     return () => window.clearTimeout(timer);
   }, [disabled, draft]);
 
   const clearDraft = () => {
     clearRoomDraft(localStorage, roomIdRef.current);
+    window.dispatchEvent(new Event(DRAFTS_CHANGED_EVENT));
   };
 
   return { clearDraft };
