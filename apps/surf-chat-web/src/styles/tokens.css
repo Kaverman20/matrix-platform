@@ -34,11 +34,14 @@
   --color-danger: #e5484d;
 
   /* Chat bubbles (bubble view) — themed so dark mode adapts. */
-  --color-bubble-in: #f3f4f6;
+  /* Warm-neutral bubble contrast (our palette, not Telegram green): incoming
+     white, outgoing a clearly warmer/darker tan so "me / them" reads instantly. */
+  --color-bubble-in: #ffffff;
   --color-bubble-in-border: rgb(148 163 184 / 14%);
-  --color-bubble-in-time: rgb(31 41 55 / 72%);
-  --color-bubble-own: #efe9dd;
-  --color-bubble-own-border: rgb(201 182 150 / 12%);
+  --color-bubble-in-time: #707579;
+  --color-bubble-own: #e8dfd0;
+  --color-bubble-own-border: rgb(160 140 110 / 26%);
+  --color-bubble-own-time: #8a7350;
 
   --radius-sm: 6px;
   --radius-md: 10px;
@@ -65,12 +68,17 @@
   --text-sm: 13px;
   --text-base: 14px;
   --text-md: 15px;
+  --text-md: 15px;
   --text-lg: 17px;
   --text-xl: 20px;
 
   --rail-width: 72px;
   --roomlist-width: 304px;
   --rightpanel-width: 320px;
-  --header-height: 60px;
+  --header-height: 55px;
+  /* Max width of the centered message column. Wider than Telegram's 728px so
+     messages spread comfortably on big screens; the sides are filled by the
+     chat background pattern (.timeline) so they don't read as empty. */
+  --messages-container-width: 1080px;
 }
 

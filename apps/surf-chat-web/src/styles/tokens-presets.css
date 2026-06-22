@@ -16,8 +16,11 @@
 
   --color-rail-indicator: #f7f7f8;
 
-  --color-bubble-in: #f4f4f5;
-  --color-bubble-own: #ece8e0;
+  --color-bubble-in: #ffffff;
+  --color-bubble-in-time: #707579;
+  --color-bubble-own: #e5dcd0;
+  --color-bubble-own-border: rgb(160 140 110 / 26%);
+  --color-bubble-own-time: #8a7350;
 }
 
 [data-theme-preset="dark"] {

@@ -711,9 +711,9 @@
 .room-row {
   position: relative;
   width: 100%;
-  min-height: 58px;
+  min-height: 72px;
   display: grid;
-  grid-template-columns: 40px minmax(0, 1fr) auto;
+  grid-template-columns: 54px minmax(0, 1fr) auto;
   align-items: center;
   gap: var(--space-3);
   border: 0;
@@ -768,12 +768,13 @@
 
 .room-row__avatar {
   position: relative;
-  width: 40px;
-  height: 40px;
+  width: 54px;
+  height: 54px;
   display: grid;
   place-items: center;
   border-radius: var(--radius-md);
   color: var(--color-text-onAccent);
+  font-size: var(--text-xl);
   font-weight: 700;
   overflow: visible;
 }
@@ -824,7 +825,8 @@
   min-width: 0;
   overflow: hidden;
   color: var(--color-text-strong);
-  font-size: var(--text-base);
+  font-size: var(--text-md);
+  font-weight: 500;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -832,14 +834,14 @@
 .room-row__top time {
   margin-left: auto;
   color: var(--color-text-faint);
-  font-size: var(--text-xs);
+  font-size: var(--text-sm);
 }
 
 .room-row__preview {
   min-width: 0;
   overflow: hidden;
   color: var(--color-text-muted);
-  font-size: var(--text-sm);
+  font-size: var(--text-base);
   text-overflow: ellipsis;
   white-space: nowrap;
 }

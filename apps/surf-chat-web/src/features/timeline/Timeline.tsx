@@ -365,8 +365,10 @@ export const Timeline = forwardRef<TimelineHandle, Props>(function Timeline({
   }, [atStart, loading, room, showIntro]);
 
   const timelineFooter = useCallback(() => {
-    if (messages.length > 0) return null;
-    return <div className="timeline__empty">Сообщений пока нет.</div>;
+    if (messages.length === 0) return <div className="timeline__empty">Сообщений пока нет.</div>;
+    // Reliable breathing room below the last message (a scroller padding-bottom
+    // is ignored by Safari/WebKit; a real footer element inside the list isn't).
+    return <div className="timeline__bottom-spacer" aria-hidden />;
   }, [messages.length]);
 
   return (

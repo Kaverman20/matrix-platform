@@ -5,6 +5,7 @@ import type { MatrixMessage } from "@matrix-platform/matrix-core";
 import { MessageMedia } from "../media/MessageMedia";
 import { ReactionPill } from "../reactions/ReactionPill";
 import { BubbleShell } from "./BubbleShell";
+import type { BubblePosition } from "./bubbleShape";
 import { MessageBody } from "./MessageBody";
 import { PollMessage } from "./PollMessage";
 import { DeliveryStatus } from "./DeliveryStatus";
@@ -74,7 +75,7 @@ export function FlatMessage({
       <div className="message__body">
         {!compact && (
           <header className="message__head">
-            <strong style={{ color: message.color }}>{message.own ? "Вы" : message.author}</strong>
+            <strong style={{ color: senderNameColor(message) }}>{message.own ? "Вы" : message.author}</strong>
           </header>
         )}
         <MessageContent
@@ -101,7 +102,6 @@ export function FlatMessage({
         {message.thread && <ThreadChip message={message} onOpenThread={onOpenThread} />}
       </div>
       <div className="message__aside">
-        <time>{formatTime(message.timestamp)}</time>
         {message.own && (
           <DeliveryStatus
             status={message.deliveryStatus}
@@ -112,6 +112,7 @@ export function FlatMessage({
             }
           />
         )}
+        <time>{formatTime(message.timestamp)}</time>
       </div>
     </article>
   );
@@ -136,6 +137,14 @@ export function BubbleMessage({
   onVotePoll,
 }: MessageRowProps & { groupEnd: boolean }) {
   const formatTime = useTimeFormatter();
+  // Grouping position drives the glued corner radii (and tail) in BubbleShell.
+  const position: BubblePosition = compact
+    ? groupEnd
+      ? "last"
+      : "middle"
+    : groupEnd
+      ? "single"
+      : "first";
   return (
     <article
       data-mid={message.id}
@@ -165,7 +174,7 @@ export function BubbleMessage({
           )}
         </span>
       )}
-      <BubbleShell own={message.own} tailed={groupEnd} highlighted={highlighted}>
+      <BubbleShell own={message.own} position={position} highlighted={highlighted}>
         {!message.own && !compact && (
           <div className="bubble__author" style={{ color: message.color }}>
             {message.author}
@@ -315,6 +324,20 @@ function MessageHoverActions({
       )}
     </div>
   );
+}
+
+// Per-user sender name colours (Telegram palette). Own name uses the theme accent.
+const SENDER_NAME_PALETTE = [
+  "#FC5C51", "#FA790F", "#895DD5", "#0FB297", "#3CA5EC", "#D74B90", "#ED7C0E",
+];
+
+function senderNameColor(message: MatrixMessage): string {
+  if (message.own) return "var(--color-accent)";
+  let hash = 0;
+  for (let i = 0; i < message.sender.length; i += 1) {
+    hash = (hash * 31 + message.sender.charCodeAt(i)) >>> 0;
+  }
+  return SENDER_NAME_PALETTE[hash % SENDER_NAME_PALETTE.length];
 }
 
 function shouldShowText(message: MatrixMessage): boolean {

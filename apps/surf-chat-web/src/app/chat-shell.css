@@ -128,9 +128,35 @@ html.reduce-motion .chat-shell__room-list {
   overflow: hidden;
   margin: 0;
   color: var(--color-text-strong);
-  font-size: var(--text-lg);
+  font-size: var(--text-md);
+  font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.chat-main__avatar {
+  position: relative;
+  flex: 0 0 auto;
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius-md);
+  color: var(--color-text-onAccent);
+  font-size: var(--text-md);
+  font-weight: 700;
+  overflow: hidden;
+}
+
+.chat-main__avatar-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: inherit;
+  /* Cover the fallback initial once the avatar loads. */
+  z-index: 2;
 }
 
 .chat-main__typing {

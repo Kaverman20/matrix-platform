@@ -1,5 +1,6 @@
 import { AlignLeft, Hash, MessageSquare, MessagesSquare, PanelRight, Phone, Video } from "lucide-react";
 import type { MatrixRoomSummary } from "@matrix-platform/matrix-core";
+import { AuthedImage } from "../../components/AuthedImage";
 
 type Props = {
   room: MatrixRoomSummary;
@@ -43,7 +44,10 @@ export function ChatMainHeader({
   return (
     <header className="chat-main__header">
       <div className="chat-main__title">
-        {room.kind === "channel" && <Hash size={18} strokeWidth={2.5} />}
+        <span className="chat-main__avatar" style={{ background: room.color }}>
+          {room.kind === "channel" ? <Hash size={20} /> : room.name.slice(0, 1).toUpperCase()}
+          <AuthedImage url={room.avatarUrl} className="chat-main__avatar-img" />
+        </span>
         <div className="chat-main__title-text">
           <h1>{room.name}</h1>
           {typingLabel ? (

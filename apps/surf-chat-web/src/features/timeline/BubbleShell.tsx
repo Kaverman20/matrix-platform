@@ -1,20 +1,21 @@
 import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import {
   BUBBLE_TAIL_OFFSET,
-  incomingTailBubblePath,
-  outgoingTailBubblePath,
+  bubblePath,
+  isTailed,
   resolveBubbleFill,
-  roundBubblePath,
+  type BubblePosition,
 } from "./bubbleShape";
 
 type Props = {
   own: boolean;
-  tailed: boolean;
+  position: BubblePosition;
   highlighted?: boolean;
   children: ReactNode;
 };
 
-export function BubbleShell({ own, tailed, highlighted, children }: Props) {
+export function BubbleShell({ own, position, highlighted, children }: Props) {
+  const tailed = isTailed(position);
   const contentRef = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ w: 0, h: 0 });
   const [fill, setFill] = useState(() => resolveBubbleFill(own));
@@ -61,14 +62,7 @@ export function BubbleShell({ own, tailed, highlighted, children }: Props) {
 
   const w = size.w;
   const h = size.h;
-  const path =
-    w > 0 && h > 0
-      ? tailed
-        ? own
-          ? outgoingTailBubblePath(w, h)
-          : incomingTailBubblePath(w, h)
-        : roundBubblePath(w, h)
-      : "";
+  const path = w > 0 && h > 0 ? bubblePath(w, h, own, position) : "";
 
   const svgWidth = tailed && !own ? w + BUBBLE_TAIL_OFFSET : tailed && own ? w + BUBBLE_TAIL_OFFSET : w;
   const svgLeft = tailed && !own ? -BUBBLE_TAIL_OFFSET : 0;
