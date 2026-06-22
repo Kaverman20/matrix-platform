@@ -11,9 +11,11 @@ import {
 } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Virtuoso, type VirtuosoHandle } from "react-virtuoso";
+import type { RefObject } from "react";
 import type { MatrixMessage, MatrixRoomSummary } from "@matrix-platform/matrix-core";
 import { RoomIntro } from "./RoomIntro";
 import { renderTimelineItem, type TimelineItemContext } from "./renderTimelineItem";
+import { isMessageNodeVisible } from "./jumpToMessage";
 import {
   BOTTOM_THRESHOLD,
   getStoredDistanceFromBottom,
@@ -27,6 +29,69 @@ export type TimelineHandle = {
   /** Scroll the virtualized list to a message already present in `messages`. */
   scrollToMessage: (messageId: string) => boolean;
 };
+
+type ScrollToMessageParams = {
+  virtuosoRef: RefObject<VirtuosoHandle | null>;
+  scrollerElRef: RefObject<HTMLElement | null>;
+  messageId: string;
+  absoluteIndex: number;
+  onDone?: (messageId: string) => void;
+};
+
+/**
+ * Drive the virtualized list to a message and confirm it's actually on screen,
+ * retrying across frames while Virtuoso renders the freshly loaded window.
+ */
+function runScrollToMessage({
+  virtuosoRef,
+  scrollerElRef,
+  messageId,
+  absoluteIndex,
+  onDone,
+}: ScrollToMessageParams): () => void {
+  let cancelled = false;
+  let attempts = 0;
+  let frameId = 0;
+  let done = false;
+
+  const finish = () => {
+    if (done) return;
+    done = true;
+    onDone?.(messageId);
+  };
+
+  const tick = () => {
+    if (cancelled) return;
+    attempts += 1;
+
+    virtuosoRef.current?.scrollToIndex({
+      index: absoluteIndex,
+      align: "center",
+      behavior: "auto",
+    });
+
+    const scroller = scrollerElRef.current;
+    const node = scroller?.querySelector<HTMLElement>(
+      `[data-mid="${CSS.escape(messageId)}"]`,
+    );
+    if (node && isMessageNodeVisible(node)) {
+      finish();
+      return;
+    }
+
+    if (attempts < 10) {
+      frameId = requestAnimationFrame(tick);
+    } else {
+      finish();
+    }
+  };
+
+  frameId = requestAnimationFrame(tick);
+  return () => {
+    cancelled = true;
+    cancelAnimationFrame(frameId);
+  };
+}
 
 type Props = {
   messages: MatrixMessage[];
@@ -49,6 +114,14 @@ type Props = {
   onLoadOlder?: () => Promise<boolean>;
   hasOlder?: boolean;
   showIntro?: boolean;
+  /** True while jumping to a message loads history — shows a "Переход…" hint. */
+  historyLoading?: boolean;
+  /** When the room opens already anchored on a message (jump snapshot), scroll
+   * to it on mount instead of opening at the bottom / first unread. */
+  initialScrollToMessageId?: string | null;
+  /** Re-scroll to an already-loaded message; bump `seq` to re-trigger. */
+  scrollToMessageRequest?: { id: string; seq: number } | null;
+  onScrollToMessageDone?: (messageId: string) => void;
   room: MatrixRoomSummary;
   view: "flat" | "bubbles";
   /** First unread message id — renders the "new messages" divider and opens the
@@ -87,6 +160,10 @@ export const Timeline = forwardRef<TimelineHandle, Props>(function Timeline({
   onLoadOlder,
   hasOlder = false,
   showIntro = true,
+  historyLoading = false,
+  initialScrollToMessageId,
+  scrollToMessageRequest,
+  onScrollToMessageDone,
   room,
   view,
   firstUnreadId,
@@ -207,6 +284,24 @@ export const Timeline = forwardRef<TimelineHandle, Props>(function Timeline({
   useLayoutEffect(() => {
     if (messages.length === 0 || didInit.current) return;
 
+    if (initialScrollToMessageId) {
+      const targetIndex = messages.findIndex((message) => message.id === initialScrollToMessageId);
+      if (targetIndex >= 0) {
+        stick.current = false;
+        didInit.current = true;
+        const messageId = initialScrollToMessageId;
+        return runScrollToMessage({
+          virtuosoRef,
+          scrollerElRef,
+          messageId,
+          absoluteIndex: firstItemIndex + targetIndex,
+          onDone: onScrollToMessageDone,
+        });
+      }
+      // Window still loading — don't fall through to bottom scroll.
+      return;
+    }
+
     if (firstUnreadId && !didUnreadScroll.current) {
       const unreadIndex = messages.findIndex((message) => message.id === firstUnreadId);
       if (unreadIndex >= 0) {
@@ -242,7 +337,24 @@ export const Timeline = forwardRef<TimelineHandle, Props>(function Timeline({
       }
       didInit.current = true;
     });
-  }, [firstItemIndex, firstUnreadId, messages, room.id]);
+  }, [firstItemIndex, firstUnreadId, initialScrollToMessageId, messages, onScrollToMessageDone, room.id]);
+
+  useLayoutEffect(() => {
+    if (!scrollToMessageRequest) return;
+
+    const messageId = scrollToMessageRequest.id;
+    const targetIndex = messages.findIndex((message) => message.id === messageId);
+    if (targetIndex < 0) return;
+
+    stick.current = false;
+    return runScrollToMessage({
+      virtuosoRef,
+      scrollerElRef,
+      messageId,
+      absoluteIndex: firstItemIndex + targetIndex,
+      onDone: onScrollToMessageDone,
+    });
+  }, [firstItemIndex, messages, onScrollToMessageDone, scrollToMessageRequest]);
 
   useEffect(() => {
     const saveBeforeUnload = () => {
@@ -358,11 +470,15 @@ export const Timeline = forwardRef<TimelineHandle, Props>(function Timeline({
   const timelineHeader = useCallback(() => {
     return (
       <>
-        {loading && <div className="timeline__loading">Загрузка истории…</div>}
+        {(loading || historyLoading) && (
+          <div className="timeline__loading">
+            {historyLoading ? "Переход к сообщению…" : "Загрузка истории…"}
+          </div>
+        )}
         {atStart && showIntro && <RoomIntro room={room} />}
       </>
     );
-  }, [atStart, loading, room, showIntro]);
+  }, [atStart, historyLoading, loading, room, showIntro]);
 
   const timelineFooter = useCallback(() => {
     if (messages.length === 0) return <div className="timeline__empty">Сообщений пока нет.</div>;
@@ -383,7 +499,9 @@ export const Timeline = forwardRef<TimelineHandle, Props>(function Timeline({
         firstItemIndex={firstItemIndex}
         initialTopMostItemIndex={firstItemIndex + Math.max(0, messages.length - 1)}
         alignToBottom
-        followOutput={() => (stick.current ? "auto" : false)}
+        followOutput={() =>
+          stick.current && !scrollToMessageRequest && !initialScrollToMessageId ? "auto" : false
+        }
         atBottomThreshold={BOTTOM_THRESHOLD}
         atTopThreshold={TOP_THRESHOLD}
         startReached={() => runLoad()}

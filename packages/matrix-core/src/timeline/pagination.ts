@@ -1,4 +1,11 @@
 import { EventTimeline, type MatrixClient, type Room } from "matrix-js-sdk";
+import { buildTimelineMessages } from "./mapTimeline";
+import {
+  createRoomTimelineWindow,
+  getTimelineWindowMessages,
+  loadTimelineWindowAroundEvent,
+} from "./timelineWindow";
+import type { MatrixMessage } from "./messageTypes";
 
 /** Whether there is older history to load above the current live timeline. */
 export function canPaginateBackwards(
@@ -32,6 +39,15 @@ export function isEventInTimeline(
     .getLiveTimeline()
     .getEvents()
     .some((event) => event.getId() === eventId);
+}
+
+/** Whether the message is present in the rendered UI list (not just the SDK timeline). */
+export function isMessageInUiTimeline(
+  client: MatrixClient,
+  roomId: string,
+  messageId: string,
+): boolean {
+  return buildTimelineMessages(client, roomId).some((message) => message.id === messageId);
 }
 
 function countMessages(room: Room): number {
@@ -80,18 +96,35 @@ export async function paginateToEvent(
   eventId: string,
   options: { maxPages?: number; pageSize?: number } = {},
 ): Promise<boolean> {
-  if (isEventInTimeline(client, roomId, eventId)) return true;
+  if (isMessageInUiTimeline(client, roomId, eventId)) return true;
 
   const maxPages = options.maxPages ?? 50;
   const pageSize = options.pageSize ?? 50;
 
   for (let page = 0; page < maxPages; page += 1) {
-    if (!canPaginateBackwards(client, roomId)) return false;
+    if (!canPaginateBackwards(client, roomId)) break;
 
     const loaded = await paginateBackwards(client, roomId, pageSize);
-    if (isEventInTimeline(client, roomId, eventId)) return true;
-    if (!loaded) return false;
+    if (isMessageInUiTimeline(client, roomId, eventId)) return true;
+    if (!loaded) break;
   }
 
-  return isEventInTimeline(client, roomId, eventId);
+  return isMessageInUiTimeline(client, roomId, eventId);
+}
+
+/** Load a bounded slice of history around `eventId` via /context (fallback for jump). */
+export async function loadJumpContextMessages(
+  client: MatrixClient,
+  roomId: string,
+  eventId: string,
+): Promise<MatrixMessage[] | null> {
+  const window = createRoomTimelineWindow(client, roomId);
+  if (!window) return null;
+
+  await loadTimelineWindowAroundEvent(window, eventId);
+  const hasEvent = window.getEvents().some((event) => event.getId() === eventId);
+  if (!hasEvent) return null;
+
+  const messages = getTimelineWindowMessages(client, roomId, window, eventId);
+  return messages.some((message) => message.id === eventId) ? messages : null;
 }

@@ -154,6 +154,31 @@
   filter: brightness(1.04);
 }
 
+/* "Back to latest" pill shown while reading a jump-to-message context snapshot */
+.timeline-return-live {
+  position: absolute;
+  left: 50%;
+  bottom: calc(var(--space-3) + 8px);
+  z-index: 6;
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-pill);
+  padding: 8px 14px;
+  color: var(--color-text);
+  background: var(--color-bg-elevated, var(--color-bg));
+  box-shadow: var(--shadow-lg);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.timeline-return-live:hover {
+  background: var(--color-bg-subtle);
+}
+
 .timeline__intro {
   display: flex;
   flex-direction: column;

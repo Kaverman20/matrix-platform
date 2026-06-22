@@ -1,4 +1,5 @@
 import { AnimatePresence, motion } from "framer-motion";
+import { ArrowDown } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { pageCrossfade, transition } from "@matrix-platform/ui";
 import {
@@ -23,6 +24,8 @@ import {
   mxcThumbnailUrl,
   paginateBackwards,
   paginateToEvent,
+  isMessageInUiTimeline,
+  loadJumpContextMessages,
   removeReaction,
   reorderFavourites,
   sendPollResponse,
@@ -77,6 +80,7 @@ import "../features/selection/selection-toolbar.css";
 import {
   usePreloadTimelineMessages,
   useTimelineMessages,
+  refreshTimelineMessages,
 } from "../features/timeline/useTimelineMessages";
 import { formatTypingLabel, useTyping } from "../features/timeline/useTyping";
 import { usePresence } from "../features/timeline/usePresence";
@@ -147,7 +151,23 @@ export function ChatShell() {
   // Monotonic token that invalidates in-flight jump-to-message retry chains.
   const focusTokenRef = useRef(0);
   const [globalSearchOpen, setGlobalSearchOpen] = useState(false);
-  const messages = useTimelineMessages(client, activeRoomId);
+  // Jump-to-message: a bounded /context snapshot loaded around a target message,
+  // shown instead of the live tail so jumping deep into history is O(1) (one
+  // /context fetch) rather than paginating all intervening history into memory.
+  const [jumpState, setJumpState] = useState<{
+    roomId: string;
+    messages: MatrixMessage[];
+    targetId: string;
+  } | null>(null);
+  // Room ids are stored (not bare booleans/ids) so a jump that's still loading
+  // or a pending scroll is auto-ignored once the user switches rooms — no reset
+  // effect needed (and no synchronous setState-in-effect).
+  const [jumpLoadingRoomId, setJumpLoadingRoomId] = useState<string | null>(null);
+  const [scrollRequest, setScrollRequest] = useState<{ id: string; seq: number; roomId: string } | null>(null);
+  const scrollSeqRef = useRef(0);
+  const liveMessages = useTimelineMessages(client, activeRoomId);
+  const activeJump = jumpState && jumpState.roomId === activeRoomId ? jumpState : null;
+  const messages = activeJump?.messages ?? liveMessages;
 
   const allRooms = useMemo(
     () => [
@@ -223,39 +243,67 @@ export function ChatShell() {
     return true;
   }, [highlightMessage]);
 
+  // Ask the timeline to (re-)scroll to a message it already holds. A bumped
+  // `seq` re-fires even for the same id (repeat jumps to the same message).
+  const requestScrollToMessage = useCallback((messageId: string, roomId: string) => {
+    setScrollRequest({ id: messageId, seq: (scrollSeqRef.current += 1), roomId });
+    highlightMessage(messageId);
+  }, [highlightMessage]);
+
   const focusMessageWithPagination = useCallback(async (messageId: string, roomId?: string) => {
     const targetRoomId = roomId ?? activeRoomId;
-    if (!client || !targetRoomId) return;
+    if (!client || !targetRoomId || targetRoomId !== activeRoomId) return;
 
     // Cancellation token: a newer focus request (or a room switch — see the
     // effect below) bumps the counter, so a stale retry chain from a previous
     // jump stops instead of scrolling/highlighting in the wrong room.
     const token = (focusTokenRef.current += 1);
 
-    // Fast path: message already rendered in the DOM (recent / reply / pinned).
+    // (a) Already in the rendered list (live tail, current snapshot, reply,
+    // pinned) — just scroll, no history loading.
+    if (messages.some((message) => message.id === messageId)) {
+      requestScrollToMessage(messageId, targetRoomId);
+      return;
+    }
     if (focusMessage(messageId)) return;
 
-    // Load older history into the SDK timeline until the event surfaces.
-    const found = await paginateToEvent(client, targetRoomId, messageId);
-    if (!found || token !== focusTokenRef.current) return;
-
-    // The event is now in the timeline, but Virtuoso only renders a visible
-    // window — for off-screen messages the DOM node does not exist yet. Drive
-    // the virtualized list imperatively, then highlight; retry while React
-    // catches up with the freshly paginated `messages` array.
-    const tryScroll = (attempt = 0) => {
+    setJumpLoadingRoomId(targetRoomId);
+    try {
+      // (b) Bounded back-pagination — cheap when the target is only a little way
+      // up. paginateToEvent now falls through (no hard-false) so we can try the
+      // /context window next when it's far back.
+      const found = await paginateToEvent(client, targetRoomId, messageId, {
+        maxPages: 40,
+        pageSize: 50,
+      });
       if (token !== focusTokenRef.current) return;
-      if (focusMessage(messageId)) return;
-      if (timelineRef.current?.scrollToMessage(messageId)) {
-        highlightMessage(messageId);
+      refreshTimelineMessages(targetRoomId);
+      if (found && isMessageInUiTimeline(client, targetRoomId, messageId)) {
+        setJumpState(null);
+        requestScrollToMessage(messageId, targetRoomId);
         return;
       }
-      if (attempt < 20) {
-        window.setTimeout(() => tryScroll(attempt + 1), 60);
+
+      // (c) Deep history: load a bounded /context window centred on the target
+      // and render that snapshot instead of the live tail. O(1) regardless of
+      // how far back the message is.
+      const snapshot = await loadJumpContextMessages(client, targetRoomId, messageId);
+      if (token !== focusTokenRef.current) return;
+      if (snapshot) {
+        setJumpState({ roomId: targetRoomId, messages: snapshot, targetId: messageId });
+        highlightMessage(messageId);
       }
-    };
-    tryScroll();
-  }, [activeRoomId, client, focusMessage, highlightMessage]);
+    } finally {
+      if (token === focusTokenRef.current) setJumpLoadingRoomId(null);
+    }
+  }, [activeRoomId, client, focusMessage, highlightMessage, messages, requestScrollToMessage]);
+
+  // Return from a jump snapshot back to the live timeline tail.
+  const returnToLiveTimeline = useCallback(() => {
+    setJumpState(null);
+    setScrollRequest(null);
+    setJumpLoadingRoomId(null);
+  }, []);
 
   // Cross-room jump-to-message. Same room → scroll now. Different room → record
   // the request and let the effect below fire it once that room is active and its
@@ -335,6 +383,7 @@ export function ChatShell() {
     pendingFocusRef.current = null;
     void focusMessageWithPagination(pending.messageId, pending.roomId);
   }, [activeRoomId, messages, focusMessageWithPagination]);
+
   const selection = useMessageSelection(messages);
   const { clear: clearSelection } = selection;
   const [editHistoryEntries, setEditHistoryEntries] = useState<MessageEditEntry[] | null>(null);
@@ -873,7 +922,9 @@ export function ChatShell() {
               />
             )}
             <Timeline
-              key={activeRoom.id}
+              // Remount when entering/leaving a jump snapshot so virtualization
+              // (firstItemIndex, didInit) resets cleanly between the two sources.
+              key={`${activeRoom.id}:${activeJump ? "context" : "live"}`}
               ref={timelineRef}
               highlightMessageId={
                 timelineSearch.open && timelineSearch.currentHitId
@@ -896,13 +947,33 @@ export function ChatShell() {
               onShowEditHistory={handleShowEditHistory}
               onShowReaders={handleShowReaders}
               onVotePoll={handleVotePoll}
-              onLoadOlder={loadOlder}
-              hasOlder={hasOlder}
+              onLoadOlder={activeJump ? undefined : loadOlder}
+              hasOlder={activeJump ? false : hasOlder}
+              showIntro={!activeJump}
+              historyLoading={jumpLoadingRoomId === activeRoom.id}
+              initialScrollToMessageId={activeJump?.targetId ?? null}
+              scrollToMessageRequest={scrollRequest?.roomId === activeRoom.id ? scrollRequest : null}
+              onScrollToMessageDone={() => setScrollRequest(null)}
               room={activeRoom}
               view={chatView}
               firstUnreadId={firstUnreadId}
               onReadUpTo={handleReadUpTo}
             />
+            <AnimatePresence>
+              {activeJump && (
+                <motion.button
+                  type="button"
+                  className="timeline-return-live"
+                  onClick={returnToLiveTimeline}
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: 8 }}
+                >
+                  <ArrowDown size={16} />
+                  К последним сообщениям
+                </motion.button>
+              )}
+            </AnimatePresence>
             <Composer
               ref={composerRef}
               key={composerMode.composerKey}

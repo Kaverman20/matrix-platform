@@ -1,11 +1,22 @@
 import { describe, expect, it, vi } from "vitest";
 import { type MatrixClient, type Room } from "matrix-js-sdk";
+import * as mapTimeline from "./mapTimeline";
 import {
   canPaginateBackwards,
   isEventInTimeline,
   paginateBackwards,
   paginateToEvent,
 } from "./pagination";
+
+vi.spyOn(mapTimeline, "buildTimelineMessages").mockImplementation((client, roomId) => {
+  const room = client.getRoom(roomId);
+  if (!room) return [];
+  return room
+    .getLiveTimeline()
+    .getEvents()
+    .map((event) => ({ id: event.getId() ?? "" }) as import("./messageTypes").MatrixMessage)
+    .filter((message) => message.id.length > 0);
+});
 
 type RoomState = {
   events: Array<{ id: string }>;

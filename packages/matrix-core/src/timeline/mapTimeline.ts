@@ -28,6 +28,23 @@ export function buildTimelineMessages(
   return buildMessagesFromEvents(client, room, events);
 }
 
+/** Map an arbitrary event slice (e.g. from TimelineWindow) to UI messages. */
+export function buildTimelineMessagesFromEvents(
+  client: MatrixClient,
+  roomId: string,
+  events: MatrixEvent[],
+  options: { includeEventIds?: string[] } = {},
+): MatrixMessage[] {
+  const room = client.getRoom(roomId);
+  if (!room) return [];
+
+  const include = new Set(options.includeEventIds ?? []);
+  const filtered = events.filter(
+    (event) => !isThreadReplyEvent(event) || include.has(event.getId() ?? ""),
+  );
+  return buildMessagesFromEvents(client, room, filtered);
+}
+
 /** Messages inside a single thread (root + replies), oldest first. */
 export function buildThreadMessages(
   client: MatrixClient,

@@ -66,4 +66,5 @@ export * from "./timeline/sendMessage";
 export * from "./timeline/subscribeThreads";
 export * from "./timeline/subscribeTimeline";
 export * from "./timeline/threads";
+export * from "./timeline/timelineWindow";
 export * from "./timeline/typing";
