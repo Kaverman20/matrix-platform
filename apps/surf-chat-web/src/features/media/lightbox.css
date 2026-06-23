@@ -13,7 +13,9 @@
   max-height: 82vh;
   display: grid;
   place-items: center;
-  overflow: hidden;
+  /* visible — увеличенная картинка растёт ЗА рамку (как в Telegram), а не
+     зумится внутри обрезанного окна. Контролы поверх держим через z-index. */
+  overflow: visible;
 }
 
 .lightbox__image {
@@ -44,6 +46,7 @@
   position: absolute;
   top: 18px;
   right: 18px;
+  z-index: 2;
   width: 42px;
   height: 42px;
   display: grid;
@@ -64,6 +67,7 @@
   position: absolute;
   top: 50%;
   transform: translateY(-50%);
+  z-index: 2;
   width: 52px;
   height: 52px;
   display: grid;
@@ -95,6 +99,7 @@
   left: 0;
   right: 0;
   bottom: 0;
+  z-index: 2;
   display: flex;
   align-items: center;
   justify-content: space-between;
