@@ -1,3 +1,4 @@
+import { useLayoutEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Forward, Pin, Reply, SmilePlus } from "lucide-react";
 import type { MatrixMessage } from "@matrix-platform/matrix-core";
@@ -214,6 +215,73 @@ export function BubbleMessage({
 }
 
 /**
+ * Когда время float'ом не помещается на последней строке текста, shrink-to-fit
+ * всё равно считает ширину бабла как «текст + время в одну строку» и упирает её
+ * в max-width — бабл оказывается шире текста, а время висит у его края, а не под
+ * текстом. CSS этого не решает (max-content всегда без переноса), поэтому меряем:
+ * если время перенеслось — возвращаем фактическую максимальную ширину строки
+ * текста, чтобы явно сузить бабл по тексту (как в Telegram). Иначе — null (авто).
+ */
+function useBubbleTextHug(enabled: boolean, signature: string) {
+  const ref = useRef<HTMLDivElement | null>(null);
+  const [hugWidth, setHugWidth] = useState<number | null>(null);
+
+  useLayoutEffect(() => {
+    let frame = 0;
+    if (!enabled) {
+      // Сброс откладываем кадром — синхронный setState в эффекте запрещён линтом.
+      frame = requestAnimationFrame(() => setHugWidth((prev) => (prev === null ? prev : null)));
+      return () => cancelAnimationFrame(frame);
+    }
+    const el = ref.current;
+    if (!el) return;
+
+    const measure = () => {
+      frame = 0;
+      const time = el.querySelector<HTMLElement>(".bubble__time--inline");
+      if (!time) {
+        setHugWidth((prev) => (prev === null ? prev : null));
+        return;
+      }
+      // Решаем о переносе по ЕСТЕСТВЕННОЙ ширине: снимаем наш width-override,
+      // иначе бабл уже сужен по тексту и время всегда «перенесено» (залипание).
+      const applied = el.style.width;
+      el.style.width = "";
+      const range = document.createRange();
+      range.setStart(el, 0);
+      range.setEndBefore(time);
+      let maxLine = 0;
+      let lastRect: DOMRect | null = null;
+      for (const r of range.getClientRects()) {
+        if (r.width > maxLine) maxLine = r.width;
+        if (r.width > 0) lastRect = r;
+      }
+      // Время перенеслось, если его верх ниже последней строки текста
+      // (сравниваем геометрию — offsetTop тут считается от offsetParent).
+      const wrapped = lastRect ? time.getBoundingClientRect().top - lastRect.top > 3 : false;
+      const next = wrapped ? Math.ceil(maxLine) : null;
+      el.style.width = applied; // вернём как было; React перепишет при смене стейта
+      setHugWidth((prev) => (prev === next ? prev : next));
+    };
+
+    // Меряем после применённого hugWidth: запрашиваем кадр, чтобы лэйаут устоялся.
+    measure();
+    const ro = new ResizeObserver(() => {
+      if (frame) return;
+      frame = requestAnimationFrame(measure);
+    });
+    ro.observe(el);
+    return () => {
+      if (frame) cancelAnimationFrame(frame);
+      ro.disconnect();
+    };
+    // signature меняется при смене текста/времени → пере-замер для нового контента.
+  }, [enabled, signature]);
+
+  return { ref, hugWidth };
+}
+
+/**
  * Мета-строка бабла (булавка + «изменено» + время + статус доставки).
  * Два режима:
  *  - "inline": время float'ом справа в конце текста (ТГ-стиль) — на одной линии
@@ -300,8 +368,18 @@ function MessageContent({
     (shouldShowText(message) && !message.poll) ||
     (!message.media && !message.albumMedia && !message.poll);
 
+  // Сужаем бабл по тексту, когда время float'ом перенеслось на свою строку.
+  const { ref: textRef, hugWidth } = useBubbleTextHug(
+    bubble && hasBubbleText && formatTime !== undefined,
+    `${message.text ?? ""}|${message.formattedBody ?? ""}|${message.edited}|${message.pinned}|${message.own}|${formatTime ? formatTime(message.timestamp) : ""}`,
+  );
+
   return (
-    <div className={bubble ? "bubble__text" : "message__text"}>
+    <div
+      className={bubble ? "bubble__text" : "message__text"}
+      ref={bubble ? textRef : undefined}
+      style={bubble && hugWidth !== null ? { width: hugWidth } : undefined}
+    >
       {message.forwardedFrom && (
         <div className="message__forwarded">
           <Forward size={13} />
