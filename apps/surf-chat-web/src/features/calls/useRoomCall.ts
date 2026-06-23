@@ -374,6 +374,13 @@ export function useRoomCall(client: MatrixClient | null, roomId: string | null):
     return () => window.clearTimeout(id);
   }, [error, status]);
 
+  // Mid-call error (камера/экран) — показываем тостом, звонок не рвём.
+  useEffect(() => {
+    if (status !== "connected" || !error) return;
+    const id = window.setTimeout(() => setError(null), 4000);
+    return () => window.clearTimeout(id);
+  }, [error, status]);
+
   // In-call timer. durationSec reset in start()/endCall(), so the effect only ticks.
   useEffect(() => {
     if (status !== "connected") return;

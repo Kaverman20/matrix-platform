@@ -200,6 +200,12 @@ export function CallPanel({
         </div>
       )}
 
+      {call.status === "connected" && call.error && (
+        <div className="call-panel__toast" role="alert">
+          {call.error}
+        </div>
+      )}
+
       {showVideoStage ? (
         <div className="call-panel__stage">
           {stage.main ? (
@@ -228,11 +234,14 @@ export function CallPanel({
         <div className="call-panel__body">
           {avatar}
           <p className="call-panel__status">
-            {isIncoming
-              ? incoming?.callIntent === "video"
-                ? "Входящий видеозвонок…"
-                : "Входящий звонок…"
-              : statusText(call)}
+            {isIncoming ? (
+              <>
+                {incoming?.callIntent === "video" ? <Video size={15} aria-hidden /> : <Phone size={15} aria-hidden />}
+                <span>{incoming?.callIntent === "video" ? "Входящий видеозвонок…" : "Входящий звонок…"}</span>
+              </>
+            ) : (
+              statusText(call)
+            )}
           </p>
         </div>
       )}

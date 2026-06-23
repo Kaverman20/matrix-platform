@@ -76,6 +76,9 @@
 }
 
 .call-panel__status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   margin: 0;
   color: var(--color-text-muted);
   font-size: var(--text-sm);
@@ -199,6 +202,16 @@
   border-bottom: 1px solid var(--color-border);
   background: var(--color-bg-subtle);
   color: var(--color-text-muted);
+  font-size: var(--text-xs);
+  text-align: center;
+}
+
+.call-panel__toast {
+  margin: var(--space-2) var(--space-3) 0;
+  padding: 7px var(--space-3);
+  border-radius: var(--radius-md, 10px);
+  background: color-mix(in srgb, var(--color-danger) 16%, var(--color-bg));
+  color: var(--color-danger);
   font-size: var(--text-xs);
   text-align: center;
 }

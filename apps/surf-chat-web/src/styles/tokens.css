@@ -32,6 +32,7 @@
 
   --color-online: #34c759;
   --color-danger: #e5484d;
+  --color-success: #3a9d4e;
 
   /* Chat bubbles (bubble view) — themed so dark mode adapts. */
   /* Warm-neutral bubble contrast (our palette, not Telegram green): incoming
