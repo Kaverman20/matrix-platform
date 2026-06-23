@@ -13,6 +13,7 @@ import {
 } from "@matrix-platform/matrix-core";
 import { useMatrix } from "../../app/providers/MatrixContext";
 import { usePreferences } from "../../app/providers/usePreferences";
+import type { LightboxState } from "../media/Lightbox";
 import { composerSubmitOnKeyDown } from "../composer/composerKeys";
 import { Timeline } from "../timeline/Timeline";
 import { useThreadMessages } from "./useThreadMessages";
@@ -26,7 +27,7 @@ type Props = {
   highlightMessageId?: string | null;
   editing?: MatrixMessageReference | null;
   replyTo?: MatrixMessageReference | null;
-  onOpenImage: (src: string) => void;
+  onOpenImage: (state: LightboxState) => void;
   onOpenMessageMenu: (message: MatrixMessage, x: number, y: number) => void;
   onToggleReaction: (message: MatrixMessage, key: string) => void;
   onJumpToMessage?: (messageId: string) => void;

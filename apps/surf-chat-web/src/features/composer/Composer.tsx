@@ -1,9 +1,11 @@
-import { forwardRef, useEffect, useImperativeHandle, useRef, useState, type ClipboardEvent as ReactClipboardEvent, type KeyboardEvent as ReactKeyboardEvent } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState, type ClipboardEvent as ReactClipboardEvent, type DragEvent as ReactDragEvent, type KeyboardEvent as ReactKeyboardEvent } from "react";
+import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { ArrowUp, BarChart3, Ban, FileText, Forward, Image as ImageIcon, Mic, Paperclip, Pencil, Reply, Smile, Trash2, X } from "lucide-react";
 import { spring, transition } from "@matrix-platform/ui";
 import { EmojiPicker } from "../../components/EmojiPicker";
 import { CreatePollModal } from "./CreatePollModal";
+import { MediaPreviewModal, type MediaPreviewMode } from "./MediaPreviewModal";
 import {
   sendEditMessage,
   sendForwardedMessage,
@@ -31,6 +33,7 @@ import { composerSubmitOnKeyDown } from "./composerKeys";
 import { useVoiceRecorder } from "./useVoiceRecorder";
 import { RecordingWaveform } from "./RecordingWaveform";
 import { formatRecordingTime, waveformFromBlob } from "../media/waveform";
+import { compressImage } from "../media/compressImage";
 import { MentionAutocomplete } from "./MentionAutocomplete";
 import { ComposerTextMenu } from "./ComposerTextMenu";
 import { useMentionAutocomplete } from "./useMentionAutocomplete";
@@ -83,7 +86,14 @@ export const Composer = forwardRef<ComposerHandle, Props>(function Composer({
   const [attachOpen, setAttachOpen] = useState(false);
   const [emojiOpen, setEmojiOpen] = useState(false);
   const [pollOpen, setPollOpen] = useState(false);
-  const [pastedImage, setPastedImage] = useState<{ file: File; url: string } | null>(null);
+  // Файлы, ожидающие отправки: показываем превью с подписью (скрепка / DnD / вставка).
+  const [pendingMedia, setPendingMedia] = useState<{ files: File[]; mode: MediaPreviewMode } | null>(null);
+  // Активен оверлей drag&drop с двумя зонами (фото / файл).
+  const [dragActive, setDragActive] = useState(false);
+  // Зона, над которой сейчас файл — подсвечиваем её сразу по dragover, а не через
+  // CSS :hover (он во время нативного перетаскивания обновляется с задержкой).
+  const [activeZone, setActiveZone] = useState<MediaPreviewMode | null>(null);
+  const dragDepthRef = useRef(0);
   const [sending, setSending] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploadState, setUploadState] = useState<{ current: number; total: number; name: string } | null>(null);
@@ -278,15 +288,59 @@ export const Composer = forwardRef<ComposerHandle, Props>(function Composer({
     }
   };
 
-  const sendFiles = async (files: FileList | null) => {
-    if (!client || !files?.length || sending || uploading) return;
+  const canAttach = mode !== "edit" && !(sendPermission && !sendPermission.canSend);
 
+  // Открыть превью с файлами. Если превью уже открыто — дополняем альбом
+  // (кнопка «Добавить» в самой модалке), иначе создаём новое с режимом зоны.
+  const openMediaPreview = (files: File[], previewMode: MediaPreviewMode) => {
+    if (!canAttach || !files.length) return;
+    setAttachOpen(false);
+    setEmojiOpen(false);
+    setPendingMedia((prev) =>
+      prev
+        ? { ...prev, files: [...prev.files, ...files].slice(0, 10) }
+        : { files: files.slice(0, 10), mode: previewMode },
+    );
+  };
+
+  const triggerAddMore = (addMode: MediaPreviewMode) => {
+    if (addMode === "file") fileInputRef.current?.click();
+    else imageInputRef.current?.click();
+  };
+
+  // Убрать один файл из превью; если файлов не осталось — закрываем окно.
+  const removePendingFile = (index: number) => {
+    setPendingMedia((prev) => {
+      if (!prev) return null;
+      const files = prev.files.filter((_, i) => i !== index);
+      return files.length ? { ...prev, files } : null;
+    });
+  };
+
+  const onFileInputChange = (input: HTMLInputElement | null, inputMode: MediaPreviewMode) => {
+    if (input?.files?.length) openMediaPreview(Array.from(input.files), inputMode);
+    if (input) input.value = "";
+  };
+
+  // Реальная отправка из превью: грузим файлы по очереди, подпись вешаем на
+  // последнее сообщение альбома (как в Telegram).
+  const submitMedia = async (files: File[], caption: string, asFile: boolean) => {
+    if (!client || !files.length || sending || uploading) return;
+    setPendingMedia(null);
     setUploading(true);
+    // Несколько файлов помечаем одним albumId — в ленте они склеятся в «пак».
+    const albumId = files.length > 1 ? crypto.randomUUID() : undefined;
     try {
-      const allFiles = Array.from(files);
-      for (const [index, file] of allFiles.entries()) {
-        setUploadState({ current: index + 1, total: allFiles.length, name: file.name });
-        await sendMediaMessage(client, roomId, file, await mediaUploadInfo(file));
+      for (const [index, file] of files.entries()) {
+        setUploadState({ current: index + 1, total: files.length, name: file.name });
+        // В режиме «медиа» картинки сжимаем; в режиме «файл» шлём оригинал.
+        const outgoing = asFile ? file : await compressImage(file);
+        await sendMediaMessage(client, roomId, outgoing, await mediaUploadInfo(outgoing), undefined, {
+          asFile,
+          // Подпись — на первом элементе альбома (одна на весь пак, как в Telegram).
+          caption: index === 0 ? caption : undefined,
+          album: albumId ? { id: albumId, index, total: files.length } : undefined,
+        });
       }
       onSent();
     } catch (e) {
@@ -294,9 +348,62 @@ export const Composer = forwardRef<ComposerHandle, Props>(function Composer({
     } finally {
       setUploading(false);
       setUploadState(null);
-      if (fileInputRef.current) fileInputRef.current.value = "";
-      if (imageInputRef.current) imageInputRef.current.value = "";
     }
+  };
+
+  // Drag&drop файлов в окно: показываем затемняющий оверлей с двумя зонами.
+  // Счётчик глубины гасит мерцание при наведении на вложенные элементы.
+  useEffect(() => {
+    if (!canAttach) return;
+
+    const hasFiles = (event: DragEvent) =>
+      Array.from(event.dataTransfer?.types ?? []).includes("Files");
+
+    const onDragEnter = (event: DragEvent) => {
+      if (!hasFiles(event)) return;
+      event.preventDefault();
+      dragDepthRef.current += 1;
+      setDragActive(true);
+    };
+    const onDragOver = (event: DragEvent) => {
+      if (!hasFiles(event)) return;
+      event.preventDefault();
+    };
+    const onDragLeave = () => {
+      dragDepthRef.current = Math.max(0, dragDepthRef.current - 1);
+      if (dragDepthRef.current === 0) {
+        setDragActive(false);
+        setActiveZone(null);
+      }
+    };
+    const onDrop = (event: DragEvent) => {
+      // Дроп мимо зон — гасим оверлей и не даём браузеру открыть файл.
+      if (hasFiles(event)) event.preventDefault();
+      dragDepthRef.current = 0;
+      setDragActive(false);
+      setActiveZone(null);
+    };
+
+    window.addEventListener("dragenter", onDragEnter);
+    window.addEventListener("dragover", onDragOver);
+    window.addEventListener("dragleave", onDragLeave);
+    window.addEventListener("drop", onDrop);
+    return () => {
+      window.removeEventListener("dragenter", onDragEnter);
+      window.removeEventListener("dragover", onDragOver);
+      window.removeEventListener("dragleave", onDragLeave);
+      window.removeEventListener("drop", onDrop);
+    };
+  }, [canAttach]);
+
+  const handleZoneDrop = (event: ReactDragEvent<HTMLDivElement>, zoneMode: MediaPreviewMode) => {
+    event.preventDefault();
+    event.stopPropagation();
+    dragDepthRef.current = 0;
+    setDragActive(false);
+    setActiveZone(null);
+    const files = Array.from(event.dataTransfer?.files ?? []);
+    if (files.length) openMediaPreview(files, zoneMode);
   };
 
   const insertEmoji = (emoji: string) => {
@@ -491,58 +598,23 @@ export const Composer = forwardRef<ComposerHandle, Props>(function Composer({
   };
 
   const handlePaste = (event: ReactClipboardEvent<HTMLTextAreaElement>) => {
-    if (mode === "edit") return;
+    if (!canAttach) return;
     const items = event.clipboardData?.items;
     if (!items) return;
+    const files: File[] = [];
     for (const item of items) {
       if (item.kind === "file" && item.type.startsWith("image/")) {
         const file = item.getAsFile();
-        if (!file) continue;
-        event.preventDefault();
-        setPastedImage((prev) => {
-          if (prev) URL.revokeObjectURL(prev.url);
-          return { file, url: URL.createObjectURL(file) };
-        });
-        return;
+        if (file) files.push(file);
       }
     }
-  };
-
-  const clearPastedImage = () => {
-    setPastedImage((prev) => {
-      if (prev) URL.revokeObjectURL(prev.url);
-      return null;
-    });
-  };
-
-  const sendPastedImage = async () => {
-    if (!client || !pastedImage || sending || uploading) return;
-    const caption = draft.trim();
-    const image = pastedImage;
-    setPastedImage(null);
-    setDraft("");
-    clearDraft();
-    setUploading(true);
-    try {
-      await sendMediaMessage(client, roomId, image.file, await mediaUploadInfo(image.file), undefined, {
-        caption,
-      });
-      URL.revokeObjectURL(image.url);
-      onSent();
-    } catch (e) {
-      console.error("[send-pasted-image]", e);
-      setPastedImage(image);
-      setDraft(caption);
-    } finally {
-      setUploading(false);
+    if (files.length) {
+      event.preventDefault();
+      openMediaPreview(files, "photo");
     }
   };
 
   const submitComposer = () => {
-    if (pastedImage) {
-      void sendPastedImage();
-      return;
-    }
     void send();
   };
 
@@ -557,20 +629,15 @@ export const Composer = forwardRef<ComposerHandle, Props>(function Composer({
     }
   };
 
-  // Release the pasted-image preview URL if the composer unmounts mid-compose.
-  useEffect(() => {
-    return () => {
-      setPastedImage((prev) => {
-        if (prev) URL.revokeObjectURL(prev.url);
-        return null;
-      });
-    };
-  }, []);
-
   useImperativeHandle(ref, () => ({
     escape() {
-      if (pastedImage) {
-        clearPastedImage();
+      if (dragActive) {
+        dragDepthRef.current = 0;
+        setDragActive(false);
+        return true;
+      }
+      if (pendingMedia) {
+        setPendingMedia(null);
         return true;
       }
       if (pollOpen) {
@@ -617,7 +684,11 @@ export const Composer = forwardRef<ComposerHandle, Props>(function Composer({
       }
       return false;
     },
-  }), [attachOpen, clearDraft, draft, editingMessage, emojiOpen, mentions, onCancelEdit, onCancelForward, onCancelReply, pastedImage, pendingForward, pollOpen, replyTo, textMenu, voice]);
+  }), [attachOpen, clearDraft, draft, dragActive, editingMessage, emojiOpen, mentions, onCancelEdit, onCancelForward, onCancelReply, pendingForward, pendingMedia, pollOpen, replyTo, textMenu, voice]);
+
+  // Оверлей DnD рендерим порталом в область чата (.chat-main), чтобы он накрывал
+  // именно переписку, а не сайдбар — как в Telegram.
+  const dropContainer = composerWrapRef.current?.closest(".chat-main") ?? null;
 
   const readOnlyReason = sendPermission && !sendPermission.canSend ? sendPermission.reason : null;
   if (readOnlyReason) {
@@ -636,31 +707,58 @@ export const Composer = forwardRef<ComposerHandle, Props>(function Composer({
       {pollOpen && (
         <CreatePollModal onSubmit={createPoll} onClose={() => setPollOpen(false)} />
       )}
-      <AnimatePresence initial={false}>
-        {pastedImage && (
-          <motion.div
-            className="composer__paste-preview"
-            initial={{ height: 0, opacity: 0, y: 6 }}
-            animate={{ height: "auto", opacity: 1, y: 0 }}
-            exit={{ height: 0, opacity: 0, y: 6 }}
-            transition={transition.fast}
-          >
-            <img src={pastedImage.url} alt="Вставленное изображение" />
-            <div className="composer__paste-info">
-              <strong>Изображение</strong>
-              <p>Добавьте подпись и отправьте</p>
-            </div>
-            <button
-              type="button"
-              className="composer__cancel"
-              title="Убрать изображение"
-              onClick={clearPastedImage}
-            >
-              <X size={16} />
-            </button>
-          </motion.div>
+      <AnimatePresence>
+        {pendingMedia && (
+          <MediaPreviewModal
+            files={pendingMedia.files}
+            mode={pendingMedia.mode}
+            onSubmit={submitMedia}
+            onAddMore={triggerAddMore}
+            onRemove={removePendingFile}
+            onClose={() => setPendingMedia(null)}
+          />
         )}
       </AnimatePresence>
+      {dropContainer &&
+        createPortal(
+          <AnimatePresence>
+            {dragActive && (
+              <motion.div
+                className="composer-dropzones"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.12 }}
+              >
+                <div
+                  className={`composer-dropzone${activeZone === "file" ? " is-over" : ""}`}
+                  onDragEnter={() => setActiveZone("file")}
+                  onDragOver={(event) => {
+                    event.preventDefault();
+                    if (activeZone !== "file") setActiveZone("file");
+                  }}
+                  onDrop={(event) => handleZoneDrop(event, "file")}
+                >
+                  <span>Перетащите сюда файлы для отправки</span>
+                  <strong>без сжатия</strong>
+                </div>
+                <div
+                  className={`composer-dropzone${activeZone === "photo" ? " is-over" : ""}`}
+                  onDragEnter={() => setActiveZone("photo")}
+                  onDragOver={(event) => {
+                    event.preventDefault();
+                    if (activeZone !== "photo") setActiveZone("photo");
+                  }}
+                  onDrop={(event) => handleZoneDrop(event, "photo")}
+                >
+                  <span>Перетащите сюда файлы для отправки</span>
+                  <strong>быстрым способом</strong>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>,
+          dropContainer,
+        )}
       <AnimatePresence initial={false}>
         {context && (
           <motion.div
@@ -796,14 +894,14 @@ export const Composer = forwardRef<ComposerHandle, Props>(function Composer({
             accept="image/*,video/*"
             multiple
             hidden
-            onChange={(event) => void sendFiles(event.currentTarget.files)}
+            onChange={(event) => onFileInputChange(event.currentTarget, "photo")}
           />
           <input
             ref={fileInputRef}
             type="file"
             multiple
             hidden
-            onChange={(event) => void sendFiles(event.currentTarget.files)}
+            onChange={(event) => onFileInputChange(event.currentTarget, "file")}
           />
         </div>
         <div className="composer__input-wrap">
@@ -819,7 +917,7 @@ export const Composer = forwardRef<ComposerHandle, Props>(function Composer({
             className="composer__input"
             value={draft}
             rows={1}
-            placeholder={mode === "edit" ? "Изменить сообщение" : pastedImage ? "Добавьте подпись…" : "Сообщение…"}
+            placeholder={mode === "edit" ? "Изменить сообщение" : "Сообщение…"}
             disabled={sending || uploading}
             onChange={(e) => handleDraftChange(e.target.value, e.currentTarget)}
             onPaste={handlePaste}
@@ -868,7 +966,7 @@ export const Composer = forwardRef<ComposerHandle, Props>(function Composer({
         </div>
           </>
         )}
-        {draft.trim() || pendingForward || pastedImage ? (
+        {draft.trim() || pendingForward ? (
           <motion.button
             type="submit"
             className="composer__send"

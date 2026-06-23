@@ -1,5 +1,6 @@
 import type { MouseEvent as ReactMouseEvent } from "react";
 import type { MatrixMessage } from "@matrix-platform/matrix-core";
+import type { LightboxState } from "../media/Lightbox";
 import { MessageSelectMark } from "../selection/MessageSelectMark";
 import { SystemMessage } from "./SystemMessage";
 import { BubbleMessage, FlatMessage } from "./MessageRow";
@@ -13,7 +14,7 @@ export type TimelineItemContext = {
   searchQuery?: string;
   selectionActive: boolean;
   selectedIds?: Set<string>;
-  onOpenImage: (src: string) => void;
+  onOpenImage: (state: LightboxState) => void;
   onOpenMessageMenu: (message: MatrixMessage, x: number, y: number) => void;
   onToggleReaction: (message: MatrixMessage, key: string) => void;
   onOpenThread: (rootId: string) => void;

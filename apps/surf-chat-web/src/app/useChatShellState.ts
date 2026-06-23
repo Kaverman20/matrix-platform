@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { MatrixForwardData, MatrixMessage, MatrixMessageReference } from "@matrix-platform/matrix-core";
 import type { RightPanelSection } from "../features/room-settings/RoomRightPanel";
+import type { LightboxState } from "../features/media/Lightbox";
 import type { usePreferences } from "./providers/usePreferences";
 import { resolveInitialActiveRoomId, resolveInitialActiveSpaceId, resolveInitialSidebarView, type SidebarView } from "./chatUrl";
 
@@ -22,7 +23,7 @@ export function useChatShellState(preferences: ReturnType<typeof usePreferences>
     resolveInitialActiveRoomId(ACTIVE_ROOM_STORAGE_KEY),
   );
   const [forwarding, setForwarding] = useState<MatrixForwardData[] | null>(null);
-  const [lightbox, setLightbox] = useState<string | null>(null);
+  const [lightbox, setLightbox] = useState<LightboxState | null>(null);
   const [chatView, setChatView] = useState<ChatView>(() => preferences.defaultChatView);
   const [showRightPanel, setShowRightPanel] = useState(false);
   const [rightPanelSection, setRightPanelSection] = useState<RightPanelSection>("overview");

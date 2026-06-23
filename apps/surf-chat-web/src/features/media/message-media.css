@@ -3,6 +3,60 @@
   margin: 5px 0 4px;
 }
 
+/* Альбом («пак» из нескольких медиа одним сообщением) */
+.message-album {
+  margin: 5px 0 4px;
+}
+
+.message-album--grid {
+  display: grid;
+  gap: 3px;
+  width: 360px;
+  max-width: 100%;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.message-album--files {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 340px;
+  max-width: 100%;
+}
+
+/* Внутри сетки картинки тянутся на ячейку (квадрат), а не фикс. 340px. */
+.message-album__cell {
+  position: relative;
+  aspect-ratio: 1 / 1;
+  min-height: 0;
+}
+
+.message-album__cell .message-media {
+  margin: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.message-album__cell .message-media--image,
+.message-album__cell .message-media--broken {
+  width: 100%;
+  min-height: 0;
+  height: 100%;
+  border: 0;
+  border-radius: 0;
+}
+
+.message-album__cell .message-media--video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.message-album--files .message-media {
+  margin: 0;
+}
+
 .message-media--image,
 .message-media--broken {
   width: 340px;

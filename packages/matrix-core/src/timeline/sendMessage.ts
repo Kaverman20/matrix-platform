@@ -9,6 +9,15 @@ import type {
 } from "./messageTypes";
 
 export const FORWARD_KEY = "ru.surfchat.forwarded";
+// Кастомное поле для группировки нескольких медиа в один «альбом» (пак как в
+// Telegram). Matrix не имеет нативной группировки, поэтому метим события общим id.
+export const ALBUM_KEY = "ru.surfchat.album";
+
+export type MediaAlbumInfo = {
+  id: string;
+  index: number;
+  total: number;
+};
 
 export type MediaUploadInfo = {
   height?: number;
@@ -183,14 +192,27 @@ export async function sendMediaMessage(
   file: File,
   uploadInfo: MediaUploadInfo = {},
   threadRootId?: string,
-  options: { voice?: boolean; durationMs?: number; waveform?: number[]; caption?: string } = {},
+  options: {
+    voice?: boolean;
+    durationMs?: number;
+    waveform?: number[];
+    caption?: string;
+    asFile?: boolean;
+    album?: MediaAlbumInfo;
+  } = {},
 ): Promise<void> {
   const upload = await client.uploadContent(file, {
     name: file.name,
     type: file.type || "application/octet-stream",
   });
   const contentUri = upload.content_uri;
-  const msgtype = options.voice ? MsgType.Audio : msgTypeForFile(file);
+  // `asFile` принудительно отправляет вложение как документ (оригинал, без
+  // показа в виде картинки/видео) — это режим «Файл» из меню скрепки и DnD.
+  const msgtype = options.voice
+    ? MsgType.Audio
+    : options.asFile
+      ? MsgType.File
+      : msgTypeForFile(file);
   const thread = client.getRoom(roomId)?.getThread(threadRootId ?? "");
 
   const caption = options.caption?.trim();
@@ -209,6 +231,7 @@ export async function sendMediaMessage(
       ...(uploadInfo.height ? { h: uploadInfo.height } : {}),
       ...(options.durationMs ? { duration: options.durationMs } : {}),
     },
+    ...(options.album ? { [ALBUM_KEY]: options.album } : {}),
     ...(options.voice
       ? {
           "org.matrix.msc3245.voice": {},

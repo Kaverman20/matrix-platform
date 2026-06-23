@@ -2,6 +2,7 @@ import { useState } from "react";
 import { ArrowLeft, Bell, ChevronRight, FileText, Hash, Pin, Settings, UserPlus, Users, UserX } from "lucide-react";
 import type { MatrixMedia, MatrixRoomSummary, RoomMemberPermissions } from "@matrix-platform/matrix-core";
 import { AuthedImage } from "../../components/AuthedImage";
+import type { LightboxState } from "../media/Lightbox";
 
 export type RightPanelSection = "overview" | "members" | "media" | "notifications" | "pinned";
 
@@ -37,7 +38,7 @@ type Props = {
   permissions: RoomMemberPermissions;
   canKickMember: (userId: string) => boolean;
   onOpenSettings: () => void;
-  onOpenImage: (src: string) => void;
+  onOpenImage: (state: LightboxState) => void;
   onInviteUser: (userId: string) => Promise<void>;
   onKickMember: (userId: string) => Promise<void>;
   onJumpToPinned: (messageId: string) => void;
@@ -240,7 +241,14 @@ export function RoomRightPanel({
                     key={item.id}
                     type="button"
                     className="right-panel__media"
-                    onClick={() => item.media.kind === "image" && onOpenImage(item.media.url)}
+                    onClick={() => {
+                      if (item.media.kind !== "image") return;
+                      const images = media
+                        .filter((m) => m.media.kind === "image")
+                        .map((m) => ({ url: m.media.url, name: m.media.name }));
+                      const idx = images.findIndex((im) => im.url === item.media.url);
+                      onOpenImage({ images, index: Math.max(0, idx) });
+                    }}
                   >
                     <div className="right-panel__media-preview">
                       {item.media.kind === "image" && item.media.thumbUrl ? (

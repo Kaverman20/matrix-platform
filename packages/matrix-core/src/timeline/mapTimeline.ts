@@ -11,7 +11,7 @@ import type {
   MatrixThreadSummary,
 } from "./messageTypes";
 import { parsePollFromEvent } from "./polls";
-import { FORWARD_KEY } from "./sendMessage";
+import { ALBUM_KEY, FORWARD_KEY } from "./sendMessage";
 
 export function buildTimelineMessages(
   client: MatrixClient,
@@ -85,7 +85,7 @@ function buildMessagesFromEvents(
       .filter((entry): entry is [string, MatrixEvent] => Boolean(entry[0])),
   );
 
-  return events
+  const messages = events
     .map((event, index): MatrixMessage | null => {
       const sender = event.getSender() ?? "";
       const member = room.getMember(sender);
@@ -146,6 +146,7 @@ function buildMessagesFromEvents(
         color: colorForId(sender),
         avatarUrl: getMemberAvatarUrl(client, member),
         media: poll ? undefined : resolveMedia(client, content),
+        albumId: getAlbumId(content),
         poll: poll ?? undefined,
         own,
         deliveryStatus: own ? getDeliveryStatus(room, event, eventId, me) : undefined,
@@ -158,6 +159,61 @@ function buildMessagesFromEvents(
       };
     })
     .filter((message): message is MatrixMessage => Boolean(message));
+
+  return collapseAlbums(messages);
+}
+
+/** Id альбома из кастомного поля события, если оно валидно. */
+function getAlbumId(content: Record<string, unknown>): string | undefined {
+  const album = content[ALBUM_KEY] as { id?: unknown } | undefined;
+  return album && typeof album.id === "string" ? album.id : undefined;
+}
+
+/**
+ * Схлопывает соседние сообщения с одним `albumId` в одно сообщение с массивом
+ * `albumMedia` — так несколько медиа показываются единым «паком», как в Telegram.
+ * Берём за основу ПОСЛЕДНее событие группы (актуальные id/время/статус для
+ * сортировки и прочтений), а подпись — из того члена, где она есть.
+ */
+function collapseAlbums(messages: MatrixMessage[]): MatrixMessage[] {
+  const result: MatrixMessage[] = [];
+  for (let i = 0; i < messages.length; i += 1) {
+    const message = messages[i];
+    const albumId = message.albumId;
+    if (!albumId || !message.media) {
+      result.push(message);
+      continue;
+    }
+
+    const group = [message];
+    while (
+      i + 1 < messages.length &&
+      messages[i + 1].albumId === albumId &&
+      messages[i + 1].media
+    ) {
+      i += 1;
+      group.push(messages[i]);
+    }
+
+    if (group.length === 1) {
+      result.push(message);
+      continue;
+    }
+
+    const last = group[group.length - 1];
+    // Подпись лежит на том члене, где текст не совпадает с именем файла.
+    const captionMember = group.find((m) => m.text && m.text !== m.media?.name);
+    result.push({
+      ...last,
+      text: captionMember?.text ?? "",
+      formattedBody: captionMember?.formattedBody,
+      media: undefined,
+      albumMedia: group
+        .map((m) => m.media)
+        .filter((media): media is MatrixMedia => Boolean(media)),
+    });
+  }
+  return result;
 }
 
 function getDeliveryStatus(
@@ -465,7 +521,14 @@ function resolveMedia(
     kind,
     url,
     thumbUrl,
-    name: typeof content.body === "string" ? content.body : "Файл",
+    // При подписи имя файла лежит в `filename`, а `body` несёт текст подписи
+    // (MSC2530). Без этого подпись совпала бы с именем и не показалась бы.
+    name:
+      typeof content.filename === "string"
+        ? content.filename
+        : typeof content.body === "string"
+          ? content.body
+          : "Файл",
     mimetype: typeof info.mimetype === "string" ? info.mimetype : undefined,
     size: typeof info.size === "number" ? info.size : undefined,
     width: typeof info.w === "number" ? info.w : undefined,

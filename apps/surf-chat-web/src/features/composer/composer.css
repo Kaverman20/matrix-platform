@@ -417,38 +417,221 @@
   text-align: center;
 }
 
-/* Pasted-image preview above the composer */
-.composer__paste-preview {
-  display: grid;
-  grid-template-columns: 48px minmax(0, 1fr) 30px;
+/* Drag&drop оверлей с двумя зонами (фото / файл). Рендерится порталом в
+   .chat-main и накрывает только область переписки — как в Telegram. */
+.composer-dropzones {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  /* Без backdrop-filter — блюр большого слоя заметно лагает анимацию. */
+  background: color-mix(in srgb, var(--color-bg) 82%, transparent);
+}
+
+.composer-dropzone {
+  flex: 1 1 0;
+  display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: var(--space-2);
-  margin: var(--space-3) 0 -2px;
-  border: 1px solid var(--color-border);
-  border-left: 3px solid var(--color-accent);
-  border-radius: var(--radius-md);
-  padding: 7px var(--space-2);
-  background: var(--color-bg-subtle);
-  overflow: hidden;
-}
-
-.composer__paste-preview img {
-  width: 48px;
-  height: 48px;
-  object-fit: cover;
-  border-radius: var(--radius-sm);
-}
-
-.composer__paste-info strong {
-  display: block;
-  color: var(--color-text);
-  font-size: var(--text-sm);
-}
-
-.composer__paste-info p {
-  margin: 1px 0 0;
+  justify-content: center;
+  gap: 6px;
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-lg);
   color: var(--color-text-muted);
+  background: var(--color-bg);
+  transition:
+    border-color 120ms ease,
+    color 120ms ease,
+    background 120ms ease;
+}
+
+.composer-dropzone.is-over {
+  border-color: var(--color-accent);
+  background: var(--color-accent-subtle);
+}
+
+.composer-dropzone span {
+  font-size: var(--text-md);
+}
+
+.composer-dropzone strong {
+  color: var(--color-text-strong);
+  font-size: var(--text-md);
+  font-weight: 700;
+}
+
+.composer-dropzone.is-over strong {
+  color: var(--color-accent);
+}
+
+/* Превью медиа перед отправкой (скрепка / DnD / вставка) */
+.media-preview.surf-dialog {
+  width: min(480px, 92vw);
+}
+
+.media-preview__grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-2);
+  width: 100%;
+  max-height: 340px;
+  margin-top: var(--space-2);
+  overflow-y: auto;
+}
+
+.media-preview__grid--single {
+  grid-template-columns: 1fr;
+  place-items: center;
+}
+
+.media-preview__item {
+  position: relative;
+  aspect-ratio: 1 / 1;
+  width: 100%;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: var(--color-bg-subtle);
+}
+
+/* Одиночное вложение показываем целиком (без обрезки), по центру. */
+.media-preview__grid--single .media-preview__item {
+  aspect-ratio: auto;
+  width: auto;
+  max-width: 100%;
+  max-height: 320px;
+}
+
+.media-preview__item img,
+.media-preview__item video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.media-preview__remove {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  line-height: 0;
+  border: 0;
+  border-radius: var(--radius-pill);
+  color: #fff;
+  background: rgb(15 23 42 / 55%);
+  opacity: 0;
+  cursor: pointer;
+  transition:
+    opacity 120ms ease,
+    background 120ms ease;
+}
+
+.media-preview__item:hover .media-preview__remove,
+.media-preview__remove:focus-visible {
+  opacity: 1;
+}
+
+.media-preview__remove:hover {
+  background: rgb(15 23 42 / 78%);
+}
+
+.media-preview__remove svg {
+  display: block;
+}
+
+.media-preview__grid--single .media-preview__item img,
+.media-preview__grid--single .media-preview__item video {
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: 320px;
+  object-fit: contain;
+}
+
+.media-preview__file {
+  width: 100%;
+  height: 100%;
+  min-width: 160px;
+  min-height: 110px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: var(--space-3);
+  color: var(--color-text-muted);
+  text-align: center;
+}
+
+.media-preview__file-name {
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--color-text);
   font-size: var(--text-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.media-preview__file-size {
+  color: var(--color-text-faint);
+  font-size: var(--text-xs);
+}
+
+.media-preview__add {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  align-self: flex-start;
+  margin-top: var(--space-3);
+  border: 0;
+  border-radius: var(--radius-md);
+  padding: 6px 10px 6px 8px;
+  color: var(--color-accent);
+  background: var(--color-accent-subtle);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 120ms ease;
+}
+
+.media-preview__add:hover {
+  background: color-mix(in srgb, var(--color-accent) 18%, var(--color-bg-subtle));
+}
+
+.media-preview__caption {
+  width: 100%;
+  min-height: 40px;
+  max-height: 120px;
+  margin-top: var(--space-3);
+  box-sizing: border-box;
+  resize: none;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 9px var(--space-3);
+  color: var(--color-text);
+  background: var(--color-bg);
+  font: inherit;
+  font-size: var(--text-sm);
+  outline: none;
+}
+
+.media-preview__caption:focus {
+  border-color: var(--color-accent);
+}
+
+.media-preview__toggle-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 
 /* Poll creation modal */

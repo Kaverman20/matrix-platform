@@ -3,6 +3,8 @@ import { Forward, Reply, SmilePlus } from "lucide-react";
 import type { SyntheticEvent } from "react";
 import type { MatrixMessage } from "@matrix-platform/matrix-core";
 import { MessageMedia } from "../media/MessageMedia";
+import { MessageAlbum } from "../media/MessageAlbum";
+import type { LightboxState } from "../media/Lightbox";
 import { ReactionPill } from "../reactions/ReactionPill";
 import { BubbleShell } from "./BubbleShell";
 import type { BubblePosition } from "./bubbleShape";
@@ -16,7 +18,7 @@ export type MessageRowProps = {
   compact: boolean;
   highlighted: boolean;
   message: MatrixMessage;
-  onOpenImage: (src: string) => void;
+  onOpenImage: (state: LightboxState) => void;
   onOpenMessageMenu: (message: MatrixMessage, x: number, y: number) => void;
   onToggleReaction: (message: MatrixMessage, key: string) => void;
   onOpenThread: (rootId: string) => void;
@@ -241,13 +243,26 @@ function MessageContent({
   bubble = false,
 }: {
   message: MatrixMessage;
-  onOpenImage: (src: string) => void;
+  onOpenImage: (state: LightboxState) => void;
   onJumpToMessage?: (messageId: string) => void;
   searchQuery?: string;
   onShowEditHistory?: (message: MatrixMessage) => void;
   onVotePoll?: (messageId: string, answerIds: string[]) => void;
   bubble?: boolean;
 }) {
+  // Картинки альбома (или одиночная) для просмотрщика; видео/файлы не входят.
+  const lightboxImages = (message.albumMedia ?? (message.media ? [message.media] : []))
+    .filter((item) => item.kind === "image")
+    .map((item) => ({ url: item.url, name: item.name }));
+  const openLightbox = (imageIndex: number) =>
+    onOpenImage({
+      images: lightboxImages,
+      index: imageIndex,
+      author: message.own ? "Вы" : message.author,
+      time: message.time,
+      own: message.own,
+    });
+
   return (
     <div className={bubble ? "bubble__text" : "message__text"}>
       {message.forwardedFrom && (
@@ -269,9 +284,14 @@ function MessageContent({
           <span>{message.replyTo.text ?? "Предыдущее сообщение"}</span>
         </button>
       )}
-      {!message.deleted && message.media && (
-        <MessageMedia media={message.media} onOpenImage={onOpenImage} />
-      )}
+      {!message.deleted && message.albumMedia && message.albumMedia.length > 0 ? (
+        <MessageAlbum media={message.albumMedia} onOpenImageAt={openLightbox} />
+      ) : !message.deleted && message.media ? (
+        <MessageMedia
+          media={message.media}
+          onOpen={message.media.kind === "image" ? () => openLightbox(0) : undefined}
+        />
+      ) : null}
       {!message.deleted && message.poll && onVotePoll && (
         <PollMessage
           poll={message.poll}
@@ -282,7 +302,7 @@ function MessageContent({
         <span className="message__deleted">Сообщение удалено</span>
       ) : shouldShowText(message) && !message.poll ? (
         <MessageBody text={message.text} formattedBody={message.formattedBody} searchQuery={searchQuery} />
-      ) : !message.media && !message.poll ? (
+      ) : !message.media && !message.albumMedia && !message.poll ? (
         <span className="message__empty">Пустое сообщение</span>
       ) : null}
       {!bubble && message.edited && !message.deleted && (

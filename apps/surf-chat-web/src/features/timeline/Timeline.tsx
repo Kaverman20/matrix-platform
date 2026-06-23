@@ -13,6 +13,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { Virtuoso, type VirtuosoHandle } from "react-virtuoso";
 import type { RefObject } from "react";
 import type { MatrixMessage, MatrixRoomSummary } from "@matrix-platform/matrix-core";
+import type { LightboxState } from "../media/Lightbox";
 import { RoomIntro } from "./RoomIntro";
 import { renderTimelineItem, type TimelineItemContext } from "./renderTimelineItem";
 import { isMessageNodeVisible } from "./jumpToMessage";
@@ -96,7 +97,7 @@ function runScrollToMessage({
 type Props = {
   messages: MatrixMessage[];
   highlightMessageId?: string | null;
-  onOpenImage: (src: string) => void;
+  onOpenImage: (state: LightboxState) => void;
   onOpenMessageMenu: (message: MatrixMessage, x: number, y: number) => void;
   onToggleReaction: (message: MatrixMessage, key: string) => void;
   onOpenThread: (rootId: string) => void;

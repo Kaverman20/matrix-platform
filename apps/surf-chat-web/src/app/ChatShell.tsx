@@ -1133,7 +1133,11 @@ export function ChatShell() {
           />
         )}
       </AnimatePresence>
-      <Lightbox src={lightbox} onClose={() => setLightbox(null)} />
+      <Lightbox
+        key={lightbox ? `${lightbox.images[lightbox.index]?.url ?? ""}#${lightbox.index}` : "closed"}
+        state={lightbox}
+        onClose={() => setLightbox(null)}
+      />
       <GlobalThreadsPanel
         open={showAllThreads}
         onSelect={chatNavigation.openThreadFromGlobal}

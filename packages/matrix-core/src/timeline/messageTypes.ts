@@ -11,6 +11,11 @@ export type MatrixMessage = {
   color: string;
   avatarUrl?: string;
   media?: MatrixMedia;
+  /** Id альбома из кастомного поля события (для группировки соседних медиа). */
+  albumId?: string;
+  /** Несколько медиа, отправленных одним альбомом (как «пак» в Telegram).
+      Когда задано — рендерим сеткой вместо одиночного `media`. */
+  albumMedia?: MatrixMedia[];
   own: boolean;
   deliveryStatus?: MatrixDeliveryStatus;
   edited: boolean;

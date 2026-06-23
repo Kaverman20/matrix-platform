@@ -7,10 +7,11 @@ import "./message-media.css";
 
 type Props = {
   media: MatrixMedia;
-  onOpenImage: (src: string) => void;
+  /** Открыть полноэкранный просмотрщик (для картинок). */
+  onOpen?: () => void;
 };
 
-export function MessageMedia({ media, onOpenImage }: Props) {
+export function MessageMedia({ media, onOpen }: Props) {
   const { client } = useMatrix();
   const previewUrl = media.kind === "image" || media.kind === "video" || media.kind === "audio"
     ? media.thumbUrl ?? media.url
@@ -49,7 +50,7 @@ export function MessageMedia({ media, onOpenImage }: Props) {
         type="button"
         className="message-media message-media--image"
         style={ratio ? { aspectRatio: ratio } : undefined}
-        onClick={() => src && onOpenImage(src)}
+        onClick={() => src && onOpen?.()}
       >
         {src ? <img src={src} alt={media.name} /> : <span className="message-media__loader" />}
       </button>
