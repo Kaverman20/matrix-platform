@@ -23,7 +23,6 @@ import {
   markReadUpToEvent,
   mxcThumbnailUrl,
   paginateBackwards,
-  paginateToEvent,
   resolveUiMessageId,
   resolveUiMessageIdInRoom,
   loadJumpContextMessages,
@@ -81,7 +80,6 @@ import "../features/selection/selection-toolbar.css";
 import {
   usePreloadTimelineMessages,
   useTimelineMessages,
-  refreshTimelineMessages,
 } from "../features/timeline/useTimelineMessages";
 import { formatTypingLabel, useTyping } from "../features/timeline/useTyping";
 import { usePresence } from "../features/timeline/usePresence";
@@ -268,7 +266,7 @@ export function ChatShell() {
       const searchSet = preferLive ? liveMessages : messages;
       const uiIdNow = resolveUiMessageId(searchSet, messageId);
       if (uiIdNow) {
-        if (preferLive) setJumpState(null);
+        if (preferLive && jumpState?.roomId === targetRoomId) setJumpState(null);
         requestScrollToMessage(uiIdNow, targetRoomId);
         return;
       }
@@ -279,23 +277,14 @@ export function ChatShell() {
         if (uiIdLive && focusMessage(uiIdLive)) return;
       }
 
+      // (b) Сообщение не загружено в список → НАДЁЖНЫЙ путь: /context-снапшот.
+      // Свежий Virtuoso с маленьким массивом центрируется на цели через
+      // initialScrollToMessageId / initialTopMostItemIndex — без гонки
+      // firstItemIndex, которая ломала скролл при подгрузке истории в live-лету
+      // (prepend требует синхронности firstItemIndex с данными в одном кадре;
+      // у нас это расходилось → Virtuoso уезжал «вниз»). Снапшот этого избегает.
       setJumpLoadingRoomId(targetRoomId);
       try {
-        // (b) Bounded back-pagination — cheap when the target is only a little way up.
-        const found = await paginateToEvent(client, targetRoomId, messageId, {
-          maxPages: 40,
-          pageSize: 50,
-        });
-        if (token !== focusTokenRef.current) return;
-        refreshTimelineMessages(targetRoomId);
-        const uiId = resolveUiMessageIdInRoom(client, targetRoomId, messageId);
-        if (found && uiId) {
-          setJumpState(null);
-          requestScrollToMessage(uiId, targetRoomId);
-          return;
-        }
-
-        // (c) Deep history: bounded /context window rendered as a snapshot.
         const snapshot = await loadJumpContextMessages(client, targetRoomId, messageId);
         if (token !== focusTokenRef.current) return;
         if (snapshot) {
@@ -307,7 +296,7 @@ export function ChatShell() {
         if (token === focusTokenRef.current) setJumpLoadingRoomId(null);
       }
     },
-    [activeRoomId, client, focusMessage, highlightMessage, liveMessages, messages, requestScrollToMessage],
+    [activeRoomId, client, focusMessage, highlightMessage, jumpState, liveMessages, messages, requestScrollToMessage],
   );
 
   // Return from a jump snapshot back to the live timeline tail.

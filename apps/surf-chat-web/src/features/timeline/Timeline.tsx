@@ -11,7 +11,7 @@ import {
 } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Virtuoso, type VirtuosoHandle } from "react-virtuoso";
-import type { RefObject } from "react";
+import type { RefObject, MutableRefObject } from "react";
 import type { MatrixMessage, MatrixRoomSummary } from "@matrix-platform/matrix-core";
 import type { LightboxState } from "../media/Lightbox";
 import { RoomIntro } from "./RoomIntro";
@@ -77,7 +77,7 @@ function runScrollToMessage({
     const node = scroller?.querySelector<HTMLElement>(
       `[data-mid="${CSS.escape(messageId)}"]`,
     );
-    if (node && isMessageNodeVisible(node)) {
+    if (node?.dataset.mid === messageId && isMessageNodeVisible(node)) {
       finish();
       return;
     }
@@ -142,6 +142,36 @@ const READ_VISIBLE_DELAY = 1000;
 // Leave the unread divider a little below the top when opening at first unread.
 const UNREAD_SCROLL_OFFSET = 64;
 
+/** Virtuoso index for a data row, accounting for a pending prepend anchor shift. */
+function effectiveFirstItemIndex(
+  messages: MatrixMessage[],
+  firstItemIndex: number,
+  leadingMessageIdRef: MutableRefObject<string | null>,
+): number {
+  const leadingId = messages[0]?.id ?? null;
+  const previousLeadingId = leadingMessageIdRef.current;
+  if (!previousLeadingId || !leadingId || previousLeadingId === leadingId) {
+    return firstItemIndex;
+  }
+
+  const previousIndex = messages.findIndex((message) => message.id === previousLeadingId);
+  return previousIndex > 0 ? firstItemIndex - previousIndex : firstItemIndex;
+}
+
+function resolveInitialTopMostIndex(
+  messages: MatrixMessage[],
+  firstItemIndex: number,
+  scrollToMessageRequest: Props["scrollToMessageRequest"],
+  initialScrollToMessageId: Props["initialScrollToMessageId"],
+): number {
+  const scrollId = scrollToMessageRequest?.id ?? initialScrollToMessageId ?? null;
+  if (scrollId) {
+    const targetIndex = messages.findIndex((message) => message.id === scrollId);
+    if (targetIndex >= 0) return firstItemIndex + targetIndex;
+  }
+  return firstItemIndex + Math.max(0, messages.length - 1);
+}
+
 export const Timeline = forwardRef<TimelineHandle, Props>(function Timeline({
   messages,
   highlightMessageId,
@@ -186,14 +216,18 @@ export const Timeline = forwardRef<TimelineHandle, Props>(function Timeline({
   const stick = useRef(true);
   const tailMessageId = useRef<string | null>(null);
   const readTimerRef = useRef<number | undefined>(undefined);
+  const initialTopMostItemIndexRef = useRef(
+    resolveInitialTopMostIndex(messages, VIRTUOSO_START_INDEX, scrollToMessageRequest, initialScrollToMessageId),
+  );
 
   useImperativeHandle(ref, () => ({
     scrollToMessage: (messageId: string) => {
       const idx = messages.findIndex((message) => message.id === messageId);
       if (idx < 0) return false;
       stick.current = false;
+      const baseIndex = effectiveFirstItemIndex(messages, firstItemIndex, leadingMessageIdRef);
       virtuosoRef.current?.scrollToIndex({
-        index: firstItemIndex + idx,
+        index: baseIndex + idx,
         align: "center",
         behavior: "smooth",
       });
@@ -205,18 +239,6 @@ export const Timeline = forwardRef<TimelineHandle, Props>(function Timeline({
     if (!hasOlder || !atStart || reachedStart.current) return;
     setAtStart(false);
   }, [atStart, hasOlder]);
-
-  useEffect(() => {
-    const leadingId = messages[0]?.id ?? null;
-    const previousLeadingId = leadingMessageIdRef.current;
-    if (previousLeadingId && leadingId && previousLeadingId !== leadingId) {
-      const previousIndex = messages.findIndex((message) => message.id === previousLeadingId);
-      if (previousIndex > 0) {
-        setFirstItemIndex((value) => value - previousIndex);
-      }
-    }
-    leadingMessageIdRef.current = leadingId;
-  }, [messages]);
 
   const runLoad = useCallback((options: { pages?: number; silent?: boolean; keepBottom?: boolean } = {}) => {
     if (!onLoadOlder || atStart || loadingRef.current) return;
@@ -305,7 +327,7 @@ export const Timeline = forwardRef<TimelineHandle, Props>(function Timeline({
           virtuosoRef,
           scrollerElRef,
           messageId,
-          absoluteIndex: firstItemIndex + targetIndex,
+          absoluteIndex: effectiveFirstItemIndex(messages, firstItemIndex, leadingMessageIdRef) + targetIndex,
           onDone: onScrollToMessageDone,
         });
       }
@@ -358,14 +380,29 @@ export const Timeline = forwardRef<TimelineHandle, Props>(function Timeline({
     if (targetIndex < 0) return;
 
     stick.current = false;
+    const baseIndex = effectiveFirstItemIndex(messages, firstItemIndex, leadingMessageIdRef);
     return runScrollToMessage({
       virtuosoRef,
       scrollerElRef,
       messageId,
-      absoluteIndex: firstItemIndex + targetIndex,
+      absoluteIndex: baseIndex + targetIndex,
       onDone: onScrollToMessageDone,
     });
   }, [firstItemIndex, messages, onScrollToMessageDone, scrollToMessageRequest]);
+
+  // Anchor shift when history prepends — runs after scroll-to-message layout effects
+  // so `effectiveFirstItemIndex` can still see the previous leading id.
+  useLayoutEffect(() => {
+    const leadingId = messages[0]?.id ?? null;
+    const previousLeadingId = leadingMessageIdRef.current;
+    if (previousLeadingId && leadingId && previousLeadingId !== leadingId) {
+      const previousIndex = messages.findIndex((message) => message.id === previousLeadingId);
+      if (previousIndex > 0) {
+        setFirstItemIndex((value) => value - previousIndex);
+      }
+    }
+    leadingMessageIdRef.current = leadingId;
+  }, [messages]);
 
   useEffect(() => {
     const saveBeforeUnload = () => {
@@ -543,7 +580,7 @@ export const Timeline = forwardRef<TimelineHandle, Props>(function Timeline({
         className="timeline__virtuoso"
         data={messages}
         firstItemIndex={firstItemIndex}
-        initialTopMostItemIndex={firstItemIndex + Math.max(0, messages.length - 1)}
+        initialTopMostItemIndex={initialTopMostItemIndexRef.current}
         alignToBottom
         followOutput={() =>
           stick.current && !scrollToMessageRequest && !initialScrollToMessageId ? "auto" : false
