@@ -220,6 +220,19 @@ export function useRoomCall(client: MatrixClient | null, roomId: string | null):
       cameraEnabledRef.current = isVideo;
       wasConnectedRef.current = false;
 
+      // Один промпт на микрофон (+камеру для видео) вместо двух последовательных
+      // запросов LiveKit. После «Разрешить» браузер запомнит доступ и при
+      // следующих звонках спрашивать не будет (выдать доступ из кода нельзя).
+      try {
+        const preflight = await navigator.mediaDevices?.getUserMedia({
+          audio: true,
+          video: isVideo,
+        });
+        preflight?.getTracks().forEach((track) => track.stop());
+      } catch {
+        // Доступ не выдан — LiveKit ниже поднимет понятную ошибку.
+      }
+
       let session: MatrixRTCSession | null = null;
       let liveKit: Room | null = null;
 

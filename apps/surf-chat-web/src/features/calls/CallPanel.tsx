@@ -20,6 +20,7 @@ import { resolveCallStage, type StageVideoTrack } from "./callStage";
 import { formatCallDuration } from "./callDuration";
 import { AuthedImage } from "../../components/AuthedImage";
 import { useDraggablePanel } from "./useDraggablePanel";
+import { useDraggablePip } from "./useDraggablePip";
 import "./call-panel.css";
 
 /** Attaches a LiveKit video track to its own <video>; detaches on unmount. */
@@ -113,12 +114,22 @@ export function CallPanel({
   const dragHeight = sizeMode === "medium" ? mediumH : layout.height;
   const { position, recenter, onDragPointerDown, onDragPointerMove, onDragPointerUp } =
     useDraggablePanel(dragWidth, dragHeight);
+  const {
+    stageRef: pipStageRef,
+    elRef: pipElRef,
+    pipStyle,
+    reset: resetPip,
+    onPointerDown: onPipPointerDown,
+    onPointerMove: onPipPointerMove,
+    onPointerUp: onPipPointerUp,
+  } = useDraggablePip();
 
   if (!isIncoming && !isActive) return null;
 
   const setSizeTo = (next: CallSize) => {
     if (next === "medium") recenter(mediumW, mediumH);
     else if (next === "compact") recenter(layout.width, layout.height);
+    resetPip(); // вернуть превью в угол под новый размер
     setSize(next);
   };
   const sizeIndex = CALL_SIZES.indexOf(sizeMode);
@@ -207,7 +218,7 @@ export function CallPanel({
       )}
 
       {showVideoStage ? (
-        <div className="call-panel__stage">
+        <div className="call-panel__stage" ref={pipStageRef}>
           {stage.main ? (
             <CallVideo
               track={stage.main}
@@ -218,13 +229,22 @@ export function CallPanel({
             <div className="call-panel__stage-fallback">{avatar}</div>
           )}
           {stage.pips.length > 0 && (
-            <div className="call-panel__pips">
-              {stage.pips.map((pip) => (
+            <div
+              className="call-panel__pips"
+              ref={pipElRef}
+              style={pipStyle}
+              onPointerDown={onPipPointerDown}
+              onPointerMove={onPipPointerMove}
+              onPointerUp={onPipPointerUp}
+              onPointerCancel={onPipPointerUp}
+              title="Перетащите своё видео"
+            >
+              {stage.pips.map((p) => (
                 <CallVideo
-                  key={pip.key}
-                  track={pip.track}
+                  key={p.key}
+                  track={p.track}
                   className="call-panel__pip"
-                  mirrored={pip.mirrored}
+                  mirrored={p.mirrored}
                 />
               ))}
             </div>
