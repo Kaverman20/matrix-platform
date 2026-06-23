@@ -47,3 +47,51 @@ jobs:
           python -m pip install --upgrade pip pip-audit
           pip-audit -r services/matrix-keycloak-sync/requirements.txt
 
+  # Auto-deploy of the Surf Chat web client to the foxhound VPS on push to main.
+  # Runs only after `verify` passes. Requires the VPS_SSH_KEY secret (private key
+  # with access to root@109.172.38.60). See infra/foxhound/synapse-test/README.md.
+  deploy-web:
+    needs: verify
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    concurrency:
+      group: deploy-web
+      cancel-in-progress: true
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Build web client
+        run: |
+          cp .env.example .env
+          pnpm --filter @matrix-platform/surf-chat-web build
+
+      - name: Deploy via rsync
+        env:
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+        run: |
+          if [ -z "$VPS_SSH_KEY" ]; then
+            echo "VPS_SSH_KEY secret is not set — skipping deploy."
+            exit 0
+          fi
+          mkdir -p ~/.ssh
+          printf '%s\n' "$VPS_SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H 109.172.38.60 >> ~/.ssh/known_hosts 2>/dev/null
+          rsync -av --delete \
+            -e "ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes" \
+            apps/surf-chat-web/dist/ \
+            root@109.172.38.60:/opt/synapse-test/surfchat-dist/
+
