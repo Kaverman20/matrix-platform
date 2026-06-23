@@ -189,7 +189,9 @@ export function BubbleMessage({
           onJumpToMessage={onJumpToMessage}
           searchQuery={searchQuery}
           onShowEditHistory={onShowEditHistory}
+          onShowReaders={onShowReaders}
           onVotePoll={onVotePoll}
+          formatTime={formatTime}
           bubble
         />
         {message.reactions.length > 0 && (
@@ -206,32 +208,64 @@ export function BubbleMessage({
           </div>
         )}
         {message.thread && <ThreadChip message={message} onOpenThread={onOpenThread} />}
-        <div className="bubble__time">
-          {message.pinned && <Pin size={11} className="bubble__pin" aria-label="Закреплено" />}
-          {message.edited && (
-            <button
-              type="button"
-              className="message__edited message__edited-btn"
-              onClick={() => onShowEditHistory?.(message)}
-            >
-              изменено
-            </button>
-          )}
-          {formatTime(message.timestamp)}
-          {message.own && (
-            <DeliveryStatus
-              status={message.deliveryStatus}
-              compact
-              onShowReaders={
-                onShowReaders
-                  ? (anchorRect) => onShowReaders(message, anchorRect)
-                  : undefined
-              }
-            />
-          )}
-        </div>
       </BubbleShell>
     </article>
+  );
+}
+
+/**
+ * Мета-строка бабла (булавка + «изменено» + время + статус доставки).
+ * Три режима:
+ *  - "inline": реальное время, абсолютом в правом-нижнем углу текста (ТГ-стиль).
+ *  - "spacer": невидимая копия в потоке текста — резервирует место в последней
+ *    строке, чтобы текст «обтекал» время, а перенос случался только при нехватке.
+ *  - "block": обычная строка под контентом (для медиа/опросов без текста).
+ */
+function BubbleMeta({
+  message,
+  formatTime,
+  variant,
+  onShowEditHistory,
+  onShowReaders,
+}: {
+  message: MatrixMessage;
+  formatTime: (timestamp: number) => string;
+  variant: "inline" | "spacer" | "block";
+  onShowEditHistory?: (message: MatrixMessage) => void;
+  onShowReaders?: (message: MatrixMessage, anchorRect: DOMRect) => void;
+}) {
+  const spacer = variant === "spacer";
+  return (
+    <span
+      className={`bubble__time bubble__time--${variant}`}
+      aria-hidden={spacer || undefined}
+    >
+      {message.pinned && <Pin size={11} className="bubble__pin" aria-label="Закреплено" />}
+      {message.edited &&
+        (spacer ? (
+          <span className="message__edited">изменено</span>
+        ) : (
+          <button
+            type="button"
+            className="message__edited message__edited-btn"
+            onClick={() => onShowEditHistory?.(message)}
+          >
+            изменено
+          </button>
+        ))}
+      {formatTime(message.timestamp)}
+      {message.own && (
+        <DeliveryStatus
+          status={message.deliveryStatus}
+          compact
+          onShowReaders={
+            !spacer && onShowReaders
+              ? (anchorRect) => onShowReaders(message, anchorRect)
+              : undefined
+          }
+        />
+      )}
+    </span>
   );
 }
 
@@ -241,7 +275,9 @@ function MessageContent({
   onJumpToMessage,
   searchQuery,
   onShowEditHistory,
+  onShowReaders,
   onVotePoll,
+  formatTime,
   bubble = false,
 }: {
   message: MatrixMessage;
@@ -249,7 +285,9 @@ function MessageContent({
   onJumpToMessage?: (messageId: string) => void;
   searchQuery?: string;
   onShowEditHistory?: (message: MatrixMessage) => void;
+  onShowReaders?: (message: MatrixMessage, anchorRect: DOMRect) => void;
   onVotePoll?: (messageId: string, answerIds: string[]) => void;
+  formatTime?: (timestamp: number) => string;
   bubble?: boolean;
 }) {
   // Картинки альбома (или одиночная) для просмотрщика; видео/файлы не входят.
@@ -264,6 +302,13 @@ function MessageContent({
       time: message.time,
       own: message.own,
     });
+
+  // Заканчивается ли бабл инлайн-текстом (а не медиа/опросом) — тогда время
+  // вплывает в правый-нижний угол текста, иначе ставим его отдельной строкой.
+  const hasBubbleText =
+    message.deleted ||
+    (shouldShowText(message) && !message.poll) ||
+    (!message.media && !message.albumMedia && !message.poll);
 
   return (
     <div className={bubble ? "bubble__text" : "message__text"}>
@@ -315,6 +360,22 @@ function MessageContent({
         >
           (изменено)
         </button>
+      )}
+      {bubble && formatTime && (
+        <>
+          {/* Спейсер в потоке — только при наличии текста: резервирует место
+              под время в последней строке (иначе время «прилипнет» к медиа). */}
+          {hasBubbleText && (
+            <BubbleMeta message={message} formatTime={formatTime} variant="spacer" />
+          )}
+          <BubbleMeta
+            message={message}
+            formatTime={formatTime}
+            variant={hasBubbleText ? "inline" : "block"}
+            onShowEditHistory={onShowEditHistory}
+            onShowReaders={onShowReaders}
+          />
+        </>
       )}
     </div>
   );
