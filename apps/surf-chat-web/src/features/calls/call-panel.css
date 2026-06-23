@@ -200,11 +200,11 @@
   background: #000;
 }
 
-/* В увеличенном окне PiP крупнее. */
+/* В увеличенном окне PiP чуть крупнее, но не перекрывает контент. */
 .call-panel--medium .call-panel__pip,
 .call-panel--full .call-panel__pip {
-  width: 180px;
-  height: 135px;
+  width: 150px;
+  height: 112px;
 }
 
 .call-panel__banner-screen {
