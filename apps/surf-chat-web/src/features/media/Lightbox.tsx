@@ -49,12 +49,20 @@ export function Lightbox({ state, onClose }: Props) {
   useEffect(() => {
     if (!state) return;
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
-      else if (event.key === "ArrowLeft") go(-1);
-      else if (event.key === "ArrowRight") go(1);
+      if (event.key === "Escape") {
+        // Перехват на capture-фазе + остановка, чтобы Esc закрывал именно
+        // просмотрщик и не уходил в другие обработчики.
+        event.preventDefault();
+        event.stopPropagation();
+        onClose();
+      } else if (event.key === "ArrowLeft") {
+        go(-1);
+      } else if (event.key === "ArrowRight") {
+        go(1);
+      }
     };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state, total]);
 
