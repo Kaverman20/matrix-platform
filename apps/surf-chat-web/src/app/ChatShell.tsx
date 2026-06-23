@@ -23,6 +23,7 @@ import {
   markReadUpToEvent,
   mxcThumbnailUrl,
   paginateBackwards,
+  paginateToEvent,
   resolveUiMessageId,
   resolveUiMessageIdInRoom,
   loadJumpContextMessages,
@@ -80,6 +81,7 @@ import "../features/selection/selection-toolbar.css";
 import {
   usePreloadTimelineMessages,
   useTimelineMessages,
+  refreshTimelineMessages,
 } from "../features/timeline/useTimelineMessages";
 import { formatTypingLabel, useTyping } from "../features/timeline/useTyping";
 import { usePresence } from "../features/timeline/usePresence";
@@ -253,38 +255,50 @@ export function ChatShell() {
   // резолвим через resolveUiMessageId. `preferLive` — для закрепа/панели: ищем в
   // live-таймлайне и выходим из jump-снапшота.
   const focusMessageWithPagination = useCallback(
-    async (messageId: string, roomId?: string, opts?: { preferLive?: boolean }) => {
+    async (messageId: string, roomId?: string) => {
       const targetRoomId = roomId ?? activeRoomId;
       if (!client || !targetRoomId || targetRoomId !== activeRoomId) return;
 
       // Cancellation token: a newer focus request (or a room switch) bumps the
       // counter, so a stale retry chain stops instead of scrolling the wrong room.
       const token = (focusTokenRef.current += 1);
-      const preferLive = opts?.preferLive ?? false;
 
-      // (a) Уже в отрисованном списке — просто скроллим, без подгрузки истории.
-      const searchSet = preferLive ? liveMessages : messages;
-      const uiIdNow = resolveUiMessageId(searchSet, messageId);
+      // Возврат на live-ленту и скролл к сообщению БЕЗ снапшота/ремаунта.
+      // scrollToIndex теперь работает по индексу данных (см. Timeline), поэтому
+      // скроллить в живой ленте надёжно — ремаунт (снапшот) для картинок ломал
+      // приземление скролла. Снапшот оставляем только как крайний фоллбэк.
+      const scrollLive = (uiId: string) => {
+        if (jumpState?.roomId === targetRoomId) setJumpState(null);
+        // Свежий кэш ленты — чтобы messages-проп Timeline точно содержал цель,
+        // когда сработает эффект scrollToMessageRequest (findIndex по нему).
+        refreshTimelineMessages(targetRoomId);
+        requestScrollToMessage(uiId, targetRoomId);
+      };
+
+      // (a) Уже в живом SDK-таймлайне (резолвим из свежего buildTimelineMessages,
+      // не из закрытого в замыкании массива) — просто скроллим.
+      const uiIdNow = resolveUiMessageIdInRoom(client, targetRoomId, messageId);
       if (uiIdNow) {
-        if (preferLive && jumpState?.roomId === targetRoomId) setJumpState(null);
-        requestScrollToMessage(uiIdNow, targetRoomId);
+        scrollLive(uiIdNow);
         return;
       }
-      // DOM-фоллбэк (scrollIntoView) — только для reply/search; для закрепа
-      // (preferLive) он мог бы оставить в jump-снапшоте, поэтому пропускаем.
-      if (!preferLive) {
-        const uiIdLive = resolveUiMessageIdInRoom(client, targetRoomId, messageId);
-        if (uiIdLive && focusMessage(uiIdLive)) return;
-      }
 
-      // (b) Сообщение не загружено в список → НАДЁЖНЫЙ путь: /context-снапшот.
-      // Свежий Virtuoso с маленьким массивом центрируется на цели через
-      // initialScrollToMessageId / initialTopMostItemIndex — без гонки
-      // firstItemIndex, которая ломала скролл при подгрузке истории в live-лету
-      // (prepend требует синхронности firstItemIndex с данными в одном кадре;
-      // у нас это расходилось → Virtuoso уезжал «вниз»). Снапшот этого избегает.
       setJumpLoadingRoomId(targetRoomId);
       try {
+        // (b) Подгружаем историю в live-ленту до целевого события, затем скроллим.
+        const found = await paginateToEvent(client, targetRoomId, messageId, {
+          maxPages: 40,
+          pageSize: 50,
+        });
+        if (token !== focusTokenRef.current) return;
+        refreshTimelineMessages(targetRoomId);
+        const uiId = resolveUiMessageIdInRoom(client, targetRoomId, messageId);
+        if (found && uiId) {
+          scrollLive(uiId);
+          return;
+        }
+
+        // (c) Очень глубокая история — крайний фоллбэк через /context-снапшот.
         const snapshot = await loadJumpContextMessages(client, targetRoomId, messageId);
         if (token !== focusTokenRef.current) return;
         if (snapshot) {
@@ -296,7 +310,7 @@ export function ChatShell() {
         if (token === focusTokenRef.current) setJumpLoadingRoomId(null);
       }
     },
-    [activeRoomId, client, focusMessage, highlightMessage, jumpState, liveMessages, messages, requestScrollToMessage],
+    [activeRoomId, client, highlightMessage, jumpState, requestScrollToMessage],
   );
 
   // Return from a jump snapshot back to the live timeline tail.
@@ -663,7 +677,7 @@ export function ChatShell() {
     const current = pinnedMessages[index];
     if (!current?.id) return;
 
-    void focusMessageWithPagination(current.id, undefined, { preferLive: true });
+    void focusMessageWithPagination(current.id);
     setPinnedIndex((index + 1) % pinnedMessages.length);
   };
 
@@ -1035,7 +1049,7 @@ export function ChatShell() {
                     onOpenImage={setLightbox}
                     onInviteUser={handleInviteUser}
                     onKickMember={handleKickMember}
-                    onJumpToPinned={(messageId) => void focusMessageWithPagination(messageId, undefined, { preferLive: true })}
+                    onJumpToPinned={(messageId) => void focusMessageWithPagination(messageId)}
                   />
                 </motion.div>
               </AnimatePresence>
