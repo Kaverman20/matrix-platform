@@ -57,6 +57,9 @@ const LAYOUT = {
   screen: { width: 560, height: 400 },
 } as const;
 
+type CallSize = "compact" | "medium" | "full";
+const CALL_SIZES: CallSize[] = ["compact", "medium", "full"];
+
 const STATUS_LABEL: Record<RoomCall["status"], string> = {
   idle: "",
   connecting: "Соединение…",
@@ -94,18 +97,34 @@ export function CallPanel({
 }: Props) {
   const isIncoming = Boolean(incoming && call.status === "idle");
   const isActive = call.status !== "idle";
-  const [expanded, setExpanded] = useState(false);
+  const [size, setSize] = useState<CallSize>("compact");
 
   const stage = resolveCallStage(call.media);
   const showVideoStage = !isIncoming && (call.mediaMode !== "audio" || Boolean(stage.main));
 
   const layout = LAYOUT[isIncoming ? "audio" : call.mediaMode];
-  const { position, onDragPointerDown, onDragPointerMove, onDragPointerUp } = useDraggablePanel(
-    layout.width,
-    layout.height,
-  );
+  // Размеры «среднего» окна; «маленькое» = layout, «во весь экран» — через CSS.
+  const mediumW = Math.min(960, Math.round(window.innerWidth * 0.92));
+  const mediumH = Math.min(720, Math.round(window.innerHeight * 0.86));
+
+  // Менять размер можно только в видеорежиме; иначе всегда маленькое окно.
+  const sizeMode: CallSize = showVideoStage ? size : "compact";
+  const dragWidth = sizeMode === "medium" ? mediumW : layout.width;
+  const dragHeight = sizeMode === "medium" ? mediumH : layout.height;
+  const { position, recenter, onDragPointerDown, onDragPointerMove, onDragPointerUp } =
+    useDraggablePanel(dragWidth, dragHeight);
 
   if (!isIncoming && !isActive) return null;
+
+  const setSizeTo = (next: CallSize) => {
+    if (next === "medium") recenter(mediumW, mediumH);
+    else if (next === "compact") recenter(layout.width, layout.height);
+    setSize(next);
+  };
+  const sizeIndex = CALL_SIZES.indexOf(sizeMode);
+  const enlarge = () => setSizeTo(CALL_SIZES[Math.min(CALL_SIZES.length - 1, sizeIndex + 1)]);
+  const shrink = () => setSizeTo(CALL_SIZES[Math.max(0, sizeIndex - 1)]);
+  const draggable = sizeMode !== "full";
 
   const fallbackColor = colorForId((peerId ?? peerName) || "call");
   const initial = (peerName.trim()[0] ?? "?").toUpperCase();
@@ -123,38 +142,55 @@ export function CallPanel({
     </div>
   );
 
-  // В развёрнутом виде окно фиксируется по центру (CSS-класс), drag отключается.
-  const canExpand = showVideoStage;
-  const isExpanded = expanded && canExpand;
+  const panelStyle =
+    sizeMode === "full"
+      ? undefined
+      : sizeMode === "medium"
+        ? { left: position.x, top: position.y, width: mediumW, height: mediumH }
+        : { left: position.x, top: position.y, width: layout.width };
 
   return createPortal(
     <div
-      className={`call-panel${showVideoStage ? " call-panel--video" : ""}${isExpanded ? " call-panel--expanded" : ""}`}
+      className={`call-panel${showVideoStage ? " call-panel--video" : ""} call-panel--${sizeMode}`}
       role="dialog"
       aria-label={isIncoming ? `Входящий звонок от ${peerName}` : `Звонок с ${peerName}`}
-      style={isExpanded ? undefined : { left: position.x, top: position.y, width: layout.width }}
+      style={panelStyle}
     >
       <div
         className="call-panel__drag"
-        onPointerDown={isExpanded ? undefined : onDragPointerDown}
-        onPointerMove={isExpanded ? undefined : onDragPointerMove}
-        onPointerUp={isExpanded ? undefined : onDragPointerUp}
-        onPointerCancel={isExpanded ? undefined : onDragPointerUp}
+        onPointerDown={draggable ? onDragPointerDown : undefined}
+        onPointerMove={draggable ? onDragPointerMove : undefined}
+        onPointerUp={draggable ? onDragPointerUp : undefined}
+        onPointerCancel={draggable ? onDragPointerUp : undefined}
       >
         <GripHorizontal size={16} aria-hidden />
         <span className="call-panel__drag-label">{peerName}</span>
         {isActive && <span className="call-panel__drag-status">{statusText(call)}</span>}
-        {canExpand && (
-          <button
-            type="button"
-            className="call-panel__resize"
-            aria-label={isExpanded ? "Свернуть окно" : "Развернуть окно"}
-            title={isExpanded ? "Свернуть" : "Развернуть"}
-            onPointerDown={(e) => e.stopPropagation()}
-            onClick={() => setExpanded((v) => !v)}
-          >
-            {isExpanded ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
-          </button>
+        {showVideoStage && (
+          <span className="call-panel__resize-group" onPointerDown={(e) => e.stopPropagation()}>
+            {sizeMode !== "compact" && (
+              <button
+                type="button"
+                className="call-panel__resize"
+                aria-label="Уменьшить окно"
+                title="Уменьшить"
+                onClick={shrink}
+              >
+                <Minimize2 size={15} />
+              </button>
+            )}
+            {sizeMode !== "full" && (
+              <button
+                type="button"
+                className="call-panel__resize"
+                aria-label="Увеличить окно"
+                title="Увеличить"
+                onClick={enlarge}
+              >
+                <Maximize2 size={15} />
+              </button>
+            )}
+          </span>
         )}
       </div>
 

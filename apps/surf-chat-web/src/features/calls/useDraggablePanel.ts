@@ -76,5 +76,10 @@ export function useDraggablePanel(width: number, height: number) {
     event.currentTarget.releasePointerCapture(event.pointerId);
   }, []);
 
-  return { position, onDragPointerDown, onDragPointerMove, onDragPointerUp };
+  // Поставить панель по центру под заданный размер (при смене размера окна).
+  const recenter = useCallback((w: number, h: number) => {
+    setPosition(centeredPanelPosition(w, h));
+  }, []);
+
+  return { position, recenter, onDragPointerDown, onDragPointerMove, onDragPointerUp };
 }

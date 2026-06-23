@@ -187,8 +187,9 @@
   background: #000;
 }
 
-/* В развёрнутом окне PiP крупнее. */
-.call-panel--expanded .call-panel__pip {
+/* В увеличенном окне PiP крупнее. */
+.call-panel--medium .call-panel__pip,
+.call-panel--full .call-panel__pip {
   width: 180px;
   height: 135px;
 }
@@ -200,6 +201,13 @@
   color: var(--color-text-muted);
   font-size: var(--text-xs);
   text-align: center;
+}
+
+.call-panel__resize-group {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 2px;
 }
 
 .call-panel__resize {
@@ -221,20 +229,27 @@
   background: var(--color-bg-hover);
 }
 
-/* Развёрнутое окно — по центру экрана, видео крупное (Telegram «развернуть»). */
-.call-panel--expanded {
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%);
-  width: min(960px, 92vw);
-  height: min(86vh, 760px);
+/* Среднее окно — размер задаётся inline, окно остаётся перетаскиваемым. */
+.call-panel--medium .call-panel__stage {
+  aspect-ratio: auto;
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
-.call-panel--expanded .call-panel__drag {
+/* На весь экран — фиксировано в viewport, без скруглений, drag отключён. */
+.call-panel--full {
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  border: 0;
+  border-radius: 0;
+}
+
+.call-panel--full .call-panel__drag {
   cursor: default;
 }
 
-.call-panel--expanded .call-panel__stage {
+.call-panel--full .call-panel__stage {
   aspect-ratio: auto;
   flex: 1 1 auto;
   min-height: 0;
