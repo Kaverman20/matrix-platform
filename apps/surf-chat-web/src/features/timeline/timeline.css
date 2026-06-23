@@ -605,11 +605,17 @@
 }
 
 .bubble__text {
-  position: relative;
   font-size: var(--text-md);
   line-height: 1.4;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+}
+
+/* Контейним float времени, чтобы высота бабла учитывала перенесённую строку. */
+.bubble__text::after {
+  content: "";
+  display: block;
+  clear: both;
 }
 
 .bubble__time {
@@ -621,22 +627,13 @@
   white-space: nowrap;
 }
 
-/* Реальное время — абсолютом в правом-нижнем углу текста (ТГ-стиль). */
+/* ТГ-стиль: время float'ом справа в конце текста. Когда влезает — на одной
+   линии с последней строкой; когда нет — переносится вправо-вниз вплотную под
+   текст (текст обтекает float слева), а бабл при этом сужается по ширине текста. */
 .bubble__time--inline {
-  position: absolute;
-  right: 0;
-  bottom: 0;
+  float: right;
   display: inline-flex;
-}
-
-/* Невидимая копия в потоке: резервирует место под время в последней строке,
-   чтобы текст не залезал под него; перенос — только когда не помещается. */
-.bubble__time--spacer {
-  display: inline-flex;
-  visibility: hidden;
   margin-left: 8px;
-  user-select: none;
-  pointer-events: none;
 }
 
 /* Время отдельной строкой — для медиа/опросов без текста. */

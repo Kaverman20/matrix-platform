@@ -215,10 +215,9 @@ export function BubbleMessage({
 
 /**
  * Мета-строка бабла (булавка + «изменено» + время + статус доставки).
- * Три режима:
- *  - "inline": реальное время, абсолютом в правом-нижнем углу текста (ТГ-стиль).
- *  - "spacer": невидимая копия в потоке текста — резервирует место в последней
- *    строке, чтобы текст «обтекал» время, а перенос случался только при нехватке.
+ * Два режима:
+ *  - "inline": время float'ом справа в конце текста (ТГ-стиль) — на одной линии
+ *    с последней строкой, либо вправо-вниз под текст, если не помещается.
  *  - "block": обычная строка под контентом (для медиа/опросов без текста).
  */
 function BubbleMeta({
@@ -230,38 +229,29 @@ function BubbleMeta({
 }: {
   message: MatrixMessage;
   formatTime: (timestamp: number) => string;
-  variant: "inline" | "spacer" | "block";
+  variant: "inline" | "block";
   onShowEditHistory?: (message: MatrixMessage) => void;
   onShowReaders?: (message: MatrixMessage, anchorRect: DOMRect) => void;
 }) {
-  const spacer = variant === "spacer";
   return (
-    <span
-      className={`bubble__time bubble__time--${variant}`}
-      aria-hidden={spacer || undefined}
-    >
+    <span className={`bubble__time bubble__time--${variant}`}>
       {message.pinned && <Pin size={11} className="bubble__pin" aria-label="Закреплено" />}
-      {message.edited &&
-        (spacer ? (
-          <span className="message__edited">изменено</span>
-        ) : (
-          <button
-            type="button"
-            className="message__edited message__edited-btn"
-            onClick={() => onShowEditHistory?.(message)}
-          >
-            изменено
-          </button>
-        ))}
+      {message.edited && (
+        <button
+          type="button"
+          className="message__edited message__edited-btn"
+          onClick={() => onShowEditHistory?.(message)}
+        >
+          изменено
+        </button>
+      )}
       {formatTime(message.timestamp)}
       {message.own && (
         <DeliveryStatus
           status={message.deliveryStatus}
           compact
           onShowReaders={
-            !spacer && onShowReaders
-              ? (anchorRect) => onShowReaders(message, anchorRect)
-              : undefined
+            onShowReaders ? (anchorRect) => onShowReaders(message, anchorRect) : undefined
           }
         />
       )}
@@ -362,20 +352,13 @@ function MessageContent({
         </button>
       )}
       {bubble && formatTime && (
-        <>
-          {/* Спейсер в потоке — только при наличии текста: резервирует место
-              под время в последней строке (иначе время «прилипнет» к медиа). */}
-          {hasBubbleText && (
-            <BubbleMeta message={message} formatTime={formatTime} variant="spacer" />
-          )}
-          <BubbleMeta
-            message={message}
-            formatTime={formatTime}
-            variant={hasBubbleText ? "inline" : "block"}
-            onShowEditHistory={onShowEditHistory}
-            onShowReaders={onShowReaders}
-          />
-        </>
+        <BubbleMeta
+          message={message}
+          formatTime={formatTime}
+          variant={hasBubbleText ? "inline" : "block"}
+          onShowEditHistory={onShowEditHistory}
+          onShowReaders={onShowReaders}
+        />
       )}
     </div>
   );
