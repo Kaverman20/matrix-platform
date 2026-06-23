@@ -82,7 +82,7 @@ function runScrollToMessage({
       return;
     }
 
-    if (attempts < 10) {
+    if (attempts < 24) {
       frameId = requestAnimationFrame(tick);
     } else {
       finish();
@@ -287,6 +287,14 @@ export const Timeline = forwardRef<TimelineHandle, Props>(function Timeline({
   useLayoutEffect(() => {
     if (messages.length === 0 || didInit.current) return;
 
+    // Если уже есть запрос скролла к конкретному сообщению (jump к закрепу/реплаю
+    // сразу после выхода из snapshot и remount) — отдаём скролл ему, не уводим
+    // в самый низ. Иначе дефолтное позиционирование перебивало бы jump.
+    if (scrollToMessageRequest) {
+      didInit.current = true;
+      return;
+    }
+
     if (initialScrollToMessageId) {
       const targetIndex = messages.findIndex((message) => message.id === initialScrollToMessageId);
       if (targetIndex >= 0) {
@@ -340,7 +348,7 @@ export const Timeline = forwardRef<TimelineHandle, Props>(function Timeline({
       }
       didInit.current = true;
     });
-  }, [firstItemIndex, firstUnreadId, initialScrollToMessageId, messages, onScrollToMessageDone, room.id]);
+  }, [firstItemIndex, firstUnreadId, initialScrollToMessageId, messages, onScrollToMessageDone, room.id, scrollToMessageRequest]);
 
   useLayoutEffect(() => {
     if (!scrollToMessageRequest) return;

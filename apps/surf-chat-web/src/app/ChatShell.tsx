@@ -272,8 +272,12 @@ export function ChatShell() {
         requestScrollToMessage(uiIdNow, targetRoomId);
         return;
       }
-      const uiIdLive = resolveUiMessageIdInRoom(client, targetRoomId, messageId);
-      if (uiIdLive && focusMessage(uiIdLive)) return;
+      // DOM-фоллбэк (scrollIntoView) — только для reply/search; для закрепа
+      // (preferLive) он мог бы оставить в jump-снапшоте, поэтому пропускаем.
+      if (!preferLive) {
+        const uiIdLive = resolveUiMessageIdInRoom(client, targetRoomId, messageId);
+        if (uiIdLive && focusMessage(uiIdLive)) return;
+      }
 
       setJumpLoadingRoomId(targetRoomId);
       try {

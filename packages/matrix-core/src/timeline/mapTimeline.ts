@@ -212,6 +212,8 @@ function collapseAlbums(messages: MatrixMessage[]): MatrixMessage[] {
         .map((m) => m.media)
         .filter((media): media is MatrixMedia => Boolean(media)),
       albumEventIds: group.map((m) => m.id),
+      // Закреплён любой кадр альбома → булавка на всей строке.
+      pinned: group.some((m) => m.pinned),
     });
   }
   return result;
