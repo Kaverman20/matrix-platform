@@ -24,7 +24,8 @@ import {
   mxcThumbnailUrl,
   paginateBackwards,
   paginateToEvent,
-  isMessageInUiTimeline,
+  resolveUiMessageId,
+  resolveUiMessageIdInRoom,
   loadJumpContextMessages,
   removeReaction,
   reorderFavourites,
@@ -249,53 +250,61 @@ export function ChatShell() {
     highlightMessage(messageId);
   }, [highlightMessage]);
 
-  const focusMessageWithPagination = useCallback(async (messageId: string, roomId?: string) => {
-    const targetRoomId = roomId ?? activeRoomId;
-    if (!client || !targetRoomId || targetRoomId !== activeRoomId) return;
+  // `messageId` — это event id (закреп / реплай / поиск). Реальный id строки в UI
+  // может отличаться (кадр альбома схлопывается в строку альбома), поэтому всюду
+  // резолвим через resolveUiMessageId. `preferLive` — для закрепа/панели: ищем в
+  // live-таймлайне и выходим из jump-снапшота.
+  const focusMessageWithPagination = useCallback(
+    async (messageId: string, roomId?: string, opts?: { preferLive?: boolean }) => {
+      const targetRoomId = roomId ?? activeRoomId;
+      if (!client || !targetRoomId || targetRoomId !== activeRoomId) return;
 
-    // Cancellation token: a newer focus request (or a room switch — see the
-    // effect below) bumps the counter, so a stale retry chain from a previous
-    // jump stops instead of scrolling/highlighting in the wrong room.
-    const token = (focusTokenRef.current += 1);
+      // Cancellation token: a newer focus request (or a room switch) bumps the
+      // counter, so a stale retry chain stops instead of scrolling the wrong room.
+      const token = (focusTokenRef.current += 1);
+      const preferLive = opts?.preferLive ?? false;
 
-    // (a) Already in the rendered list (live tail, current snapshot, reply,
-    // pinned) — just scroll, no history loading.
-    if (messages.some((message) => message.id === messageId)) {
-      requestScrollToMessage(messageId, targetRoomId);
-      return;
-    }
-    if (focusMessage(messageId)) return;
-
-    setJumpLoadingRoomId(targetRoomId);
-    try {
-      // (b) Bounded back-pagination — cheap when the target is only a little way
-      // up. paginateToEvent now falls through (no hard-false) so we can try the
-      // /context window next when it's far back.
-      const found = await paginateToEvent(client, targetRoomId, messageId, {
-        maxPages: 40,
-        pageSize: 50,
-      });
-      if (token !== focusTokenRef.current) return;
-      refreshTimelineMessages(targetRoomId);
-      if (found && isMessageInUiTimeline(client, targetRoomId, messageId)) {
-        setJumpState(null);
-        requestScrollToMessage(messageId, targetRoomId);
+      // (a) Уже в отрисованном списке — просто скроллим, без подгрузки истории.
+      const searchSet = preferLive ? liveMessages : messages;
+      const uiIdNow = resolveUiMessageId(searchSet, messageId);
+      if (uiIdNow) {
+        if (preferLive) setJumpState(null);
+        requestScrollToMessage(uiIdNow, targetRoomId);
         return;
       }
+      const uiIdLive = resolveUiMessageIdInRoom(client, targetRoomId, messageId);
+      if (uiIdLive && focusMessage(uiIdLive)) return;
 
-      // (c) Deep history: load a bounded /context window centred on the target
-      // and render that snapshot instead of the live tail. O(1) regardless of
-      // how far back the message is.
-      const snapshot = await loadJumpContextMessages(client, targetRoomId, messageId);
-      if (token !== focusTokenRef.current) return;
-      if (snapshot) {
-        setJumpState({ roomId: targetRoomId, messages: snapshot, targetId: messageId });
-        highlightMessage(messageId);
+      setJumpLoadingRoomId(targetRoomId);
+      try {
+        // (b) Bounded back-pagination — cheap when the target is only a little way up.
+        const found = await paginateToEvent(client, targetRoomId, messageId, {
+          maxPages: 40,
+          pageSize: 50,
+        });
+        if (token !== focusTokenRef.current) return;
+        refreshTimelineMessages(targetRoomId);
+        const uiId = resolveUiMessageIdInRoom(client, targetRoomId, messageId);
+        if (found && uiId) {
+          setJumpState(null);
+          requestScrollToMessage(uiId, targetRoomId);
+          return;
+        }
+
+        // (c) Deep history: bounded /context window rendered as a snapshot.
+        const snapshot = await loadJumpContextMessages(client, targetRoomId, messageId);
+        if (token !== focusTokenRef.current) return;
+        if (snapshot) {
+          const targetUiId = resolveUiMessageId(snapshot, messageId) ?? messageId;
+          setJumpState({ roomId: targetRoomId, messages: snapshot, targetId: targetUiId });
+          highlightMessage(targetUiId);
+        }
+      } finally {
+        if (token === focusTokenRef.current) setJumpLoadingRoomId(null);
       }
-    } finally {
-      if (token === focusTokenRef.current) setJumpLoadingRoomId(null);
-    }
-  }, [activeRoomId, client, focusMessage, highlightMessage, messages, requestScrollToMessage]);
+    },
+    [activeRoomId, client, focusMessage, highlightMessage, liveMessages, messages, requestScrollToMessage],
+  );
 
   // Return from a jump snapshot back to the live timeline tail.
   const returnToLiveTimeline = useCallback(() => {
@@ -661,7 +670,7 @@ export function ChatShell() {
     const current = pinnedMessages[index];
     if (!current?.id) return;
 
-    void focusMessageWithPagination(current.id);
+    void focusMessageWithPagination(current.id, undefined, { preferLive: true });
     setPinnedIndex((index + 1) % pinnedMessages.length);
   };
 
@@ -1033,7 +1042,7 @@ export function ChatShell() {
                     onOpenImage={setLightbox}
                     onInviteUser={handleInviteUser}
                     onKickMember={handleKickMember}
-                    onJumpToPinned={(messageId) => void focusMessageWithPagination(messageId)}
+                    onJumpToPinned={(messageId) => void focusMessageWithPagination(messageId, undefined, { preferLive: true })}
                   />
                 </motion.div>
               </AnimatePresence>

@@ -16,6 +16,9 @@ export type MatrixMessage = {
   /** Несколько медиа, отправленных одним альбомом (как «пак» в Telegram).
       Когда задано — рендерим сеткой вместо одиночного `media`. */
   albumMedia?: MatrixMedia[];
+  /** Event id'ы всех событий, схлопнутых в этот альбом (для jump к закрепу/реплаю
+      на конкретный кадр альбома — id строки в UI = id последнего события). */
+  albumEventIds?: string[];
   own: boolean;
   deliveryStatus?: MatrixDeliveryStatus;
   edited: boolean;

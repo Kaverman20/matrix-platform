@@ -65,10 +65,12 @@ function runScrollToMessage({
     if (cancelled) return;
     attempts += 1;
 
+    // Плавный перенос к сообщению (как в Telegram) только на первом кадре —
+    // на ретраях после подгрузки уже мгновенно, чтобы не дёргать анимацию.
     virtuosoRef.current?.scrollToIndex({
       index: absoluteIndex,
       align: "center",
-      behavior: "auto",
+      behavior: attempts === 1 ? "smooth" : "auto",
     });
 
     const scroller = scrollerElRef.current;

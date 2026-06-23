@@ -41,13 +41,36 @@ export function isEventInTimeline(
     .some((event) => event.getId() === eventId);
 }
 
+/**
+ * Находит id строки в UI-списке по event id. Прямое совпадение, либо событие —
+ * член схлопнутого альбома (тогда возвращаем id строки альбома). Нужно для jump
+ * к закрепу/реплаю: `m.room.pinned_events` хранит id конкретного события, а после
+ * `collapseAlbums` id строки = id последнего кадра альбома.
+ */
+export function resolveUiMessageId(messages: MatrixMessage[], eventId: string): string | null {
+  for (const message of messages) {
+    if (message.id === eventId) return message.id;
+    if (message.albumEventIds?.includes(eventId)) return message.id;
+  }
+  return null;
+}
+
+/** То же, но строит UI-список комнаты сам. */
+export function resolveUiMessageIdInRoom(
+  client: MatrixClient,
+  roomId: string,
+  eventId: string,
+): string | null {
+  return resolveUiMessageId(buildTimelineMessages(client, roomId), eventId);
+}
+
 /** Whether the message is present in the rendered UI list (not just the SDK timeline). */
 export function isMessageInUiTimeline(
   client: MatrixClient,
   roomId: string,
   messageId: string,
 ): boolean {
-  return buildTimelineMessages(client, roomId).some((message) => message.id === messageId);
+  return resolveUiMessageIdInRoom(client, roomId, messageId) !== null;
 }
 
 function countMessages(room: Room): number {
@@ -126,5 +149,6 @@ export async function loadJumpContextMessages(
   if (!hasEvent) return null;
 
   const messages = getTimelineWindowMessages(client, roomId, window, eventId);
-  return messages.some((message) => message.id === eventId) ? messages : null;
+  // Учитываем альбомы: событие может быть схлопнуто в строку альбома.
+  return resolveUiMessageId(messages, eventId) ? messages : null;
 }

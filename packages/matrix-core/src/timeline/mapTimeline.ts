@@ -211,6 +211,7 @@ function collapseAlbums(messages: MatrixMessage[]): MatrixMessage[] {
       albumMedia: group
         .map((m) => m.media)
         .filter((media): media is MatrixMedia => Boolean(media)),
+      albumEventIds: group.map((m) => m.id),
     });
   }
   return result;

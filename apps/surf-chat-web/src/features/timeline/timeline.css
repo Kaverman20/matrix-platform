@@ -358,6 +358,18 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* Булавка у закреплённого сообщения (рядом со временем, как в Telegram) */
+.message__pin {
+  flex: 0 0 auto;
+  color: var(--color-text-faint);
+}
+
+.bubble__pin {
+  flex: 0 0 auto;
+  margin-right: 1px;
+  opacity: 0.7;
+}
+
 .message__delivery {
   flex: 0 0 auto;
 }

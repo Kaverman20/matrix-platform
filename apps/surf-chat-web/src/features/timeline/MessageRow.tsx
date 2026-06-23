@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from "framer-motion";
-import { Forward, Reply, SmilePlus } from "lucide-react";
+import { Forward, Pin, Reply, SmilePlus } from "lucide-react";
 import type { MatrixMessage } from "@matrix-platform/matrix-core";
 import { AuthedImage } from "../../components/AuthedImage";
 import { MessageMedia } from "../media/MessageMedia";
@@ -104,6 +104,7 @@ export function FlatMessage({
         {message.thread && <ThreadChip message={message} onOpenThread={onOpenThread} />}
       </div>
       <div className="message__aside">
+        {message.pinned && <Pin size={12} className="message__pin" aria-label="Закреплено" />}
         {message.own && (
           <DeliveryStatus
             status={message.deliveryStatus}
@@ -206,6 +207,7 @@ export function BubbleMessage({
         )}
         {message.thread && <ThreadChip message={message} onOpenThread={onOpenThread} />}
         <div className="bubble__time">
+          {message.pinned && <Pin size={11} className="bubble__pin" aria-label="Закреплено" />}
           {message.edited && (
             <button
               type="button"
