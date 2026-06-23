@@ -151,8 +151,16 @@
 .call-panel__main-video {
   width: 100%;
   height: 100%;
-  object-fit: cover;
   background: #000;
+}
+
+/* Камеру кадрируем (cover), демонстрацию экрана показываем целиком (contain). */
+.call-panel__main-video--camera {
+  object-fit: cover;
+}
+
+.call-panel__main-video--screen {
+  object-fit: contain;
 }
 
 .call-panel__stage-fallback {
@@ -160,17 +168,29 @@
   place-items: center;
 }
 
-.call-panel__pip {
+/* Стопка PiP в правом нижнем углу — несколько лиц/превью, снизу вверх. */
+.call-panel__pips {
   position: absolute;
   right: 10px;
   bottom: 10px;
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 8px;
+}
+
+.call-panel__pip {
   width: 96px;
   height: 72px;
   object-fit: cover;
   border-radius: 8px;
   border: 2px solid rgb(255 255 255 / 60%);
   background: #000;
-  transform: scaleX(-1); /* mirror own camera, like every call app */
+}
+
+/* В развёрнутом окне PiP крупнее. */
+.call-panel--expanded .call-panel__pip {
+  width: 180px;
+  height: 135px;
 }
 
 .call-panel__banner-screen {
@@ -180,4 +200,42 @@
   color: var(--color-text-muted);
   font-size: var(--text-xs);
   text-align: center;
+}
+
+.call-panel__resize {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border: 0;
+  border-radius: var(--radius-sm, 8px);
+  color: var(--color-text-muted);
+  background: transparent;
+  cursor: pointer;
+  transition: background 140ms ease, color 140ms ease;
+}
+
+.call-panel__resize:hover {
+  color: var(--color-text-strong);
+  background: var(--color-bg-hover);
+}
+
+/* Развёрнутое окно — по центру экрана, видео крупное (Telegram «развернуть»). */
+.call-panel--expanded {
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: min(960px, 92vw);
+  height: min(86vh, 760px);
+}
+
+.call-panel--expanded .call-panel__drag {
+  cursor: default;
+}
+
+.call-panel--expanded .call-panel__stage {
+  aspect-ratio: auto;
+  flex: 1 1 auto;
+  min-height: 0;
 }

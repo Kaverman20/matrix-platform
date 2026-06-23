@@ -35,6 +35,7 @@ export type CallMediaMode = "audio" | "video" | "screen";
 /** Remote/local media tracks the CallPanel attaches to <video> elements. */
 export type CallMedia = {
   localCamera: LocalVideoTrack | null;
+  localScreen: LocalVideoTrack | null;
   remoteCamera: RemoteVideoTrack | null;
   remoteScreen: RemoteVideoTrack | null;
 };
@@ -78,7 +79,12 @@ export function canScreenShare(): boolean {
   return typeof navigator.mediaDevices?.getDisplayMedia === "function";
 }
 
-const NO_MEDIA: CallMedia = { localCamera: null, remoteCamera: null, remoteScreen: null };
+const NO_MEDIA: CallMedia = {
+  localCamera: null,
+  localScreen: null,
+  remoteCamera: null,
+  remoteScreen: null,
+};
 
 /**
  * Orchestrates a 1:1 room call: MatrixRTC membership (matrix-core) plus LiveKit
@@ -311,18 +317,21 @@ export function useRoomCall(client: MatrixClient | null, roomId: string | null):
       return;
     }
     try {
-      await setLiveKitScreenShareEnabled(room, next, () => {
+      const screenTrack = await setLiveKitScreenShareEnabled(room, next, () => {
         // Browser "Stop sharing" button.
         screenSharingRef.current = false;
         setScreenSharing(false);
+        setMedia((prev) => ({ ...prev, localScreen: null }));
         setMediaMode(cameraEnabledRef.current ? "video" : "audio");
       });
       screenSharingRef.current = next;
       setScreenSharing(next);
+      setMedia((prev) => ({ ...prev, localScreen: next ? screenTrack : null }));
       setMediaMode(next ? "screen" : cameraEnabledRef.current ? "video" : "audio");
     } catch {
       screenSharingRef.current = false;
       setScreenSharing(false);
+      setMedia((prev) => ({ ...prev, localScreen: null }));
       setError("Не удалось начать демонстрацию");
     }
   }, []);

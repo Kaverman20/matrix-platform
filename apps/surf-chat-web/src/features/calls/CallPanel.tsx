@@ -1,7 +1,9 @@
 import {
   GripHorizontal,
+  Maximize2,
   Mic,
   MicOff,
+  Minimize2,
   Monitor,
   MonitorOff,
   Phone,
@@ -9,15 +11,45 @@ import {
   Video,
   VideoOff,
 } from "lucide-react";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { colorForId } from "@matrix-platform/matrix-core";
 import type { IncomingCall } from "./useIncomingCall";
 import { canScreenShare, type RoomCall } from "./useRoomCall";
+import { resolveCallStage, type StageVideoTrack } from "./callStage";
 import { formatCallDuration } from "./callDuration";
 import { AuthedImage } from "../../components/AuthedImage";
 import { useDraggablePanel } from "./useDraggablePanel";
 import "./call-panel.css";
+
+/** Attaches a LiveKit video track to its own <video>; detaches on unmount. */
+function CallVideo({
+  track,
+  className,
+  mirrored = false,
+}: {
+  track: StageVideoTrack;
+  className: string;
+  mirrored?: boolean;
+}) {
+  const ref = useRef<HTMLVideoElement>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    track.attach(el);
+    return () => void track.detach(el);
+  }, [track]);
+  return (
+    <video
+      ref={ref}
+      className={className}
+      autoPlay
+      playsInline
+      muted
+      style={mirrored ? { transform: "scaleX(-1)" } : undefined}
+    />
+  );
+}
 
 const LAYOUT = {
   audio: { width: 300, height: 196 },
@@ -62,33 +94,16 @@ export function CallPanel({
 }: Props) {
   const isIncoming = Boolean(incoming && call.status === "idle");
   const isActive = call.status !== "idle";
+  const [expanded, setExpanded] = useState(false);
 
-  const mainTrack = call.media.remoteScreen ?? call.media.remoteCamera;
-  const localTrack = call.media.localCamera;
-  const showVideoStage = !isIncoming && (call.mediaMode !== "audio" || Boolean(mainTrack));
+  const stage = resolveCallStage(call.media);
+  const showVideoStage = !isIncoming && (call.mediaMode !== "audio" || Boolean(stage.main));
 
   const layout = LAYOUT[isIncoming ? "audio" : call.mediaMode];
   const { position, onDragPointerDown, onDragPointerMove, onDragPointerUp } = useDraggablePanel(
     layout.width,
     layout.height,
   );
-
-  const mainVideoRef = useRef<HTMLVideoElement>(null);
-  const pipVideoRef = useRef<HTMLVideoElement>(null);
-
-  useEffect(() => {
-    const el = mainVideoRef.current;
-    if (!el || !mainTrack) return;
-    mainTrack.attach(el);
-    return () => void mainTrack.detach(el);
-  }, [mainTrack]);
-
-  useEffect(() => {
-    const el = pipVideoRef.current;
-    if (!el || !localTrack) return;
-    localTrack.attach(el);
-    return () => void localTrack.detach(el);
-  }, [localTrack]);
 
   if (!isIncoming && !isActive) return null;
 
@@ -108,23 +123,39 @@ export function CallPanel({
     </div>
   );
 
+  // В развёрнутом виде окно фиксируется по центру (CSS-класс), drag отключается.
+  const canExpand = showVideoStage;
+  const isExpanded = expanded && canExpand;
+
   return createPortal(
     <div
-      className={`call-panel${showVideoStage ? " call-panel--video" : ""}`}
+      className={`call-panel${showVideoStage ? " call-panel--video" : ""}${isExpanded ? " call-panel--expanded" : ""}`}
       role="dialog"
       aria-label={isIncoming ? `Входящий звонок от ${peerName}` : `Звонок с ${peerName}`}
-      style={{ left: position.x, top: position.y, width: layout.width }}
+      style={isExpanded ? undefined : { left: position.x, top: position.y, width: layout.width }}
     >
       <div
         className="call-panel__drag"
-        onPointerDown={onDragPointerDown}
-        onPointerMove={onDragPointerMove}
-        onPointerUp={onDragPointerUp}
-        onPointerCancel={onDragPointerUp}
+        onPointerDown={isExpanded ? undefined : onDragPointerDown}
+        onPointerMove={isExpanded ? undefined : onDragPointerMove}
+        onPointerUp={isExpanded ? undefined : onDragPointerUp}
+        onPointerCancel={isExpanded ? undefined : onDragPointerUp}
       >
         <GripHorizontal size={16} aria-hidden />
         <span className="call-panel__drag-label">{peerName}</span>
         {isActive && <span className="call-panel__drag-status">{statusText(call)}</span>}
+        {canExpand && (
+          <button
+            type="button"
+            className="call-panel__resize"
+            aria-label={isExpanded ? "Свернуть окно" : "Развернуть окно"}
+            title={isExpanded ? "Свернуть" : "Развернуть"}
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={() => setExpanded((v) => !v)}
+          >
+            {isExpanded ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
+          </button>
+        )}
       </div>
 
       {isActive && (call.screenSharing || call.media.remoteScreen) && (
@@ -135,19 +166,26 @@ export function CallPanel({
 
       {showVideoStage ? (
         <div className="call-panel__stage">
-          {mainTrack ? (
-            <video ref={mainVideoRef} className="call-panel__main-video" autoPlay playsInline />
+          {stage.main ? (
+            <CallVideo
+              track={stage.main}
+              className={`call-panel__main-video call-panel__main-video--${stage.mainKind}`}
+              mirrored={stage.mainMirrored}
+            />
           ) : (
             <div className="call-panel__stage-fallback">{avatar}</div>
           )}
-          {call.cameraEnabled && localTrack && (
-            <video
-              ref={pipVideoRef}
-              className="call-panel__pip"
-              autoPlay
-              playsInline
-              muted
-            />
+          {stage.pips.length > 0 && (
+            <div className="call-panel__pips">
+              {stage.pips.map((pip) => (
+                <CallVideo
+                  key={pip.key}
+                  track={pip.track}
+                  className="call-panel__pip"
+                  mirrored={pip.mirrored}
+                />
+              ))}
+            </div>
           )}
         </div>
       ) : (

@@ -146,17 +146,19 @@ export async function setLiveKitScreenShareEnabled(
   room: Room | null,
   enabled: boolean,
   onEnded?: () => void,
-): Promise<void> {
-  if (!room) return;
+): Promise<LocalVideoTrack | null> {
+  if (!room) return null;
   const { Track } = await import("livekit-client");
   if (!enabled) {
     await room.localParticipant.setScreenShareEnabled(false);
-    return;
+    return null;
   }
   await room.localParticipant.setScreenShareEnabled(true, { audio: false });
-  const mediaTrack = room.localParticipant.getTrackPublication(Track.Source.ScreenShare)?.track
-    ?.mediaStreamTrack;
+  const publication = room.localParticipant.getTrackPublication(Track.Source.ScreenShare);
+  const mediaTrack = publication?.track?.mediaStreamTrack;
   if (mediaTrack && onEnded) {
     mediaTrack.addEventListener("ended", () => onEnded(), { once: true });
   }
+  // Возвращаем локальный screen-трек, чтобы показать СВОЙ экран на main stage.
+  return (publication?.videoTrack as LocalVideoTrack | undefined) ?? null;
 }
