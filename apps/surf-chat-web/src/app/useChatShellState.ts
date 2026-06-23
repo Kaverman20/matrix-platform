@@ -24,7 +24,9 @@ export function useChatShellState(preferences: ReturnType<typeof usePreferences>
   );
   const [forwarding, setForwarding] = useState<MatrixForwardData[] | null>(null);
   const [lightbox, setLightbox] = useState<LightboxState | null>(null);
-  const [chatView, setChatView] = useState<ChatView>(() => preferences.defaultChatView);
+  // Вид чата — производное от настройки (единый источник истины): смена в
+  // настройках или переключателем в шапке применяется сразу.
+  const chatView: ChatView = preferences.defaultChatView;
   const [showRightPanel, setShowRightPanel] = useState(false);
   const [rightPanelSection, setRightPanelSection] = useState<RightPanelSection>("overview");
   const [activeSpaceId, setActiveSpaceId] = useState<string | null>(() =>
@@ -77,7 +79,6 @@ export function useChatShellState(preferences: ReturnType<typeof usePreferences>
     lightbox,
     setLightbox,
     chatView,
-    setChatView,
     showRightPanel,
     setShowRightPanel,
     rightPanelSection,

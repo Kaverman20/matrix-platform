@@ -1,7 +1,7 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { Forward, Reply, SmilePlus } from "lucide-react";
-import type { SyntheticEvent } from "react";
 import type { MatrixMessage } from "@matrix-platform/matrix-core";
+import { AuthedImage } from "../../components/AuthedImage";
 import { MessageMedia } from "../media/MessageMedia";
 import { MessageAlbum } from "../media/MessageAlbum";
 import type { LightboxState } from "../media/Lightbox";
@@ -71,7 +71,7 @@ export function FlatMessage({
       ) : (
         <span className="message__avatar" style={{ background: message.color }}>
           <span className="message__avatar-fallback">{message.author.slice(0, 1).toUpperCase()}</span>
-          {message.avatarUrl && <img className="message__avatar-img" src={message.avatarUrl} alt="" onError={hideImage} />}
+          {message.avatarUrl && <AuthedImage url={message.avatarUrl} className="message__avatar-img" />}
         </span>
       )}
       <div className="message__body">
@@ -171,7 +171,7 @@ export function BubbleMessage({
           {!compact && (
             <>
               <span className="message__avatar-fallback">{message.author.slice(0, 1).toUpperCase()}</span>
-              {message.avatarUrl && <img className="message__avatar-img" src={message.avatarUrl} alt="" onError={hideImage} />}
+              {message.avatarUrl && <AuthedImage url={message.avatarUrl} className="message__avatar-img" />}
             </>
           )}
         </span>
@@ -364,8 +364,4 @@ function shouldShowText(message: MatrixMessage): boolean {
   if (!message.text) return false;
   if (!message.media) return true;
   return message.text !== message.media.name;
-}
-
-function hideImage(event: SyntheticEvent<HTMLImageElement>): void {
-  event.currentTarget.style.display = "none";
 }

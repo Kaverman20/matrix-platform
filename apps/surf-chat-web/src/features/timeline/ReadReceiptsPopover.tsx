@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import type { MessageReader } from "@matrix-platform/matrix-core";
+import { AuthedImage } from "../../components/AuthedImage";
 import "./read-receipts-popover.css";
 
 type Props = {
@@ -45,7 +46,7 @@ export function ReadReceiptsPopover({ readers, anchorRect, onClose }: Props) {
           {readers.map((reader) => (
             <li key={reader.userId}>
               <span className="read-receipts-popover__avatar" style={reader.avatarUrl ? undefined : { background: "var(--color-accent-subtle)" }}>
-                {reader.avatarUrl ? <img src={reader.avatarUrl} alt="" /> : reader.name.slice(0, 1).toUpperCase()}
+                {reader.avatarUrl ? <AuthedImage url={reader.avatarUrl} /> : reader.name.slice(0, 1).toUpperCase()}
               </span>
               <span>{reader.name}</span>
             </li>

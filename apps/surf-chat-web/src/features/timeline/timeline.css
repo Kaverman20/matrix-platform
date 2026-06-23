@@ -680,7 +680,9 @@
 @keyframes timeline-bubble-highlight-bg {
   0%,
   30% {
-    background-color: color-mix(in srgb, var(--color-accent-subtle) 82%, white);
+    /* Тинт в сторону акцента (а не белого) — заметная подсветка и в светлой,
+       и в тёмной теме, без «засвета» на тёмном фоне. */
+    background-color: color-mix(in srgb, var(--color-accent-subtle) 70%, var(--color-accent));
   }
 
   100% {

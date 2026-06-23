@@ -114,7 +114,6 @@ export function ChatShell() {
     lightbox,
     setLightbox,
     chatView,
-    setChatView,
     showRightPanel,
     setShowRightPanel,
     rightPanelSection,
@@ -876,7 +875,6 @@ export function ChatShell() {
               view={chatView}
               onToggleView={() => {
                 const next = chatView === "bubbles" ? "flat" : "bubbles";
-                setChatView(next);
                 setPreference("defaultChatView", next);
               }}
               threadsActive={showThreadsList}
