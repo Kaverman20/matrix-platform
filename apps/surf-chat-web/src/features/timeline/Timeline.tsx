@@ -420,6 +420,41 @@ export const Timeline = forwardRef<TimelineHandle, Props>(function Timeline({
     return () => el.removeEventListener("scroll", onScroll);
   }, [room.id, messages.length]);
 
+  // Keep the latest message visible when the scroller shrinks (the composer
+  // grows as you type a long message, the window resizes, …) — Telegram-style.
+  // Only re-pins when the user is already at the bottom.
+  useEffect(() => {
+    const el = scrollerElRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+
+    const pinToBottom = () => {
+      if (messages.length === 0) return;
+      if (!stick.current && !isNearBottom(el)) return;
+      // Reading scrollHeight forces a synchronous reflow, so the bottom spacer's
+      // new --composer-h height is already applied when we set scrollTop — the
+      // last message tracks the composer in the SAME frame (no Safari lag).
+      el.scrollTop = el.scrollHeight;
+      requestAnimationFrame(() => {
+        el.scrollTop = el.scrollHeight;
+      });
+    };
+    // The composer dispatches this synchronously when it grows/shrinks (typing,
+    // reply bar, etc.) — re-pin immediately instead of waiting on a chain of
+    // ResizeObservers, which lags by several frames in Safari.
+    const onComposerResize = () => pinToBottom();
+    window.addEventListener("surf-composer-resize", onComposerResize);
+
+    // Still re-pin on window resize (scroller shrinks) — gated inside pinToBottom.
+    const observer =
+      typeof ResizeObserver !== "undefined" ? new ResizeObserver(() => pinToBottom()) : null;
+    observer?.observe(el);
+
+    return () => {
+      window.removeEventListener("surf-composer-resize", onComposerResize);
+      observer?.disconnect();
+    };
+  }, [firstItemIndex, messages.length, room.id]);
+
   const itemContext = useMemo<TimelineItemContext>(
     () => ({
       view,
@@ -506,8 +541,15 @@ export const Timeline = forwardRef<TimelineHandle, Props>(function Timeline({
         atTopThreshold={TOP_THRESHOLD}
         startReached={() => runLoad()}
         atBottomStateChange={(atBottom) => {
-          stick.current = atBottom;
-          if (atBottom) setNewMessagesCount(0);
+          // Only (re-)stick when we actually reach the bottom. Don't UN-stick
+          // here: shrinking the viewport (composer grows) makes Virtuoso report
+          // "not at bottom" even though the user hasn't scrolled — unsticking
+          // then would defeat the resize re-pin and hide the latest message.
+          // Genuine scroll-away is handled by the scroll listener.
+          if (atBottom) {
+            stick.current = true;
+            setNewMessagesCount(0);
+          }
         }}
         rangeChanged={handleRangeChanged}
         scrollerRef={handleScrollerRef}

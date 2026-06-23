@@ -1,7 +1,15 @@
 .composer-wrap {
   display: flex;
   flex-direction: column;
-  flex: 0 0 auto;
+  /* Pinned to the bottom of .chat-main and OUT of the flex flow. The timeline
+     then always fills the full height (no flex-shrink needed — Safari/WebKit
+     won't shrink it reliably when this grows), and the message list clears the
+     composer via a bottom spacer sized to var(--composer-h). */
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 4;
   padding: 0 var(--space-5) var(--space-5);
   border-top: 1px solid var(--color-border);
   background: color-mix(in srgb, var(--color-bg) 92%, white);
@@ -10,7 +18,9 @@
 .composer {
   min-height: 48px;
   display: flex;
-  align-items: center;
+  /* Pin the attach / emoji / send buttons to the bottom so they stay put while
+     the textarea grows upward (Telegram-style), instead of riding its centre. */
+  align-items: flex-end;
   gap: 2px;
   margin-top: var(--space-3);
   border: 1px solid var(--color-border);
@@ -151,7 +161,15 @@
 
 .composer__input {
   min-width: 0;
-  max-height: 160px;
+  /* Fill the full wrapper width — the wrapper is a flex item (not a flex
+     container), so `flex: 1` on the textarea is inert and it would otherwise
+     shrink to its intrinsic `cols` width and wrap text early. */
+  width: 100%;
+  display: block;
+  box-sizing: border-box;
+  /* Grow up to ~50% of the viewport (matches Telegram), then scroll internally.
+     Kept in sync with the JS auto-resize, which reads this computed value. */
+  max-height: 50vh;
   min-height: 34px;
   flex: 1;
   resize: none;

@@ -92,6 +92,7 @@ export const Composer = forwardRef<ComposerHandle, Props>(function Composer({
   const imageInputRef = useRef<HTMLInputElement>(null);
   const attachWrapRef = useRef<HTMLDivElement>(null);
   const emojiWrapRef = useRef<HTMLDivElement>(null);
+  const composerWrapRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const lastTypingSentRef = useRef(0);
   const voice = useVoiceRecorder();
@@ -170,14 +171,49 @@ export const Composer = forwardRef<ComposerHandle, Props>(function Composer({
     };
   }, [attachOpen, emojiOpen]);
 
+  // Closes over refs only (stable), so it's safe to use from effects with []
+  // deps without going stale.
+  const publishComposerHeight = () => {
+    const node = composerWrapRef.current;
+    if (!node) return;
+    document.documentElement.style.setProperty("--composer-h", `${node.offsetHeight}px`);
+    // Tell the timeline to re-pin to the bottom right now (same frame) so the
+    // latest message tracks the composer height without a visible lag.
+    window.dispatchEvent(new Event("surf-composer-resize"));
+  };
+
   useEffect(() => {
     const textarea = textareaRef.current;
     if (!textarea) return;
 
+    // Read the cap from CSS (`.composer__input { max-height }`) so JS and CSS
+    // can't disagree. Falls back to a sane default if it can't be parsed.
+    const maxHeight = parseFloat(getComputedStyle(textarea).maxHeight) || COMPOSER_MAX_HEIGHT;
     textarea.style.height = "0px";
-    textarea.style.height = `${Math.min(textarea.scrollHeight, COMPOSER_MAX_HEIGHT)}px`;
-    textarea.style.overflowY = textarea.scrollHeight > COMPOSER_MAX_HEIGHT ? "auto" : "hidden";
+    textarea.style.height = `${Math.min(textarea.scrollHeight, maxHeight)}px`;
+    textarea.style.overflowY = textarea.scrollHeight > maxHeight ? "auto" : "hidden";
+    // Publish the new composer height + ask the timeline to re-pin synchronously
+    // in the SAME frame as the keystroke — going through a ResizeObserver here
+    // costs several frames in Safari and lets the last message flash under the
+    // composer before the re-pin catches up.
+    publishComposerHeight();
   }, [draft]);
+
+  // Publish the composer's real height as a CSS variable so the timeline reserves
+  // exactly that much room at the bottom (--composer-h drives the message-list
+  // spacer + the re-pin). Fires on draft typing (above), and on any other height
+  // change — reply/edit bar appearing, window resize — via this observer.
+  useEffect(() => {
+    publishComposerHeight();
+    const node = composerWrapRef.current;
+    if (!node || typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(() => publishComposerHeight());
+    observer.observe(node);
+    return () => {
+      observer.disconnect();
+      document.documentElement.style.removeProperty("--composer-h");
+    };
+  }, []);
 
   useEffect(() => {
     if (editingMessage) {
@@ -586,7 +622,7 @@ export const Composer = forwardRef<ComposerHandle, Props>(function Composer({
   const readOnlyReason = sendPermission && !sendPermission.canSend ? sendPermission.reason : null;
   if (readOnlyReason) {
     return (
-      <div className="composer-wrap">
+      <div className="composer-wrap" ref={composerWrapRef}>
         <div className="composer-readonly">
           <Ban size={16} />
           <span>{READ_ONLY_REASON[readOnlyReason]}</span>
@@ -596,7 +632,7 @@ export const Composer = forwardRef<ComposerHandle, Props>(function Composer({
   }
 
   return (
-    <div className="composer-wrap">
+    <div className="composer-wrap" ref={composerWrapRef}>
       {pollOpen && (
         <CreatePollModal onSubmit={createPoll} onClose={() => setPollOpen(false)} />
       )}

@@ -16,6 +16,10 @@
 .timeline__virtuoso {
   flex: 1;
   min-height: 0;
+  /* Safari/WebKit: without an explicit overflow clip here, this flex item won't
+     shrink when the composer grows — its scroll content keeps its intrinsic
+     height and spills under the composer. Chrome shrinks it fine regardless. */
+  overflow: hidden;
 }
 
 .timeline__virtuoso [data-virtuoso-scroller] {
@@ -25,9 +29,11 @@
   padding: var(--space-3) var(--space-4) 0;
 }
 
-/* Breathing room between the last message and the composer (~16px). */
+/* Clears the absolutely-positioned composer (its measured height, published as
+   --composer-h) plus ~16px breathing room, so the last message is never hidden
+   behind the composer regardless of how tall it grows. */
 .timeline__bottom-spacer {
-  height: var(--space-4);
+  height: calc(var(--composer-h, 64px) + var(--space-4));
 }
 
 .timeline__spacer {
@@ -134,7 +140,7 @@
 
 .timeline__new-messages {
   position: sticky;
-  bottom: var(--space-3);
+  bottom: calc(var(--composer-h, 64px) + var(--space-3));
   z-index: 5;
   align-self: center;
   margin: var(--space-3) auto 0;
@@ -158,7 +164,7 @@
 .timeline-return-live {
   position: absolute;
   left: 50%;
-  bottom: calc(var(--space-3) + 8px);
+  bottom: calc(var(--composer-h, 64px) + var(--space-3) + 8px);
   z-index: 6;
   transform: translateX(-50%);
   display: inline-flex;
