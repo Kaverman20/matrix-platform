@@ -1,21 +1,26 @@
-import { ChevronLeft, LogOut, Palette, ShieldCheck, SlidersHorizontal, User } from "lucide-react";
+import { ChevronLeft, Key, LogOut, Palette, ShieldCheck, SlidersHorizontal, User } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { useAccountSettings } from "../account/useAccountSettings";
 import type { useEncryption } from "../encryption/useEncryption";
+import { useMatrix } from "../../app/providers/MatrixContext";
+import { useAccessAdmin } from "../access/useAccessAdmin";
+import { AccessTab } from "../access/AccessTab";
 import { AccountTab } from "./AccountTab";
 import { AppearanceTab } from "./AppearanceTab";
 import { EncryptionTab } from "./EncryptionTab";
 import { PreferencesTab } from "./PreferencesTab";
 import "./settings.css";
 
-type TabId = "account" | "appearance" | "preferences" | "encryption";
+type TabId = "account" | "appearance" | "preferences" | "encryption" | "access";
 
-const TABS: { id: TabId; label: string; icon: typeof User }[] = [
+const BASE_TABS: { id: TabId; label: string; icon: typeof User }[] = [
   { id: "account", label: "Аккаунт", icon: User },
   { id: "appearance", label: "Внешний вид", icon: Palette },
   { id: "preferences", label: "Настройки", icon: SlidersHorizontal },
   { id: "encryption", label: "Шифрование", icon: ShieldCheck },
 ];
+
+const ACCESS_TAB = { id: "access" as const, label: "Доступы", icon: Key };
 
 type Props = {
   settings: ReturnType<typeof useAccountSettings>;
@@ -26,6 +31,9 @@ type Props = {
 /** Full-screen settings (Linear Preferences) — replaces the chat shell entirely. */
 export function SettingsPage({ settings: s, encryption, onLogout }: Props) {
   const [tab, setTab] = useState<TabId>("account");
+  const { client } = useMatrix();
+  const { isAdmin } = useAccessAdmin(client);
+  const tabs = isAdmin ? [...BASE_TABS, ACCESS_TAB] : BASE_TABS;
 
   useEffect(() => {
     void encryption.refresh();
@@ -46,7 +54,7 @@ export function SettingsPage({ settings: s, encryption, onLogout }: Props) {
         </button>
 
         <nav className="settings-page__tabs" aria-label="Разделы настроек">
-          {TABS.map(({ id, label, icon: Icon }) => (
+          {tabs.map(({ id, label, icon: Icon }) => (
             <button
               key={id}
               type="button"
@@ -78,6 +86,7 @@ export function SettingsPage({ settings: s, encryption, onLogout }: Props) {
           {tab === "appearance" && <AppearanceTab />}
           {tab === "preferences" && <PreferencesTab />}
           {tab === "encryption" && <EncryptionTab encryption={encryption} />}
+          {tab === "access" && <AccessTab />}
         </div>
       </main>
     </div>

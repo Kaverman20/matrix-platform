@@ -10,6 +10,8 @@ interface ImportMetaEnv {
    * Stage 0 RTC backend is deployed and smoke-tested. See ADR 0002.
    */
   readonly VITE_CALLS_ENABLED?: string;
+  /** База mapping-api для страницы «Доступы». По умолчанию /api/mapping (same-origin). */
+  readonly VITE_MAPPING_API_BASE?: string;
 }
 
 declare const __APP_BUILD_ID__: string;
