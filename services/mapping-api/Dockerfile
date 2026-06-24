@@ -14,4 +14,6 @@ USER appuser
 
 EXPOSE 8000
 
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "2"]
+# 1 воркер: admin-API без нагрузки, а несколько воркеров гонятся в init_db
+# (CREATE TABLE) и падают на duplicate key в pg_type при первом старте.
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]

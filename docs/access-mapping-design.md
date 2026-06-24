@@ -65,6 +65,17 @@ mapping-api (FastAPI, сервер — сейчас заглушка services/ma
 - **Фаза 2 (код готов):** `sync.py` умеет читать правила из БД (`RULES_SOURCE=db`), проставлять power level по роли (user/mod/admin), писать `sync_log` и подхватывать запросы `requested` («Применить сейчас»). Импортёр `--import-yaml`. По умолчанию `RULES_SOURCE=yaml` — прод не затронут. Деплой: пересобрать образ sync на VPS, `--import-yaml`, dry-run сравнение, затем `RULES_SOURCE=db`.
 - **Фаза 3 (фронт):** вкладка «Доступы» в `SettingsModal` под `is_admin`, форма группа↔спейсы(мульти)+каналы, список правил, «Применить сейчас».
 
+## Деплой (выполнен, июнь 2026)
+`mapping-api` поднят в стеке `synapse-test` на VPS:
+- БД `mapping` в общем Postgres; env `mapping-api.env` (Keycloak-креды + токен бота из конфига синка, `MATRIX_HOMESERVER_URL=http://synapse:8008`, `ADMIN_GROUP=/GR_chat_admin`).
+- Caddy: `chat.foxhound.run/api/mapping/*` → `mapping-api:8000` (same-origin, без CORS).
+- `--workers 1` (несколько воркеров гонятся в init_db).
+- Фикс: asyncpg отдаёт json/jsonb строкой → зарегистрирован type_codec (иначе `list_rules` падал 500).
+
+Проверено сквозь реальные сервисы: admin-гейт (Keycloak `GR_chat_admin`), список групп/спейсов, CRUD правил (create/list/delete). НЕ протестировано вживую: создание спейса ботом, «Применить сейчас» (синк всё ещё на YAML, `RULES_SOURCE=yaml`).
+
+Осталось для Фазы 2 на проде: пересобрать sync с `psycopg`, `--import-yaml`, dry-run сверка, `RULES_SOURCE=db`.
+
 ## Грубая оценка
 - mapping-api (auth + CRUD + create-space + sync-trigger): ~основная часть работы.
 - sync.py переключение на БД: небольшое.

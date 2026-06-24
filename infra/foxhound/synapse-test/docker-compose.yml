@@ -35,6 +35,21 @@ services:
     expose:
       - "80"
 
+  # mapping-api — бэкенд страницы «Доступы» (Keycloak-группа → спейс/роль).
+  # Доступен через Caddy на chat.foxhound.run/api/mapping/*. Использует отдельную
+  # БД `mapping` в этом же Postgres. Секреты — в mapping-api.env (не в git).
+  mapping-api:
+    build: ./mapping-api
+    restart: unless-stopped
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --workers 1
+    depends_on:
+      postgres:
+        condition: service_healthy
+    env_file:
+      - mapping-api.env
+    expose:
+      - "8000"
+
   caddy:
     image: caddy:2
     restart: unless-stopped

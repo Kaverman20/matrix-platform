@@ -47,17 +47,24 @@ chat.foxhound.run {
         Content-Security-Policy "default-src 'self'; connect-src 'self' https://matrix.foxhound.run https://*.foxhound.run wss://matrix-rtc.foxhound.run; img-src 'self' data: blob: https://matrix.foxhound.run; media-src 'self' blob: https://matrix.foxhound.run; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'; upgrade-insecure-requests"
     }
 
-    # Content-addressed (hash in filename) assets never change — cache forever.
-    @assets path /assets/*
-    header @assets Cache-Control "public, max-age=31536000, immutable"
+    # mapping-api (страница «Доступы») — same-origin, префикс /api/mapping снимается.
+    handle_path /api/mapping/* {
+        reverse_proxy mapping-api:8000
+    }
 
-    # The SPA shell (index.html) and everything else must be revalidated so a
-    # new deploy is picked up immediately instead of serving a stale bundle.
-    @notassets not path /assets/*
-    header @notassets Cache-Control "no-cache"
+    handle {
+        # Content-addressed (hash in filename) assets never change — cache forever.
+        @assets path /assets/*
+        header @assets Cache-Control "public, max-age=31536000, immutable"
 
-    root * /srv/surfchat
-    try_files {path} /index.html
-    file_server
-    encode gzip
+        # The SPA shell (index.html) and everything else must be revalidated so a
+        # new deploy is picked up immediately instead of serving a stale bundle.
+        @notassets not path /assets/*
+        header @notassets Cache-Control "no-cache"
+
+        root * /srv/surfchat
+        try_files {path} /index.html
+        file_server
+        encode gzip
+    }
 }
