@@ -34,6 +34,9 @@ log = logging.getLogger("matrix-keycloak-sync")
 # Allowed characters in a Matrix localpart (per spec, plus the leading-@ we add).
 LOCALPART_RE = re.compile(r"^[a-z0-9._=\-/]+$")
 
+# Роль доступа → Matrix power level.
+ROLE_PL = {"user": 0, "moderator": 50, "admin": 100}
+
 
 def seg(value: str) -> str:
     """Percent-encode a single URL path segment (room ids, mxids, group ids come
@@ -293,6 +296,42 @@ class MatrixClient:
         log.warning("Deactivate %s: %s %s", mxid, resp.status_code, errcode_of(resp))
         return False
 
+    def get_power_levels(self, room_id: str) -> Optional[dict]:
+        resp = self.session.get(
+            self._client_url(f"rooms/{seg(room_id)}/state/m.room.power_levels"),
+            headers=self._headers(),
+        )
+        if resp.status_code == 200:
+            return resp.json()
+        if resp.status_code == 404:
+            return None
+        log.warning("Get power levels %s: %s %s", room_id, resp.status_code, errcode_of(resp))
+        return None
+
+    def set_user_power_level(self, room_id: str, mxid: str, level: int) -> bool:
+        """Read-modify-write m.room.power_levels: выставляет users[mxid]=level,
+        сохраняя остальные поля. No-op, если уровень уже нужный."""
+        pl = self.get_power_levels(room_id)
+        if pl is None:
+            pl = {}
+        users = dict(pl.get("users", {}))
+        if users.get(mxid, pl.get("users_default", 0)) == level:
+            return True
+        users[mxid] = level
+        pl["users"] = users
+        resp = self.session.put(
+            self._client_url(f"rooms/{seg(room_id)}/state/m.room.power_levels"),
+            headers=self._headers(),
+            json=pl,
+        )
+        if resp.status_code == 200:
+            return True
+        log.warning(
+            "Set PL %s=%s in %s: %s %s",
+            mxid, level, room_id, resp.status_code, errcode_of(resp),
+        )
+        return False
+
 
 class GroupSyncer:
     def __init__(
@@ -432,12 +471,31 @@ class GroupSyncer:
             if not self.dry_run and self.deactivate_on_gate_loss:
                 self.mx.deactivate_user(mxid)
 
-    def run(self) -> None:
+    def apply_power_levels(self, room_id: str, expected_mxids: set[str], role: str) -> int:
+        """Проставляет power level по роли участникам. Возвращает число ошибок.
+        v1: повышаем только до moderator/admin; роль user (PL 0) не трогаем, чтобы
+        не стирать вручную выданные права."""
+        level = ROLE_PL.get(role, 0)
+        if level == 0:
+            return 0
+        errors = 0
+        for mxid in expected_mxids:
+            log.info(
+                "    PL %s -> %s in %s%s",
+                mxid, level, room_id, " [DRY RUN]" if self.dry_run else "",
+            )
+            if not self.dry_run and not self.mx.set_user_power_level(room_id, mxid, level):
+                errors += 1
+        return errors
+
+    def run(self) -> dict:
         log.info("=" * 60)
         log.info("Starting sync%s", " [DRY RUN]" if self.dry_run else "")
         log.info("=" * 60)
 
         self.enforce_gate_deactivation()
+
+        totals = {"users_processed": 0, "joins": 0, "kicks": 0, "errors": 0}
 
         for mapping in self.mappings:
             group_path = mapping["keycloak_group"]
@@ -458,18 +516,29 @@ class GroupSyncer:
                     expected_mxids.add(mxid)
 
             log.info("Matrix accounts: %s", len(expected_mxids))
+            totals["users_processed"] += len(expected_mxids)
 
-            for space_id in mapping.get("matrix_spaces", []):
-                log.info("Space: %s", space_id)
-                result = self.sync_room(space_id, expected_mxids)
-                log_sync_result(result)
-
-            for room_id in mapping.get("matrix_rooms", []):
-                log.info("Room: %s", room_id)
+            # Спейсы синхронизируем раньше комнат: членство в спейсе открывает
+            # restricted-каналы, а порядок join'ов имеет значение.
+            targets = sorted(
+                mapping.get("targets", []),
+                key=lambda t: 0 if t.get("target_type") == "space" else 1,
+            )
+            for tgt in targets:
+                room_id = tgt["matrix_id"]
+                kind = "Space" if tgt.get("target_type") == "space" else "Room"
+                log.info("%s: %s", kind, room_id)
                 result = self.sync_room(room_id, expected_mxids)
                 log_sync_result(result)
+                totals["joins"] += len(result["added"])
+                totals["kicks"] += len(result["removed"])
+                totals["errors"] += len(result["skipped_add"]) + len(result["skipped_remove"])
+                totals["errors"] += self.apply_power_levels(
+                    room_id, expected_mxids, tgt.get("role", "user")
+                )
 
         log.info("Sync complete")
+        return totals
 
 
 def log_sync_result(result: dict) -> None:
@@ -512,24 +581,158 @@ def load_config() -> dict:
         "deactivate_on_gate_loss": os.getenv("DEACTIVATE_ON_GATE_LOSS", "false").lower() == "true",
         "bot_username": os.getenv("MATRIX_BOT_USERNAME", "sync-bot"),
         "max_deactivations": int(os.getenv("MAX_DEACTIVATIONS", "10")),
+        # Источник правил: "yaml" (по умолчанию, прод-поведение) или "db" (mapping-api).
+        "rules_source": os.getenv("RULES_SOURCE", "yaml").lower(),
+        "database_url": os.getenv("DATABASE_URL", ""),
     }
 
 
 def load_mappings(path: str) -> list[dict]:
+    """Читает mapping.yaml и приводит к единой форме с targets[].role.
+    В YAML ролей нет → все таргеты получают role='user'."""
     with open(path, "r", encoding="utf-8") as file:
         data = yaml.safe_load(file)
-    return data.get("mappings", [])
+    out = []
+    for mapping in data.get("mappings", []):
+        targets = []
+        for space_id in mapping.get("matrix_spaces", []):
+            targets.append({"matrix_id": space_id, "target_type": "space", "role": "user"})
+        for room_id in mapping.get("matrix_rooms", []):
+            targets.append({"matrix_id": room_id, "target_type": "room", "role": "user"})
+        out.append({"keycloak_group": mapping["keycloak_group"], "targets": targets})
+    return out
+
+
+class SyncDb:
+    """Доступ к БД mapping-api (psycopg3): чтение правил, импорт YAML, журнал прогонов."""
+
+    def __init__(self, dsn: str):
+        self.dsn = dsn
+
+    def _connect(self):
+        import psycopg  # ленивый импорт: нужен только в DB-режиме
+        return psycopg.connect(self.dsn)
+
+    def load_active_rules(self) -> list[dict]:
+        """Активные правила в той же форме, что и load_mappings()."""
+        out = []
+        with self._connect() as conn, conn.cursor() as cur:
+            cur.execute(
+                "SELECT id, keycloak_group FROM mapping_rules "
+                "WHERE is_active = true ORDER BY created_at"
+            )
+            rules = cur.fetchall()
+            for rule_id, group in rules:
+                cur.execute(
+                    "SELECT matrix_id, target_type, role FROM mapping_targets "
+                    "WHERE rule_id = %s",
+                    (rule_id,),
+                )
+                targets = [
+                    {"matrix_id": m, "target_type": t, "role": r}
+                    for (m, t, r) in cur.fetchall()
+                ]
+                out.append({"keycloak_group": group, "targets": targets})
+        return out
+
+    def import_yaml(self, mappings: list[dict]) -> int:
+        """Одноразовый импорт правил из YAML-формы в БД. Пропускает группы, для
+        которых уже есть активное правило (идемпотентно). Возвращает число добавленных."""
+        added = 0
+        with self._connect() as conn, conn.cursor() as cur:
+            for mapping in mappings:
+                group = mapping["keycloak_group"]
+                cur.execute(
+                    "SELECT 1 FROM mapping_rules WHERE keycloak_group = %s AND is_active = true LIMIT 1",
+                    (group,),
+                )
+                if cur.fetchone():
+                    log.info("Правило для %s уже есть — пропуск", group)
+                    continue
+                cur.execute(
+                    "INSERT INTO mapping_rules (keycloak_group, rule_name) VALUES (%s, %s) RETURNING id",
+                    (group, group.rstrip("/").split("/")[-1]),
+                )
+                rule_id = cur.fetchone()[0]
+                for tgt in mapping.get("targets", []):
+                    cur.execute(
+                        "INSERT INTO mapping_targets (rule_id, matrix_id, target_type, role) "
+                        "VALUES (%s, %s, %s, %s)",
+                        (rule_id, tgt["matrix_id"], tgt["target_type"], tgt.get("role", "user")),
+                    )
+                added += 1
+            conn.commit()
+        return added
+
+    def begin_run(self, trigger_type: str, trigger_mxid: Optional[str] = None) -> str:
+        with self._connect() as conn, conn.cursor() as cur:
+            cur.execute(
+                "INSERT INTO sync_log (trigger_type, trigger_mxid, status) "
+                "VALUES (%s, %s, 'running') RETURNING id",
+                (trigger_type, trigger_mxid),
+            )
+            run_id = cur.fetchone()[0]
+            conn.commit()
+        return str(run_id)
+
+    def finish_run(self, run_id: str, totals: dict, status: str = "done") -> None:
+        with self._connect() as conn, conn.cursor() as cur:
+            cur.execute(
+                "UPDATE sync_log SET finished_at = NOW(), status = %s, "
+                "users_processed = %s, joins_made = %s, kicks_made = %s, errors = %s "
+                "WHERE id = %s",
+                (
+                    status,
+                    totals.get("users_processed", 0),
+                    totals.get("joins", 0),
+                    totals.get("kicks", 0),
+                    totals.get("errors", 0),
+                    run_id,
+                ),
+            )
+            # Помечаем накопившиеся запросы «Применить сейчас» как обработанные.
+            cur.execute(
+                "UPDATE sync_log SET status = 'done', finished_at = NOW() WHERE status = 'requested'"
+            )
+            conn.commit()
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Keycloak to Matrix group sync")
     parser.add_argument("--dry-run", action="store_true", help="Print changes without applying")
     parser.add_argument("--watch", action="store_true", help="Run periodically")
+    parser.add_argument(
+        "--import-yaml",
+        action="store_true",
+        help="Импортировать mapping.yaml в БД (DATABASE_URL) и выйти",
+    )
     args = parser.parse_args()
 
     config = load_config()
-    mappings = load_mappings(config["mapping_file"])
-    log.info("Loaded %s mapping rules from %s", len(mappings), config["mapping_file"])
+    db = SyncDb(config["database_url"]) if config["database_url"] else None
+
+    # Разовый импорт текущего YAML в БД (миграция перед переключением на RULES_SOURCE=db).
+    if args.import_yaml:
+        if not db:
+            log.error("--import-yaml требует DATABASE_URL")
+            sys.exit(1)
+        added = db.import_yaml(load_mappings(config["mapping_file"]))
+        log.info("Импортировано правил в БД: %s", added)
+        return
+
+    use_db = config["rules_source"] == "db"
+    if use_db and not db:
+        log.error("RULES_SOURCE=db требует DATABASE_URL")
+        sys.exit(1)
+
+    def load_rules() -> list[dict]:
+        if use_db:
+            rules = db.load_active_rules()
+            log.info("Loaded %s rules from DB", len(rules))
+            return rules
+        rules = load_mappings(config["mapping_file"])
+        log.info("Loaded %s mapping rules from %s", len(rules), config["mapping_file"])
+        return rules
 
     keycloak = KeycloakClient(
         base_url=config["keycloak_url"],
@@ -545,7 +748,7 @@ def main() -> None:
     syncer = GroupSyncer(
         keycloak=keycloak,
         matrix=matrix,
-        mappings=mappings,
+        mappings=load_rules(),
         dry_run=args.dry_run,
         use_force_join=config["use_force_join"],
         revoke_access=config["revoke_access"],
@@ -555,18 +758,32 @@ def main() -> None:
         max_deactivations=config["max_deactivations"],
     )
 
+    def one_run(trigger_type: str) -> None:
+        # В DB-режиме правила могли измениться между прогонами — перечитываем.
+        if use_db:
+            syncer.mappings = load_rules()
+        run_id = db.begin_run(trigger_type) if (db and not args.dry_run) else None
+        try:
+            totals = syncer.run()
+            if run_id:
+                db.finish_run(run_id, totals, "done")
+        except Exception:
+            if run_id:
+                db.finish_run(run_id, {}, "error")
+            raise
+
     if args.watch:
         interval = config["sync_interval"]
         log.info("Watch mode: syncing every %s seconds", interval)
         while True:
             try:
-                syncer.run()
+                one_run("watch")
             except Exception as error:
                 log.error("Sync failed: %s", error, exc_info=True)
             log.info("Next run in %s seconds", interval)
             time.sleep(interval)
     else:
-        syncer.run()
+        one_run("manual")
 
 
 if __name__ == "__main__":

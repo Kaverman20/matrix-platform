@@ -62,7 +62,7 @@ mapping-api (FastAPI, сервер — сейчас заглушка services/ma
 ## План работ
 - **Фаза 0 (сделано):** перенос базовой реализации в `services/mapping-api/`.
 - **Фаза 1:** adapt:auth (admin-гейт), adapt:cors, `POST /spaces` (создание ботом), adapt:sync (триггер docker sync.py). Деплой `mapping-api` за Caddy. Прод-синк (`mapping.yaml`) не трогаем.
-- **Фаза 2:** перевод `sync.py` на чтение `mapping_rules` из БД + одноразовый импорт текущего `mapping.yaml`. Только после этого YAML уходит.
+- **Фаза 2 (код готов):** `sync.py` умеет читать правила из БД (`RULES_SOURCE=db`), проставлять power level по роли (user/mod/admin), писать `sync_log` и подхватывать запросы `requested` («Применить сейчас»). Импортёр `--import-yaml`. По умолчанию `RULES_SOURCE=yaml` — прод не затронут. Деплой: пересобрать образ sync на VPS, `--import-yaml`, dry-run сравнение, затем `RULES_SOURCE=db`.
 - **Фаза 3 (фронт):** вкладка «Доступы» в `SettingsModal` под `is_admin`, форма группа↔спейсы(мульти)+каналы, список правил, «Применить сейчас».
 
 ## Грубая оценка

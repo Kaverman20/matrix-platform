@@ -513,10 +513,9 @@ async def trigger_sync(admin_mxid: str = Depends(verify_admin)):
             VALUES ('manual', $1, 'requested') RETURNING id
         """, admin_mxid)
     log.info("Запрошена синхронизация админом %s", admin_mxid)
-    # TODO(adapt:sync) cron/one-shot прогон sync.py должен:
-    #   1) выбирать sync_log со status='requested',
-    #   2) прогонять синхронизацию (членство + power level по role),
-    #   3) помечать строку finished_at/status='done' и заполнять счётчики.
+    # Реализовано в matrix-keycloak-sync/sync.py (Фаза 2): прогон в RULES_SOURCE=db
+    # пишет sync_log и помечает строки status='requested' как обработанные.
+    # Запуск самого прогона — по расписанию cron/one-shot на VPS.
     return {"status": "queued", "request_id": str(row["id"])}
 
 
