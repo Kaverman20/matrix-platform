@@ -18,6 +18,7 @@ export type SurfPreferences = {
   use24HourTime: boolean;
   showTypingIndicator: boolean;
   showReadReceipts: boolean;
+  notificationSound: boolean;
 };
 
 const STORAGE_KEY = "surf-chat:preferences";
@@ -30,6 +31,7 @@ const DEFAULTS: SurfPreferences = {
   use24HourTime: false,
   showTypingIndicator: true,
   showReadReceipts: true,
+  notificationSound: true,
 };
 
 /** Read prefs from localStorage, merging over defaults and folding in the old

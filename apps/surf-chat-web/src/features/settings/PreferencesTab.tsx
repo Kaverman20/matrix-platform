@@ -41,6 +41,11 @@ export function PreferencesTab() {
         {toggle("use24HourTime", "24-часовой формат времени")}
         {toggle("showTypingIndicator", "Показывать «печатает…»")}
         {toggle("showReadReceipts", "Показывать статус прочтения")}
+        {toggle(
+          "notificationSound",
+          "Звук при новом сообщении",
+          "Кроме открытого чата, когда вкладка активна",
+        )}
       </div>
     </div>
   );

@@ -97,6 +97,7 @@ import { useChatUrl } from "./useChatUrl";
 import { useChatShellKeyboard } from "./useChatShellKeyboard";
 import { useMultiTabNavigation } from "./useMultiTabNavigation";
 import { useChatShellState } from "./useChatShellState";
+import { useNotificationSound } from "./useNotificationSound";
 import { useDeepLink } from "./useDeepLink";
 import "./chat-shell.css";
 
@@ -144,6 +145,11 @@ export function ChatShell() {
     favouritePersistTimerRef,
     highlightTimerRef,
   } = shell;
+  useNotificationSound({
+    client,
+    enabled: preferences.notificationSound,
+    activeRoomId,
+  });
   const roomListLayout = useRoomListLayout();
   const composerRef = useRef<ComposerHandle | null>(null);
   const roomListRef = useRef<RoomListHandle | null>(null);

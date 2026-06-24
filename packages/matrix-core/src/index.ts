@@ -63,6 +63,7 @@ export * from "./timeline/polls";
 export * from "./timeline/readReceipts";
 export * from "./timeline/searchMessages";
 export * from "./timeline/sendMessage";
+export * from "./timeline/subscribeIncomingMessages";
 export * from "./timeline/subscribeThreads";
 export * from "./timeline/subscribeTimeline";
 export * from "./timeline/threads";
