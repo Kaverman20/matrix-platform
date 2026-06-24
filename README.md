@@ -1,64 +1,88 @@
-# Matrix Platform
+# Matrix Platform — Surf Chat
 
-Corporate Matrix platform for Surf Chat.
+Корпоративный мессенджер на базе [Matrix](https://matrix.org) (Synapse) для Surf Coffee:
+веб-клиент, доменные пакеты поверх matrix-js-sdk, сервисы выдачи доступов
+(Keycloak → Matrix) и инфраструктура развёртывания.
 
-This repository is the clean v2 workspace for:
+Монорепозиторий на pnpm workspaces (Node 24, pnpm 10).
 
-- Surf Chat web client
-- Matrix integration packages
-- Access mapping services
-- Deployment infrastructure
-- Architecture and operational documentation
-
-## Structure
+## Структура
 
 ```txt
 apps/
-  surf-chat-web/          User-facing Matrix web client (React + Vite)
+  surf-chat-web/            Веб-клиент (React + Vite + react-virtuoso) → chat.foxhound.run
 packages/
-  matrix-core/            Matrix SDK wrapper and domain operations
-  ui/                     Shared UI primitives
-services/                 Access-mapping services (Keycloak ↔ Matrix) — planned, stubs only
-  mapping-api/            API for Keycloak group to Matrix target rules
-  matrix-keycloak-sync/   Sync service applying access rules to Matrix
-infra/                    Deployment infrastructure
-  foxhound/               Current VPS runtime manifests (mirrors the live VPS)
-  docker/  k8s/  synapse/  (planned)
+  matrix-core/              Обёртка matrix-js-sdk и доменные операции
+  ui/                       Общие UI-примитивы
+services/
+  mapping-api/              FastAPI: правила доступа (Keycloak-группа → спейс/канал + роль)
+  matrix-keycloak-sync/     Python-синк: применяет правила и членство в Matrix
+infra/
+  foxhound/                 Манифесты боевого VPS (docker-compose, Caddyfile)
 docs/
-  architecture.md         Architecture overview
-  migration-plan.md       Rebuild-from-donor plan
-  DECISIONS.md            Engineering decision log (problem → cause → fix)
-  decisions/              Architecture Decision Records (ADRs)
+  architecture.md           Обзор архитектуры
+  access-mapping-design.md  Дизайн фичи «Доступы»
+  foxhound-infrastructure.md Раскладка VPS и деплой
+  audit-sprints.md          Аудит безопасности/инфры (P0 + backlog)
+  DECISIONS.md, decisions/  Журнал инженерных решений и ADR
 scripts/
-  verify.sh               lint + typecheck + test + build
+  verify.sh                 lint + typecheck + test + build
 ```
 
-## Getting started
+## Быстрый старт
 
-Requires pnpm and Node 24 (the version CI runs; 20+ should also work).
+Нужны Node 24 (версия CI; 20+ обычно тоже работает) и pnpm 10.
 
 ```sh
 pnpm install
-cp .env.example .env    # Vite reads env from the repo root (vite envDir: "../..")
+cp .env.example .env        # Vite читает env из корня репо (envDir: "../..")
 
-# Run the web client
+# Дев-сервер веб-клиента
 pnpm --filter surf-chat-web dev
 
-# Build the web client for production
+# Прод-сборка веб-клиента
 pnpm --filter surf-chat-web build
 ```
 
-`.env` sets `VITE_DEFAULT_HOMESERVER` (default Matrix homeserver shown on the
-login screen; users can still override it) and `VITE_APP_NAME`.
+`.env` задаёт `VITE_DEFAULT_HOMESERVER` (домашний сервер по умолчанию на экране
+входа; пользователь может переопределить) и `VITE_APP_NAME`. Все реальные секреты
+(`config.env`, `mapping-api.env`, `mapping.yaml`) живут **только на VPS** — в репо
+лежат лишь `*.example`.
 
-## Verifying
+## Сервисы доступов
 
-Run the full check (lint, typecheck, tests, build) before pushing:
+Поток выдачи доступов: админ на странице «Доступы» в чате матчит группу Keycloak
+со спейсами/каналами Matrix и ролью (power level):
 
-```sh
-pnpm verify    # or: scripts/verify.sh
+```
+Чат (вкладка «Доступы») → mapping-api (правила в БД) → matrix-keycloak-sync → Synapse
 ```
 
-Deployment of the web client to staging (chat.foxhound.run) is documented in
+- `services/mapping-api` — FastAPI + Postgres, CRUD правил, admin-гейт через Matrix
+  OpenID-токен + членство в Keycloak-группе `GR_chat_admin`. Развёрнут за
+  `chat.foxhound.run/api/mapping/*`.
+- `services/matrix-keycloak-sync` — синк членства и power level. Источник правил
+  переключается через `RULES_SOURCE` (`yaml` | `db`).
+
+Подробности — [docs/access-mapping-design.md](docs/access-mapping-design.md).
+
+## Проверка
+
+Перед пушем прогоняйте полный набор (lint, typecheck, тесты, сборка):
+
+```sh
+pnpm verify    # или: scripts/verify.sh
+```
+
+## Развёртывание
+
+Веб-клиент раздаётся Caddy как статика на боевом VPS (`chat.foxhound.run`).
+Сервисы доступов крутятся в docker-стеке `synapse-test` рядом с Synapse, Postgres
+и Caddy. Полная раскладка VPS, домены и процедура деплоя —
 [docs/foxhound-infrastructure.md](docs/foxhound-infrastructure.md).
 
+## Репозитории
+
+Основной remote — корпоративный GitLab (`origin`):
+`gitlab.surfcoffee.ru/o.ananevsky/matrix-platform`. GitHub
+(`Kaverman20/matrix-platform`) оставлен запасной зеркалкой.
