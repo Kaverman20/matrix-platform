@@ -1,6 +1,10 @@
 import type { ReactNode } from "react";
 import type { SurfPreferences } from "../../app/providers/usePreferences";
 import { usePreferences } from "../../app/providers/usePreferences";
+import {
+  primeNotificationSound,
+  playNotificationSound,
+} from "../../app/sounds/notificationSound";
 
 type BoolKey = {
   [K in keyof SurfPreferences]: SurfPreferences[K] extends boolean ? K : never;
@@ -45,6 +49,48 @@ export function PreferencesTab() {
           "notificationSound",
           "Звук при новом сообщении",
           "Кроме открытого чата, когда вкладка активна",
+        )}
+        {preferences.notificationSound && (
+          <div className="settings-row">
+            <div className="settings-row__text">
+              <span className="settings-row__label">Громкость уведомления</span>
+              <span className="settings-row__hint">
+                {Math.round(preferences.notificationVolume * 100)}%
+              </span>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <input
+                type="range"
+                min={0}
+                max={1}
+                step={0.05}
+                value={preferences.notificationVolume}
+                aria-label="Громкость уведомления"
+                onChange={(event) =>
+                  setPreference("notificationVolume", Number(event.target.value))
+                }
+              />
+              <button
+                type="button"
+                style={{
+                  padding: "4px 12px",
+                  fontSize: 13,
+                  borderRadius: 8,
+                  border: "1px solid var(--color-border)",
+                  background: "var(--color-bg-subtle)",
+                  color: "var(--color-text)",
+                  cursor: "pointer",
+                }}
+                onClick={() => {
+                  // Первый клик заодно разблокирует аудио (autoplay-политика).
+                  primeNotificationSound();
+                  playNotificationSound(preferences.notificationVolume);
+                }}
+              >
+                Проверить
+              </button>
+            </div>
+          </div>
         )}
       </div>
     </div>

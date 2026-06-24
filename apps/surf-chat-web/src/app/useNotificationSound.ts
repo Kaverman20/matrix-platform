@@ -12,6 +12,8 @@ const COOLDOWN_MS = 1500;
 type Options = {
   client: MatrixClient | null;
   enabled: boolean;
+  /** Громкость 0..1. */
+  volume: number;
   /** Currently open room — we stay quiet for it when the tab is focused. */
   activeRoomId: string | null;
 };
@@ -21,10 +23,11 @@ type Options = {
  * silent for the open room while the tab is focused (you can already see it),
  * but still chimes for background rooms or when the tab is hidden.
  */
-export function useNotificationSound({ client, enabled, activeRoomId }: Options): void {
+export function useNotificationSound({ client, enabled, volume, activeRoomId }: Options): void {
   // Hold mutable inputs in refs so the subscription effect doesn't re-run (and
   // re-attach SDK listeners) on every room switch or toggle flip.
   const enabledRef = useRef(enabled);
+  const volumeRef = useRef(volume);
   const activeRoomIdRef = useRef(activeRoomId);
   const lastPlayedRef = useRef(0);
   // Синхронизируем рефы в эффекте, а не во время рендера (правило React Compiler:
@@ -32,6 +35,7 @@ export function useNotificationSound({ client, enabled, activeRoomId }: Options)
   // рендера; к моменту SDK-колбэка значения уже актуальны.
   useEffect(() => {
     enabledRef.current = enabled;
+    volumeRef.current = volume;
     activeRoomIdRef.current = activeRoomId;
   });
 
@@ -60,7 +64,7 @@ export function useNotificationSound({ client, enabled, activeRoomId }: Options)
       const now = Date.now();
       if (now - lastPlayedRef.current < COOLDOWN_MS) return;
       lastPlayedRef.current = now;
-      playNotificationSound();
+      playNotificationSound(volumeRef.current);
     });
   }, [client]);
 }

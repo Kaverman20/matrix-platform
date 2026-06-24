@@ -36,17 +36,19 @@ export function primeNotificationSound(): void {
   void audio.resume().catch(() => undefined);
 }
 
-/** Play a short two-tone notification blip. No-op if audio isn't unlocked. */
-export function playNotificationSound(): void {
+/**
+ * Play a short two-tone notification blip. No-op if audio isn't unlocked.
+ * @param volume Общая громкость 0..1 (по умолчанию 0.5).
+ */
+export function playNotificationSound(volume = 0.5): void {
   const audio = ctx;
   if (!audio || audio.state !== "running") return;
 
   const now = audio.currentTime;
   const master = audio.createGain();
   // Общая громкость блипа. Каждый тон ниже имеет свою attack/decay-огибающую,
-  // так что мастеру огибающая не нужна — это просто уровень. (Был баг: стоял
-  // 0.0001 как у стартовых точек огибающих → звук получался почти неслышным.)
-  master.gain.value = 0.5;
+  // так что мастеру огибающая не нужна — это просто уровень.
+  master.gain.value = Math.max(0, Math.min(1, volume));
   master.connect(audio.destination);
 
   // Two quick rising tones — recognizable, not jarring.

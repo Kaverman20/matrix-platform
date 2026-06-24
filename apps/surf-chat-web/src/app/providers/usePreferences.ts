@@ -19,6 +19,8 @@ export type SurfPreferences = {
   showTypingIndicator: boolean;
   showReadReceipts: boolean;
   notificationSound: boolean;
+  /** Громкость звука уведомления, 0..1. */
+  notificationVolume: number;
 };
 
 const STORAGE_KEY = "surf-chat:preferences";
@@ -32,6 +34,7 @@ const DEFAULTS: SurfPreferences = {
   showTypingIndicator: true,
   showReadReceipts: true,
   notificationSound: true,
+  notificationVolume: 0.5,
 };
 
 /** Read prefs from localStorage, merging over defaults and folding in the old

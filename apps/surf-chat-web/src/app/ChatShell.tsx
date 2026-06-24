@@ -148,6 +148,7 @@ export function ChatShell() {
   useNotificationSound({
     client,
     enabled: preferences.notificationSound,
+    volume: preferences.notificationVolume,
     activeRoomId,
   });
   const roomListLayout = useRoomListLayout();
