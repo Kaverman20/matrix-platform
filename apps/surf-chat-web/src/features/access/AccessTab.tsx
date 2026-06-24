@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useState } from "react";
-import { Key, Plus, RefreshCw, ShieldCheck, Trash2 } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Key, Layers, Plus, RefreshCw, Search, ShieldCheck, Trash2, Users } from "lucide-react";
 import { useMatrix } from "../../app/providers/MatrixContext";
+import { SearchSelect } from "./SearchSelect";
 import {
   accessApi,
   type AccessRole,
@@ -9,7 +10,13 @@ import {
   type Rule,
   type SyncStatus,
 } from "./accessApi";
+import "./access.css";
 
+const ROLES: { value: AccessRole; label: string }[] = [
+  { value: "user", label: "Участник" },
+  { value: "moderator", label: "Модератор" },
+  { value: "admin", label: "Админ" },
+];
 const ROLE_LABEL: Record<AccessRole, string> = {
   user: "Участник",
   moderator: "Модератор",
@@ -26,10 +33,11 @@ export function AccessTab() {
   const [rules, setRules] = useState<Rule[]>([]);
   const [status, setStatus] = useState<SyncStatus | null>(null);
 
-  // Форма добавления правила.
+  // Форма правила.
   const [groupPath, setGroupPath] = useState("");
   const [spaceIds, setSpaceIds] = useState<string[]>([]);
   const [role, setRole] = useState<AccessRole>("user");
+  const [spaceQuery, setSpaceQuery] = useState("");
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -51,7 +59,6 @@ export function AccessTab() {
 
   useEffect(() => {
     let cancelled = false;
-    // async-IIFE: setState не синхронно в теле эффекта (правило React Compiler).
     void (async () => {
       if (!client) {
         if (!cancelled) {
@@ -85,6 +92,17 @@ export function AccessTab() {
     };
   }, [client]);
 
+  const groupOptions = useMemo(
+    () => groups.map((g) => ({ value: g.path, label: g.path })),
+    [groups],
+  );
+  const filteredSpaces = useMemo(() => {
+    const q = spaceQuery.trim().toLowerCase();
+    return q
+      ? spaces.filter((s) => (s.name || s.room_id).toLowerCase().includes(q))
+      : spaces;
+  }, [spaces, spaceQuery]);
+
   const toggleSpace = (id: string) =>
     setSpaceIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
 
@@ -108,6 +126,7 @@ export function AccessTab() {
       setGroupPath("");
       setSpaceIds([]);
       setRole("user");
+      setSpaceQuery("");
       await refreshRules();
     } catch (e) {
       setFormError(e instanceof Error ? e.message : "Не удалось сохранить");
@@ -129,13 +148,18 @@ export function AccessTab() {
   const createSpace = async () => {
     if (!client || !spaceName.trim()) return;
     setCreating(true);
+    setFormError(null);
     try {
       const channels = channelsText
         .split(/[\n,]/)
         .map((s) => s.trim())
         .filter(Boolean)
         .map((name) => ({ name, is_private: !spacePublic }));
-      await accessApi.createSpace(client, { name: spaceName.trim(), is_public: spacePublic, channels });
+      await accessApi.createSpace(client, {
+        name: spaceName.trim(),
+        is_public: spacePublic,
+        channels,
+      });
       setSpaceName("");
       setChannelsText("");
       setSpacePublic(false);
@@ -162,226 +186,152 @@ export function AccessTab() {
   };
 
   return (
-    <div className="settings-tab">
-      <h2 className="settings-tab__title" style={{ display: "flex", alignItems: "center", gap: 10 }}>
-        <Key size={20} />
+    <div className="settings-tab access-tab">
+      <h2 className="settings-tab__title">
+        <Key size={20} style={{ verticalAlign: "-3px", marginRight: 8 }} />
         Доступы
-        <span
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 4,
-            fontSize: 12,
-            color: "var(--color-text-muted)",
-            border: "1px solid var(--color-border)",
-            borderRadius: 8,
-            padding: "2px 8px",
-          }}
-        >
+        <span className="access-tab__badge" style={{ marginLeft: 10 }}>
           <ShieldCheck size={12} /> только админ
         </span>
       </h2>
 
-      {loading && <p style={{ color: "var(--color-text-muted)" }}>Загрузка…</p>}
-
-      {loadError && !loading && (
-        <p style={{ color: "var(--color-danger, #c0392b)" }}>{loadError}</p>
-      )}
+      {loading && <p className="access-muted">Загрузка…</p>}
+      {loadError && !loading && <p className="access-error">{loadError}</p>}
 
       {!loading && !loadError && (
         <>
           {/* Добавить правило */}
-          <div
-            style={{
-              border: "1px solid var(--color-border)",
-              borderRadius: 12,
-              padding: 16,
-              marginBottom: 18,
-            }}
-          >
-            <p style={{ fontWeight: 500, margin: "0 0 12px" }}>Добавить правило</p>
+          <section className="access-card">
+            <div className="access-card__title">Добавить правило</div>
 
-            <label style={{ display: "block", fontSize: 13, color: "var(--color-text-muted)" }}>
-              Группа Keycloak
-              <select
+            <div className="settings-field">
+              <label className="settings-field__label">Группа Keycloak</label>
+              <SearchSelect
                 value={groupPath}
-                onChange={(e) => setGroupPath(e.target.value)}
-                style={{ display: "block", width: "100%", maxWidth: 360, marginTop: 4 }}
-              >
-                <option value="">— выберите группу —</option>
-                {groups.map((g) => (
-                  <option key={g.id} value={g.path}>
-                    {g.path}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <p style={{ fontSize: 13, color: "var(--color-text-muted)", margin: "12px 0 6px" }}>
-              Спейсы
-            </p>
-            <div
-              style={{
-                border: "1px solid var(--color-border)",
-                borderRadius: 8,
-                maxHeight: 200,
-                overflow: "auto",
-              }}
-            >
-              {spaces.length === 0 && (
-                <p style={{ padding: 10, margin: 0, color: "var(--color-text-muted)", fontSize: 13 }}>
-                  Спейсов нет — создайте ниже.
-                </p>
-              )}
-              {spaces.map((s) => (
-                <label
-                  key={s.room_id}
-                  style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", fontSize: 14 }}
-                >
-                  <input
-                    type="checkbox"
-                    checked={spaceIds.includes(s.room_id)}
-                    onChange={() => toggleSpace(s.room_id)}
-                  />
-                  {s.name || s.room_id}
-                </label>
-              ))}
+                options={groupOptions}
+                onChange={setGroupPath}
+                placeholder="— выберите группу —"
+                searchPlaceholder="Поиск группы…"
+                ariaLabel="Группа Keycloak"
+              />
             </div>
 
-            <div style={{ display: "flex", alignItems: "flex-end", gap: 12, marginTop: 12, flexWrap: "wrap" }}>
-              <label style={{ fontSize: 13, color: "var(--color-text-muted)" }}>
-                Роль
-                <select
-                  value={role}
-                  onChange={(e) => setRole(e.target.value as AccessRole)}
-                  style={{ display: "block", marginTop: 4 }}
-                >
-                  <option value="user">Участник</option>
-                  <option value="moderator">Модератор</option>
-                  <option value="admin">Админ</option>
-                </select>
+            <div className="settings-field">
+              <label className="settings-field__label">
+                Спейсы{spaceIds.length > 0 ? ` · выбрано ${spaceIds.length}` : ""}
               </label>
+              <div className="access-spaces">
+                <div className="access-search">
+                  <Search size={15} />
+                  <input
+                    value={spaceQuery}
+                    onChange={(e) => setSpaceQuery(e.target.value)}
+                    placeholder="Поиск спейса…"
+                    aria-label="Поиск спейса"
+                  />
+                </div>
+                <div className="access-spaces__list">
+                  {filteredSpaces.length === 0 && (
+                    <div className="access-spaces__empty">
+                      {spaces.length === 0 ? "Спейсов нет — создайте ниже." : "Ничего не найдено."}
+                    </div>
+                  )}
+                  {filteredSpaces.map((s) => (
+                    <label key={s.room_id} className="access-spaces__row">
+                      <input
+                        type="checkbox"
+                        checked={spaceIds.includes(s.room_id)}
+                        onChange={() => toggleSpace(s.room_id)}
+                      />
+                      <Layers size={15} style={{ color: "var(--color-text-muted)", flex: "none" }} />
+                      <span className="access-spaces__name">{s.name || s.room_id}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="settings-field">
+              <label className="settings-field__label">Роль</label>
+              <div className="access-roles">
+                {ROLES.map((r) => (
+                  <button
+                    key={r.value}
+                    type="button"
+                    className={role === r.value ? "is-active" : undefined}
+                    onClick={() => setRole(r.value)}
+                  >
+                    {r.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="access-actions">
               <button
                 type="button"
+                className="surf-btn surf-btn--primary"
                 disabled={saving}
                 onClick={saveRule}
-                style={{
-                  padding: "8px 16px",
-                  borderRadius: 8,
-                  border: "none",
-                  background: "var(--color-text)",
-                  color: "var(--color-bg)",
-                  cursor: "pointer",
-                }}
               >
                 {saving ? "Сохраняю…" : "Сохранить правило"}
               </button>
-              {formError && <span style={{ color: "var(--color-danger, #c0392b)", fontSize: 13 }}>{formError}</span>}
+              {formError && <span className="access-error">{formError}</span>}
             </div>
-          </div>
+          </section>
 
           {/* Список правил */}
-          <p style={{ fontWeight: 500, margin: "0 0 10px" }}>Правила доступа</p>
-          {rules.length === 0 && (
-            <p style={{ color: "var(--color-text-muted)", fontSize: 14 }}>Правил пока нет.</p>
-          )}
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {rules.map((rule) => (
-              <div
-                key={rule.id}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 10,
-                  flexWrap: "wrap",
-                  border: "1px solid var(--color-border)",
-                  borderRadius: 8,
-                  padding: "10px 12px",
-                }}
-              >
-                <span style={{ fontSize: 13, color: "var(--color-text-muted)" }}>{rule.keycloak_group}</span>
-                <span style={{ color: "var(--color-text-muted)" }}>→</span>
-                {rule.targets.map((t) => (
-                  <span
-                    key={t.matrix_id}
-                    style={{
-                      fontSize: 12,
-                      background: "var(--color-bg-subtle)",
-                      borderRadius: 8,
-                      padding: "3px 9px",
-                    }}
-                  >
-                    {t.display_name || t.matrix_id} · {ROLE_LABEL[t.role] ?? t.role}
-                  </span>
+          <section>
+            <div className="access-section__title" style={{ marginBottom: "var(--space-3)" }}>
+              Правила доступа
+            </div>
+            {rules.length === 0 ? (
+              <p className="access-muted">Правил пока нет.</p>
+            ) : (
+              <div className="access-rules">
+                {rules.map((rule) => (
+                  <div key={rule.id} className="access-rule">
+                    <span className="access-rule__group">
+                      <Users size={14} /> {rule.keycloak_group}
+                    </span>
+                    <span className="access-rule__arrow">→</span>
+                    {rule.targets.map((t) => (
+                      <span key={t.matrix_id} className="access-chip">
+                        <Layers size={12} />
+                        {t.display_name || t.matrix_id} · {ROLE_LABEL[t.role] ?? t.role}
+                      </span>
+                    ))}
+                    <button
+                      type="button"
+                      className="surf-btn surf-btn--ghost access-rule__del"
+                      aria-label="Удалить правило"
+                      onClick={() => removeRule(rule.id)}
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
                 ))}
-                <button
-                  type="button"
-                  aria-label="Удалить правило"
-                  onClick={() => removeRule(rule.id)}
-                  style={{
-                    marginLeft: "auto",
-                    border: "none",
-                    background: "transparent",
-                    color: "var(--color-text-muted)",
-                    cursor: "pointer",
-                  }}
-                >
-                  <Trash2 size={16} />
-                </button>
               </div>
-            ))}
-          </div>
+            )}
+          </section>
 
           {/* Создание спейса + применить */}
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 12,
-              flexWrap: "wrap",
-              borderTop: "1px solid var(--color-border)",
-              marginTop: 18,
-              paddingTop: 16,
-            }}
-          >
+          <div className="access-footer">
             <button
               type="button"
+              className="surf-btn surf-btn--secondary"
               onClick={() => setShowCreate((v) => !v)}
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 6,
-                padding: "6px 12px",
-                borderRadius: 8,
-                border: "1px solid var(--color-border)",
-                background: "var(--color-bg-subtle)",
-                color: "var(--color-text)",
-                cursor: "pointer",
-              }}
             >
               <Plus size={16} /> Создать спейс
             </button>
-            <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 12 }}>
-              {status && (
-                <span style={{ fontSize: 12, color: "var(--color-text-muted)" }}>
-                  синк: {status.status}
-                </span>
-              )}
+            <span className="access-hint">создаётся от @sync-bot</span>
+            <div className="access-footer__right">
+              {status && <span className="access-hint">синк: {status.status}</span>}
               <button
                 type="button"
+                className="surf-btn surf-btn--secondary"
                 disabled={applying}
                 onClick={applyNow}
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: 6,
-                  padding: "6px 12px",
-                  borderRadius: 8,
-                  border: "1px solid var(--color-border)",
-                  background: "var(--color-bg-subtle)",
-                  color: "var(--color-text)",
-                  cursor: "pointer",
-                }}
               >
                 <RefreshCw size={16} /> {applying ? "Запускаю…" : "Применить сейчас"}
               </button>
@@ -389,55 +339,47 @@ export function AccessTab() {
           </div>
 
           {showCreate && (
-            <div
-              style={{
-                border: "1px solid var(--color-border)",
-                borderRadius: 12,
-                padding: 16,
-                marginTop: 12,
-              }}
-            >
-              <label style={{ display: "block", fontSize: 13, color: "var(--color-text-muted)" }}>
-                Название спейса
+            <section className="access-card">
+              <div className="settings-field">
+                <label className="settings-field__label">Название спейса</label>
                 <input
+                  className="surf-input"
                   value={spaceName}
                   onChange={(e) => setSpaceName(e.target.value)}
-                  style={{ display: "block", width: "100%", maxWidth: 360, marginTop: 4 }}
+                  placeholder="Например, Отдел продаж"
                 />
-              </label>
-              <label style={{ display: "block", fontSize: 13, color: "var(--color-text-muted)", marginTop: 10 }}>
-                Каналы (через запятую или с новой строки)
+              </div>
+              <div className="settings-field">
+                <label className="settings-field__label">Каналы (через запятую или с новой строки)</label>
                 <textarea
+                  className="surf-input"
+                  style={{ height: "auto", minHeight: 72, padding: "10px 12px", resize: "vertical" }}
+                  rows={3}
                   value={channelsText}
                   onChange={(e) => setChannelsText(e.target.value)}
-                  rows={3}
-                  style={{ display: "block", width: "100%", maxWidth: 360, marginTop: 4 }}
+                  placeholder="general, анонсы, поддержка"
                 />
-              </label>
-              <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10, fontSize: 14 }}>
-                <input type="checkbox" checked={spacePublic} onChange={(e) => setSpacePublic(e.target.checked)} />
+              </div>
+              <label className="access-spaces__row" style={{ padding: 0 }}>
+                <input
+                  type="checkbox"
+                  checked={spacePublic}
+                  onChange={(e) => setSpacePublic(e.target.checked)}
+                />
                 Публичный спейс
               </label>
-              <button
-                type="button"
-                disabled={creating || !spaceName.trim()}
-                onClick={createSpace}
-                style={{
-                  marginTop: 12,
-                  padding: "8px 16px",
-                  borderRadius: 8,
-                  border: "none",
-                  background: "var(--color-text)",
-                  color: "var(--color-bg)",
-                  cursor: "pointer",
-                }}
-              >
-                {creating ? "Создаю…" : "Создать (ботом)"}
-              </button>
-              <span style={{ marginLeft: 10, fontSize: 12, color: "var(--color-text-muted)" }}>
-                Создаётся от @sync-bot
-              </span>
-            </div>
+              <div className="access-actions">
+                <button
+                  type="button"
+                  className="surf-btn surf-btn--primary"
+                  disabled={creating || !spaceName.trim()}
+                  onClick={createSpace}
+                >
+                  {creating ? "Создаю…" : "Создать (ботом)"}
+                </button>
+                <span className="access-hint">Создаётся от @sync-bot</span>
+              </div>
+            </section>
           )}
         </>
       )}
