@@ -74,7 +74,13 @@ mapping-api (FastAPI, сервер — сейчас заглушка services/ma
 
 Проверено сквозь реальные сервисы: admin-гейт (Keycloak `GR_chat_admin`), список групп/спейсов, CRUD правил (create/list/delete). НЕ протестировано вживую: создание спейса ботом, «Применить сейчас» (синк всё ещё на YAML, `RULES_SOURCE=yaml`).
 
-Осталось для Фазы 2 на проде: пересобрать sync с `psycopg`, `--import-yaml`, dry-run сверка, `RULES_SOURCE=db`.
+### Фаза 2 на проде — выполнена (июнь 2026)
+- Синк (`matrix-keycloak-sync`) пересобран с `psycopg`, подключён к сети `synapse-test_default` (внешняя сеть `dbnet`), `DATABASE_URL=...@postgres:5432/mapping`.
+- `--import-yaml`: текущий `mapping.yaml` (1 правило, 3 таргета) перенесён в БД.
+- Dry-run сверка YAML vs БД — **идентична** (0 add/remove, steady state).
+- `RULES_SOURCE=db` включён. Прогон пишет `sync_log` (status=done), правила со страницы реально применяются.
+- Известное (не от Фазы 2): шаг gate-деактивации (`GATE_GROUP=/GR_chat_user`) медленный — перебирает всех Keycloak-юзеров (~6 мин/цикл при `SYNC_INTERVAL=30`). Можно оптимизировать отдельно.
+- TODO-косметика: `--import-yaml`/создание правил не проставляют `display_name` таргетам → в списке правил комнаты показываются по id.
 
 ## Грубая оценка
 - mapping-api (auth + CRUD + create-space + sync-trigger): ~основная часть работы.

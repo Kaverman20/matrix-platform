@@ -14,12 +14,14 @@ services:
         max-size: "10m"
         max-file: "3"
 
-    # If Synapse/Keycloak are on an external Docker network, enable this block.
-    # networks:
-    #   - matrix-net
+    # dbnet — внешняя сеть стека synapse-test, чтобы при RULES_SOURCE=db достучаться
+    # до postgres (DATABASE_URL=...@postgres:5432/mapping). В YAML-режиме не нужна.
+    networks:
+      - default
+      - dbnet
 
-# networks:
-#   matrix-net:
-#     external: true
-#     name: synapse_default
+networks:
+  dbnet:
+    external: true
+    name: synapse-test_default
 
