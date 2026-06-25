@@ -75,6 +75,27 @@ export function MatrixProvider({ children }: Props) {
     [resetToLogin],
   );
 
+  // Завершение SSO-входа по loginToken — общая логика для веба (токен в URL) и
+  // десктопа (токен приходит из системного браузера через loopback-колбэк).
+  const completeSsoLogin = useCallback(
+    async (loginToken: string) => {
+      const homeserver =
+        window.localStorage.getItem(DEFAULT_SSO_HOMESERVER_STORAGE_KEY) ??
+        DEFAULT_HOMESERVER;
+      setStatus("connecting");
+      setError(null);
+      try {
+        const session = await loginWithLoginToken(homeserver, loginToken);
+        saveMatrixSession(window.localStorage, session);
+        await boot(session);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : String(e));
+        setStatus("anonymous");
+      }
+    },
+    [boot],
+  );
+
   useEffect(() => {
     if (startedRef.current) return;
     startedRef.current = true;
@@ -91,25 +112,24 @@ export function MatrixProvider({ children }: Props) {
           document.title,
           `${window.location.pathname}${search ? `?${search}` : ""}${window.location.hash}`,
         );
-        const homeserver =
-          window.localStorage.getItem(DEFAULT_SSO_HOMESERVER_STORAGE_KEY) ??
-          DEFAULT_HOMESERVER;
-
-        try {
-          const session = await loginWithLoginToken(homeserver, loginToken);
-          saveMatrixSession(window.localStorage, session);
-          await boot(session);
-        } catch (e) {
-          setError(e instanceof Error ? e.message : String(e));
-          setStatus("anonymous");
-        }
+        await completeSsoLogin(loginToken);
         return;
       }
 
       const savedSession = loadMatrixSession(window.localStorage);
       if (savedSession) await boot(savedSession);
     })();
-  }, [boot]);
+  }, [boot, completeSsoLogin]);
+
+  // Десктоп: SSO-токен возвращается не в URL, а через мост из main-процесса
+  // (системный браузер → loopback http://127.0.0.1 → IPC).
+  useEffect(() => {
+    const bridge = window.surfDesktop;
+    if (!bridge) return;
+    return bridge.onSsoCallback(({ loginToken }) => {
+      void completeSsoLogin(loginToken);
+    });
+  }, [completeSsoLogin]);
 
   const loginPassword = useCallback(
     async (homeserver: string, user: string, password: string) => {
@@ -146,9 +166,19 @@ export function MatrixProvider({ children }: Props) {
   const loginSso = useCallback(async (homeserver: string, idpId: string | null) => {
     try {
       window.localStorage.setItem(DEFAULT_SSO_HOMESERVER_STORAGE_KEY, homeserver);
-      const redirectUrl = `${window.location.origin}/`;
-      const url = await buildSsoRedirectUrl(homeserver, idpId, redirectUrl);
-      window.location.assign(url);
+      const bridge = window.surfDesktop;
+      if (bridge) {
+        // Десктоп: redirectUrl — loopback http://127.0.0.1 со state (его выдаёт
+        // main), логин открываем в системном браузере, токен вернётся в main.
+        const redirectUrl = await bridge.beginSso();
+        const url = await buildSsoRedirectUrl(homeserver, idpId, redirectUrl);
+        await bridge.openSso(url);
+      } else {
+        // Веб: возврат на свой origin, навигация в том же окне.
+        const redirectUrl = `${window.location.origin}/`;
+        const url = await buildSsoRedirectUrl(homeserver, idpId, redirectUrl);
+        window.location.assign(url);
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
       setStatus("anonymous");

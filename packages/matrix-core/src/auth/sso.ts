@@ -3,6 +3,11 @@ import { DEFAULT_DEVICE_DISPLAY_NAME } from "../constants";
 import { resolveBaseUrl } from "../discovery/resolveBaseUrl";
 import type { LoginOptions, LoginResult, SsoIdentityProvider } from "./types";
 
+// Разрешённые схемы redirectUrl для SSO. Только http(s): веб отдаёт свой origin,
+// десктоп — loopback http://127.0.0.1 (RFC 8252), куда токен принимает локальный
+// сервер самой оболочки. Custom-схемы запрещены (перехватываемы другими прилож.).
+const ALLOWED_SSO_REDIRECT_SCHEMES = new Set(["https:", "http:"]);
+
 type LoginFlowResponse = {
   flows?: Array<{
     type?: string;
@@ -38,14 +43,15 @@ export async function buildSsoRedirectUrl(
 ): Promise<string> {
   // The homeserver receives redirectUrl and sends the loginToken back to it,
   // so an attacker-controlled value is an open-redirect / token-theft vector.
-  // Require a plain http(s) URL; callers should pass their own origin.
+  // Allow только plain http(s) (веб отдаёт свой origin) и нашу фиксированную
+  // схему десктоп-оболочки surfchat:// (deep-link возврата токена в Electron).
   let parsedRedirect: URL;
   try {
     parsedRedirect = new URL(redirectUrl);
   } catch {
     throw new Error(`Invalid SSO redirectUrl: ${redirectUrl}`);
   }
-  if (parsedRedirect.protocol !== "https:" && parsedRedirect.protocol !== "http:") {
+  if (!ALLOWED_SSO_REDIRECT_SCHEMES.has(parsedRedirect.protocol)) {
     throw new Error(`Unsupported SSO redirectUrl scheme: ${parsedRedirect.protocol}`);
   }
 

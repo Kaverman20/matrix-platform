@@ -4,14 +4,28 @@
 // стабильный secure-origin (нужен для WebCrypto/E2EE), изолированное хранилище и
 // корректная работа CSP — в отличие от хрупкого file://.
 
-const { app, BrowserWindow, shell, protocol, net, session } = require("electron");
+const { app, BrowserWindow, shell, protocol, net, session, ipcMain } = require("electron");
 const path = require("node:path");
 const fs = require("node:fs");
+const http = require("node:http");
+const crypto = require("node:crypto");
 const { pathToFileURL } = require("node:url");
 
 // Каталог собранного веба. __dirname = apps/surf-chat-desktop/src
 const WEB_DIST = path.resolve(__dirname, "..", "..", "surf-chat-web", "dist");
 const APP_ORIGIN = "app://surfchat";
+
+// SSO-возврат через loopback (RFC 8252): локальный http-сервер на 127.0.0.1
+// принимает loginToken после логина в системном браузере. Custom-схему не
+// используем — её может перехватить чужое приложение в ОС.
+const SSO_LOOPBACK_PORT = 17656; // фиксирован, прописан в client_whitelist Synapse
+const SSO_CALLBACK_PATH = "/auth-callback";
+const SSO_TIMEOUT_MS = 5 * 60 * 1000; // дольше держать слушающий порт не нужно
+
+let mainWindow = null;
+let ssoServer = null;
+let ssoExpectedState = null;
+let ssoTimeout = null;
 
 // Схему регистрируем как привилегированную ДО app.ready: standard + secure даёт
 // нормальный origin (secure context), supportFetchAPI — работу fetch/WebCrypto.
@@ -65,7 +79,115 @@ function createWindow() {
   // Загружаем веб из локальной сборки через app://.
   void win.loadURL(`${APP_ORIGIN}/`);
 
+  mainWindow = win;
   return win;
+}
+
+// Поднимаем окно на передний план при возврате из браузера.
+function focusMainWindow() {
+  if (!mainWindow) return;
+  if (mainWindow.isMinimized()) mainWindow.restore();
+  mainWindow.show();
+  mainWindow.focus();
+}
+
+// Простая HTML-страница, которую видит пользователь в браузере после возврата.
+function ssoResultPage(message) {
+  return `<!doctype html><html lang="ru"><head><meta charset="utf-8">
+<title>Surf Chat</title></head>
+<body style="font-family:system-ui;background:#f4ece2;color:#2b2b2b;display:flex;
+min-height:100vh;align-items:center;justify-content:center;margin:0">
+<div style="text-align:center"><h2>Surf Chat</h2><p>${message}</p></div>
+</body></html>`;
+}
+
+// Останавливаем loopback-сервер и забываем ожидаемый state.
+function closeSsoServer() {
+  if (ssoTimeout) {
+    clearTimeout(ssoTimeout);
+    ssoTimeout = null;
+  }
+  if (ssoServer) {
+    ssoServer.close();
+    ssoServer = null;
+  }
+  ssoExpectedState = null;
+}
+
+// Запускаем loopback-сервер на 127.0.0.1 и возвращаем redirectUrl со свежим
+// state. Synapse дополнит его параметром loginToken и отправит сюда после входа.
+function beginSso() {
+  return new Promise((resolve, reject) => {
+    closeSsoServer();
+    ssoExpectedState = crypto.randomBytes(16).toString("hex");
+
+    ssoServer = http.createServer((req, res) => {
+      const reqUrl = new URL(req.url, `http://127.0.0.1:${SSO_LOOPBACK_PORT}`);
+      if (reqUrl.pathname !== SSO_CALLBACK_PATH) {
+        res.writeHead(404);
+        res.end("Not found");
+        return;
+      }
+
+      const state = reqUrl.searchParams.get("state");
+      const loginToken = reqUrl.searchParams.get("loginToken");
+
+      // Защита от login-CSRF: принимаем токен только при совпадении state,
+      // который мы сами сгенерировали перед открытием браузера.
+      const ok = Boolean(state) && state === ssoExpectedState && Boolean(loginToken);
+
+      res.writeHead(ok ? 200 : 400, { "Content-Type": "text/html; charset=utf-8" });
+      res.end(
+        ssoResultPage(
+          ok
+            ? "Вход выполнен. Вернитесь в приложение Surf Chat — эту вкладку можно закрыть."
+            : "Не удалось завершить вход. Закройте вкладку и попробуйте снова.",
+        ),
+      );
+
+      if (ok) {
+        focusMainWindow();
+        mainWindow?.webContents.send("surf:sso-callback", { loginToken });
+        closeSsoServer();
+      }
+      // При невалидном запросе сервер НЕ закрываем: иначе сторонний GET с неверным
+      // state сорвал бы текущую попытку входа (DoS). Очистит таймаут SSO_TIMEOUT_MS.
+    });
+
+    ssoServer.on("error", (err) => {
+      closeSsoServer();
+      reject(err);
+    });
+
+    // Слушаем ТОЛЬКО loopback-интерфейс — порт недоступен из сети.
+    ssoServer.listen(SSO_LOOPBACK_PORT, "127.0.0.1", () => {
+      // Не держим открытый порт дольше необходимого.
+      ssoTimeout = setTimeout(closeSsoServer, SSO_TIMEOUT_MS);
+      resolve(
+        `http://127.0.0.1:${SSO_LOOPBACK_PORT}${SSO_CALLBACK_PATH}?state=${ssoExpectedState}`,
+      );
+    });
+  });
+}
+
+// IPC для SSO:
+//  - begin-sso: поднять loopback и выдать redirectUrl со state;
+//  - open-sso: открыть собранный SSO-URL в СИСТЕМНОМ браузере (только https).
+function setupSsoIpc() {
+  ipcMain.handle("surf:begin-sso", () => beginSso());
+
+  ipcMain.handle("surf:open-sso", (_event, rawUrl) => {
+    try {
+      const parsed = new URL(rawUrl);
+      if (parsed.protocol === "https:") {
+        void shell.openExternal(rawUrl);
+        return true;
+      }
+    } catch {
+      // невалидный URL
+    }
+    return false;
+  });
 }
 
 // Единые правила навигации/окон/webview для ВСЕХ web-contents (главное окно и
@@ -151,6 +273,7 @@ function registerAppProtocol() {
 app.whenReady().then(() => {
   hardenWebContents();
   setupPermissions();
+  setupSsoIpc();
   registerAppProtocol();
   createWindow();
 
@@ -167,3 +290,6 @@ app.on("window-all-closed", () => {
     app.quit();
   }
 });
+
+// Не оставляем висящий loopback-порт при выходе.
+app.on("before-quit", closeSsoServer);
