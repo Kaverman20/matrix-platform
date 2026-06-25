@@ -1,0 +1,15 @@
+{
+  "name": "@matrix-platform/surf-chat-desktop",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Десктоп-оболочка Surf Chat (Electron) — Windows / macOS",
+  "main": "src/main.cjs",
+  "scripts": {
+    "build:web": "pnpm --filter @matrix-platform/surf-chat-web build",
+    "dev": "pnpm run build:web && electron .",
+    "start": "electron ."
+  },
+  "devDependencies": {
+    "electron": "^38.0.0"
+  }
+}
